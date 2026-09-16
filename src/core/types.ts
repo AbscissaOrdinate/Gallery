@@ -177,6 +177,7 @@ export const VAULT = {
   schemasDir: "_schemas",
   presetsDir: "_presets",
   constraintsDir: "_constraints",
+  tablesDir: "_tables",
   exportsDir: "_exports",
   indexCsv: "_index.csv",
   assetsDir: "assets",

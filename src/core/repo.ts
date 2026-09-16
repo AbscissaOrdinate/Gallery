@@ -10,6 +10,8 @@ import { formatFromPath, parseRecordText, recordFilename, serializeRecord, typeF
 import { parseNoteOpml, serializeNoteOpml } from "./codec/opml";
 import { indexCsv, typeCsv } from "./codec/csv";
 import { derivedColumns } from "./astro/derive";
+import { loadTables, TableSet } from "./designer/tables";
+import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSelection, type ConstraintSet, type EffectiveConstraints } from "./designer/constraints";
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
 import { newId, nowIso, slugify } from "./ids";
@@ -23,6 +25,12 @@ export interface VaultStats {
 export class Repository {
   readonly registry = new Registry();
   config: VaultConfig = { ...DEFAULT_VAULT_CONFIG };
+  /** Reference tables from `_tables/` (§2.7). Empty until load(). */
+  tables = new TableSet();
+  /** Constraint sets from `_constraints/` (§2.8), plus the built-in default. */
+  constraintSets = new Map<string, ConstraintSet>();
+  /** Problems from the table and constraint loaders, surfaced beside record problems. */
+  designProblems: string[] = [];
   private byId = new Map<string, LoadedRecord>();
   private listeners = new Set<() => void>();
 
@@ -49,6 +57,8 @@ export class Repository {
     for (const t of this.registry.types()) await this.fs.mkdirAll(t.folder);
     await this.fs.mkdirAll(VAULT.assetsDir);
     await this.fs.mkdirAll(VAULT.constraintsDir);
+    await this.fs.mkdirAll(VAULT.tablesDir);
+    await seedConstraints(this.fs);
     await this.fs.mkdirAll(VAULT.exportsDir);
   }
 
@@ -65,6 +75,10 @@ export class Repository {
       this.config = { ...DEFAULT_VAULT_CONFIG };
     }
     await this.registry.load(this.fs);
+    this.tables = await loadTables(this.fs);
+    const constraints = await loadConstraints(this.fs);
+    this.constraintSets = constraints.sets;
+    this.designProblems = [...this.tables.problems, ...constraints.problems];
 
     const files = await walk(this.fs, "");
     const next = new Map<string, LoadedRecord>();
@@ -149,6 +163,14 @@ export class Repository {
       }
     }
     return out;
+  }
+
+  /**
+   * The constraint set a craft is judged by: base, then era, then faction, then
+   * bureau, each overriding the last (§2.8).
+   */
+  effectiveConstraints(selection: ConstraintSelection = {}): EffectiveConstraints {
+    return composeConstraints(this.constraintSets, selection);
   }
 
   search(q: string): LoadedRecord[] {
