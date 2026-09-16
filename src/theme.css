@@ -1,0 +1,87 @@
+/*
+ * Gallery theme — modelled on Claude Design's "Nocturne" system (dark, compact,
+ * single accent, outlined-not-filled primary actions, faded table rules,
+ * Inter, ~0.7× spacing) with the hue family swapped: the neutral ramp is
+ * navy-ink instead of violet-grey, and the accent ramp is rust orange instead
+ * of iris purple.
+ *
+ * Reference Nocturne values this was matched against (secondhand):
+ *   surface #232532 · surface-card-muted #292b31 · text #e9e9ed · muted #b2b6ca
+ *   accent #9184d9 · accent-700 #5d5294
+ *
+ * Edit this file to retune; components only use the semantic tokens below.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Navy neutral ramp (dark → light) */
+  --navy-950: #0f1220;
+  --navy-900: #141829;
+  --navy-800: #1a2033;
+  --navy-700: #222a3d;
+  --navy-600: #2c364c;
+  --navy-500: #3d4861;
+  --navy-400: #5b6780;
+  --navy-300: #8792a8;
+  --navy-200: #b3bccd;
+  --navy-100: #dde2ec;
+
+  /* Rust accent ramp (light → dark) */
+  --rust-100: #f9e7dc;
+  --rust-200: #f1c8b1;
+  --rust-300: #e6a684;
+  --rust-400: #d9865c;
+  --rust-500: #c9663a;
+  --rust-600: #a9532e;
+  --rust-700: #874325;
+  --rust-800: #64321c;
+  --rust-900: #402012;
+
+  /* Semantic */
+  --bg: var(--navy-900);
+  --surface: var(--navy-800);
+  --surface-2: var(--navy-700);
+  --surface-muted: #1e2536;
+  --line: #2e374b;
+  --line-faded: color-mix(in srgb, var(--line) 60%, transparent);
+  --line-strong: var(--navy-500);
+  --text: #e9e9ed;
+  --text-muted: #aeb4c6;
+  --text-faint: #7d879d;
+  --text-inverse: var(--navy-950);
+  --accent: var(--rust-500);
+  --accent-hover: var(--rust-400);
+  --accent-strong: var(--rust-300);
+  --accent-deep: var(--rust-700);
+  --accent-tint: color-mix(in srgb, var(--rust-500) 14%, transparent);
+  --accent-tint-2: color-mix(in srgb, var(--rust-500) 26%, transparent);
+  --selection: color-mix(in srgb, var(--rust-500) 18%, var(--navy-800));
+  --ok: #6fbf95;
+  --warn: #e0806f;
+  --focus: color-mix(in srgb, var(--rust-400) 55%, transparent);
+
+  /* Type */
+  --font-sans: "Inter Variable", Inter, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 20px;
+
+  /* Spacing (0.7× of an 8-pt base) */
+  --sp-1: 3px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 11px;
+  --sp-5: 14px;
+  --sp-6: 17px;
+  --sp-8: 22px;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --control-h: 28px;
+  --shadow: 0 8px 24px rgba(8, 10, 20, 0.45);
+}

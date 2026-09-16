@@ -1,0 +1,40 @@
+import { chromium } from "@playwright/test";
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const p = await b.newPage({ viewport: { width: 1380, height: 860 } });
+const errors = [];
+p.on("pageerror", e => errors.push("pageerror: " + e.message));
+p.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
+await p.goto("http://localhost:4173/");
+await p.getByText("Open the demo vault").click();
+await p.waitForSelector(".sidebar");
+await p.screenshot({ path: "screenshots/overview.png" });
+await p.getByText("Craft", { exact: true }).first().click();
+await p.getByText("Sword-of-State-class").first().click();
+await p.waitForSelector(".budget");
+await p.screenshot({ path: "screenshots/craft.png", fullPage: false });
+await p.evaluate(() => document.querySelector(".main").scrollTo(0, 900));
+await p.screenshot({ path: "screenshots/craft2.png" });
+await p.getByText("Note", { exact: true }).first().click();
+await p.locator(".listpane .rec").first().click();
+await p.waitForSelector(".outliner");
+// edit outline: click last item, press Enter, type
+const texts = p.locator(".outliner textarea.text");
+await texts.nth(1).click();
+await p.keyboard.press("End");
+await p.keyboard.press("Enter");
+await p.keyboard.type("SCX - Experimental");
+await p.keyboard.press("Tab");
+await p.waitForTimeout(1200);
+await p.screenshot({ path: "screenshots/note.png" });
+// new record via + New
+await p.getByText("+ New").click();
+await p.selectOption(".sidebar select >> nth=0", "module");
+await p.selectOption(".sidebar select >> nth=1", "laser-turret");
+await p.fill(".sidebar input[placeholder=Name]", "Test laser");
+await p.keyboard.press("Enter");
+await p.waitForSelector(".editor .title");
+await p.screenshot({ path: "screenshots/module.png" });
+console.log("title:", await p.inputValue(".editor .title"));
+console.log("errors:", errors);
+await b.close();
+// screenshots land in ./screenshots (create it first)
