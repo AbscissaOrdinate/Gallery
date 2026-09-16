@@ -44,8 +44,26 @@ gallery/            project docs 01–05; each phase adds one
 ## Conventions
 
 - **`src/core/` stays framework-free.** No React import may appear under it.
-- **Metric on disk, always.** Unit conversion is display-only, the way
-  `x-distance` fields already work.
+- **Metric on disk, always**, in the canonical unit §8 fixes per quantity: mass
+  tonnes, power and heat MW, thrust kN, volume m3, length m, dv kps. Unit
+  conversion is display-only, the way `x-distance` fields already work.
+- **A field's name carries its unit**, and the expression layer reads it:
+  `mass_t` is tonnes, `mass_kg` kilograms, `heat_rejected_mw` megawatts. Name a
+  new stat with the suffix for the unit it is actually in.
+- **Never hand-roll a unit conversion in a recipe.** `SIGMA` and `G0` are SI, so
+  an expression mixing them with MW- or kN-denominated fields declares what it
+  produces and lets the engine convert:
+
+  ```yaml
+  derive:
+    heat_rejected_mw:
+      expr: "emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4)"
+      unit: W
+  ```
+
+  A bare `/ 1e6` hides the conversion inside a literal, which carries no unit,
+  and the scale check then cannot see it. A plain-string entry means "already in
+  the field's own unit".
 - **No `eval`, no `new Function`, no dynamic code execution** in the expression
   layer or anywhere else.
 - Schemas carry a `version`; a newer built-in replaces the on-disk copy and backs

@@ -9,7 +9,7 @@ import { parse, identifiersIn } from "../src/core/designer/expr/parse";
 import { tokenize, ExprSyntaxError } from "../src/core/designer/expr/tokenize";
 import { evaluate, EvalError, SIGMA } from "../src/core/designer/expr/evaluate";
 import { deriveStats, evaluationOrder } from "../src/core/designer/expr/derive";
-import { dimName, dimOf, DIMENSIONLESS } from "../src/core/designer/expr/dimension";
+import { dimName, dimOf, unitOfField, DIMENSIONLESS } from "../src/core/designer/expr/dimension";
 import { TableSet, parseTableFile } from "../src/core/designer/tables";
 
 /** Evaluate for the number only, ignoring dimensions. */
@@ -167,11 +167,12 @@ describe("dimensions", () => {
     expect(dimName([1, 4, -3, 0])).toBe("power·area");
   });
 
-  it("accepts the spec's radiator recipe without complaint", () => {
-    //  0.92 · σ · 2400 m² · (900⁴ − 2.725⁴) K⁴ / 1e6
+  it("accepts the spec's radiator recipe, and knows it comes out in SI watts", () => {
+    //  0.92 · σ · 2400 m² · (900⁴ − 2.725⁴) K⁴
     //  = dimensionless · (M·T⁻³·Θ⁻⁴) · L² · Θ⁴ = M·L²·T⁻³ = power ✓
+    //  σ is in SI, so the result is 82 144 945 W — 82.1 MW.
     const warnings: string[] = [];
-    const v = evaluate(parse("emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4) / 1e6"), {
+    const v = evaluate(parse("emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4)"), {
       params: { emissivity: 0.92, area_m2: 2400, temp_k: 900 },
       warnings,
     });
@@ -179,7 +180,8 @@ describe("dimensions", () => {
     expect(v.kind).toBe("num");
     if (v.kind !== "num") return;
     expect(dimName(v.dim)).toBe("power");
-    expect(v.n).toBeCloseTo(82.14494504433065, 9);
+    expect(v.scale).toBe(1); // watts, not megawatts
+    expect(v.n).toBeCloseTo(82144945.04433066, 3);
   });
 
   it("warns when addition mixes dimensions, and carries on", () => {
@@ -292,7 +294,8 @@ describe("deriveStats", () => {
       params: { emissivity: 0.92, temp_k: 900, side_m: 40 },
       derive: {
         area_m2: "side_m * side_m * 1.5",
-        heat_rejected_mw: "emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4) / 1e6",
+        // σ is in SI watts; the engine converts W → MW for the field.
+        heat_rejected_mw: { expr: "emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4)", unit: "W" },
       },
     });
     // area = 40 × 40 × 1.5 = 2400 m², then the radiator recipe over that area
@@ -368,6 +371,114 @@ describe("deriveStats", () => {
     const r = deriveStats({ stats });
     expect(r.stats).toEqual(stats);
     expect(r.derived).toEqual({});
+    expect(r.violations).toEqual([]);
+  });
+});
+
+describe("scale", () => {
+  it("reads a unit, not just a dimension, off a field name", () => {
+    expect(unitOfField("mass_t")).toMatchObject({ symbol: "t", scale: 1000 });
+    expect(unitOfField("mass_kg")).toMatchObject({ symbol: "kg", scale: 1 });
+    expect(unitOfField("heat_rejected_mw")).toMatchObject({ symbol: "MW", scale: 1e6 });
+    expect(unitOfField("power_out_W")).toMatchObject({ symbol: "W", scale: 1 });
+    expect(unitOfField("thrust_kN")).toMatchObject({ symbol: "kN", scale: 1000 });
+    expect(unitOfField("deltav_kps")).toMatchObject({ symbol: "km/s", scale: 1000 });
+    expect(unitOfField("emissivity")).toBeUndefined(); // no suffix: scale-agnostic
+  });
+
+  it("treats a bare literal as scale-agnostic, so it adopts the unit beside it", () => {
+    const w: string[] = [];
+    const v = evaluate(parse("mass_t + 5"), { params: { mass_t: 10 }, warnings: w });
+    expect(w).toEqual([]); // 5 is five tonnes, not five kilograms
+    expect(v.kind === "num" && v.scale).toBe(1000);
+    expect(v.kind === "num" && v.n).toBe(15);
+  });
+
+  it("catches two units of the same quantity being added", () => {
+    const w: string[] = [];
+    evaluate(parse("mass_t + mass_kg"), { params: { mass_t: 1, mass_kg: 1 }, warnings: w });
+    expect(w).toEqual(["addition mixes t and kg"]);
+  });
+
+  it("catches degrees compared against radians, which dimensions alone cannot", () => {
+    const w: string[] = [];
+    evaluate(parse("theta_deg > beam_rad"), { params: { theta_deg: 90, beam_rad: 1 }, warnings: w });
+    expect(w).toEqual(["comparison with > mixes ° and rad"]);
+    // ...but a bare number is fine on either side.
+    const w2: string[] = [];
+    evaluate(parse("theta_deg > 90"), { params: { theta_deg: 45 }, warnings: w2 });
+    expect(w2).toEqual([]);
+  });
+
+  it("multiplies and divides scales through", () => {
+    // 2400 m² × 6.4 kg/m² = 15360 kg, which is mass at scale 1, not tonnes.
+    const v = evaluate(parse("area_m2 * areal_kg_m2"), { params: { area_m2: 2400, areal_kg_m2: 6.4 } });
+    expect(v.kind === "num" && v.scale).toBe(1);
+    expect(v.kind === "num" && dimName(v.dim)).toBe("mass");
+  });
+
+  it("raises scale to the same power as the value", () => {
+    const v = evaluate(parse("length_km ^ 2"), { params: { length_km: 3 } });
+    expect(v.kind === "num" && v.scale).toBe(1e6); // (1000 m)² = 1e6 m²
+    expect(v.kind === "num" && dimName(v.dim)).toBe("area");
+  });
+});
+
+describe("deriveStats and units", () => {
+  it("converts from the unit the recipe declares into the field's own unit", () => {
+    const r = deriveStats({
+      stats: { heat_rejected_mw: 0 },
+      params: { watts: 82144945 },
+      derive: { heat_rejected_mw: { expr: "watts", unit: "W" } },
+    });
+    expect(r.stats.heat_rejected_mw).toBeCloseTo(82.144945, 9);
+    expect(r.derived.heat_rejected_mw?.declaredUnit).toBe("W");
+    expect(r.derived.heat_rejected_mw?.converted).toBe(1e-6);
+    expect(r.violations).toEqual([]);
+  });
+
+  it("does not convert when the declared unit is already the field's", () => {
+    const r = deriveStats({ stats: { mass_t: 0 }, params: { x_t: 12 }, derive: { mass_t: { expr: "x_t", unit: "t" } } });
+    expect(r.stats.mass_t).toBe(12);
+    expect(r.derived.mass_t?.converted).toBeUndefined();
+    expect(r.violations).toEqual([]);
+  });
+
+  it("catches a hand-rolled conversion that leaves the result in the wrong unit", () => {
+    // The old spelling of the radiator recipe: correct arithmetic, but the
+    // /1e6 hides the conversion inside a literal, so the result claims watts.
+    const r = deriveStats({
+      stats: { heat_rejected_mw: 0 },
+      params: { emissivity: 0.92, area_m2: 2400, temp_k: 900 },
+      derive: { heat_rejected_mw: "emissivity * SIGMA * area_m2 * (temp_k^4 - T_ENV^4) / 1e6" },
+    });
+    const warn = r.violations.find((v) => v.severity === "warn");
+    expect(warn?.message).toBe(
+      "heat_rejected_mw: heat_rejected_mw is in MW but the expression works out in W — out by 10⁻⁶×. Declare the unit the expression produces instead of scaling it by hand.",
+    );
+    // The number is still assigned: a warning never blocks a value.
+    expect(r.stats.heat_rejected_mw).toBeCloseTo(82.14494504433065, 9);
+  });
+
+  it("catches an expression that forgot to convert at all", () => {
+    const r = deriveStats({ stats: { mass_t: 0 }, params: { mass_kg: 5000 }, derive: { mass_t: "mass_kg" } });
+    expect(r.violations[0]?.message).toMatch(/mass_t is in t but the expression works out in kg — out by 10⁻³×/);
+  });
+
+  it("complains when the declared unit measures the wrong quantity", () => {
+    const r = deriveStats({ stats: { mass_t: 0 }, params: { x_t: 1 }, derive: { mass_t: { expr: "x_t", unit: "MW" } } });
+    expect(r.violations[0]?.message).toMatch(/declares MW, which is power, but the expression yields mass/);
+  });
+
+  it("falls back to the field's unit when the declared one is not recognised", () => {
+    const r = deriveStats({ stats: { mass_t: 0 }, params: { x_t: 3 }, derive: { mass_t: { expr: "x_t", unit: "furlongs" } } });
+    expect(r.violations[0]?.message).toMatch(/"furlongs" is not a unit this engine knows/);
+    expect(r.stats.mass_t).toBe(3);
+  });
+
+  it("stays quiet about a field whose name carries no unit", () => {
+    const r = deriveStats({ stats: { crew_per_watch: 0 }, params: { berths: 12 }, derive: { crew_per_watch: "berths / 3" } });
+    expect(r.stats.crew_per_watch).toBe(4);
     expect(r.violations).toEqual([]);
   });
 });

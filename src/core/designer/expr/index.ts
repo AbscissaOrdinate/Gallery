@@ -8,7 +8,7 @@
 export { tokenize, ExprSyntaxError, type Token, type TokenKind } from "./tokenize";
 export { parse, identifiersIn, type Node } from "./parse";
 export { evaluate, EvalError, SIGMA, G0, DEFAULT_T_ENV, type Value, type EvalContext } from "./evaluate";
-export { deriveStats, evaluationOrder, type DeriveInput, type DeriveResult, type DerivedField } from "./derive";
+export { deriveStats, evaluationOrder, type DeriveInput, type DeriveResult, type DerivedField, type DeriveEntry } from "./derive";
 export {
   DIMENSIONLESS,
   dimEq,
@@ -18,5 +18,12 @@ export {
   dimName,
   dimOf,
   isDimensionless,
+  scaleOf,
+  scaleName,
+  scaleRatio,
+  unitOfField,
+  unitBySymbol,
+  UNITS_BY_SYMBOL,
   type Dim,
+  type Unit,
 } from "./dimension";
