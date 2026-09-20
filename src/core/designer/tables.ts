@@ -53,6 +53,22 @@ export interface TableFile {
   meta: Record<string, unknown>;
   /** True when `meta.provisional` marks the whole file unsourced. */
   provisional: boolean;
+  /**
+   * Column values every row in the file inherits unless it sets its own, from
+   * `meta.defaults`.
+   *
+   * This is for properties that belong to the *file* because they follow from
+   * its source. `crew_basis` is the example the mechanism was added for: the
+   * 2026-09-19 ruling (`docs/UNITS.md` §4) is that every NEBULOUS crew figure
+   * is a total rather than a per-watch station, and that is true of the whole
+   * catalogue, not of individual rows. Repeating the literal on thirty rows is
+   * how it drifts.
+   *
+   * Distinct from `meta.provisional`, which sets a first-class provenance flag
+   * rather than a column — `source` and `provisional` are the whole provenance
+   * vocabulary and stay out of here.
+   */
+  defaults: Record<string, unknown>;
   /** Group name → rows, in file order. */
   groups: Map<string, TableRow[]>;
   /** Top-level keys that were prose or metadata rather than rows. */
@@ -70,7 +86,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 
 const isRowList = (v: unknown): v is Record<string, unknown>[] => Array.isArray(v) && v.length > 0 && v.every(isObject) && v.some((r) => typeof r.id === "string");
 
-function toRow(file: string, group: string, raw: Record<string, unknown>, fileProvisional: boolean): TableRow | undefined {
+function toRow(file: string, group: string, raw: Record<string, unknown>, fileProvisional: boolean, defaults: Record<string, unknown> = {}): TableRow | undefined {
   if (typeof raw.id !== "string") return undefined;
   return {
     file,
@@ -81,7 +97,8 @@ function toRow(file: string, group: string, raw: Record<string, unknown>, filePr
     era: typeof raw.era === "string" ? raw.era : undefined,
     notes: typeof raw.note === "string" ? raw.note : typeof raw.notes === "string" ? raw.notes : undefined,
     provisional: raw.provisional === true || fileProvisional,
-    values: raw,
+    // The row wins over the file, so a single exception stays expressible.
+    values: { ...defaults, ...raw },
   };
 }
 
@@ -90,6 +107,7 @@ export function parseTableFile(name: string, text: string): TableFile {
   const doc = YAML.parse(text);
   const meta = isObject(doc) && isObject(doc.meta) ? doc.meta : {};
   const provisional = meta.provisional === true;
+  const defaults = isObject(meta.defaults) ? meta.defaults : {};
   const groups = new Map<string, TableRow[]>();
   const nonRowKeys: string[] = [];
 
@@ -103,12 +121,12 @@ export function parseTableFile(name: string, text: string): TableFile {
         nonRowKeys.push(key);
         continue;
       }
-      const rows = list.map((r) => toRow(name, key, r, provisional)).filter((r): r is TableRow => r !== undefined);
+      const rows = list.map((r) => toRow(name, key, r, provisional, defaults)).filter((r): r is TableRow => r !== undefined);
       if (rows.length) groups.set(key, rows);
       else nonRowKeys.push(key);
     }
   }
-  return { name, meta, provisional, groups, nonRowKeys };
+  return { name, meta, provisional, defaults, groups, nonRowKeys };
 }
 
 export class TableSet {

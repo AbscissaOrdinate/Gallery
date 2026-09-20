@@ -63,6 +63,40 @@ describe("table file parsing", () => {
     for (const row of [...structures.groups.values()].flat()) expect(row.provisional).toBe(true);
   });
 
+  it("gives every row the file's meta.defaults, and lets a row override them", () => {
+    // The mechanism exists for crew_basis: the 2026-09-19 ruling is that every
+    // NEBULOUS crew figure is a total, which is true of the catalogue rather
+    // than of any one row. Repeating the literal thirty times is how it drifts.
+    const f = parseTableFile(
+      "crew",
+      `meta:
+  source: "NEBULOUS wiki"
+  defaults:
+    crew_basis: total
+rows:
+  - { id: cic, crew: 40 }
+  - { id: berth, crew: 12, crew_basis: per_watch }
+`,
+    );
+    const rows = [...f.groups.values()].flat();
+    expect(f.defaults).toEqual({ crew_basis: "total" });
+    expect(rows.find((r) => r.id === "cic")?.values.crew_basis).toBe("total");
+    // A row wins over the file, so one exception stays expressible.
+    expect(rows.find((r) => r.id === "berth")?.values.crew_basis).toBe("per_watch");
+  });
+
+  it("does not let meta.defaults masquerade as provenance", () => {
+    const f = parseTableFile("x", `meta:
+  defaults:
+    crew_basis: total
+rows:
+  - { id: a }
+`);
+    // provisional is a first-class flag, not a column; defaults do not touch it.
+    expect(f.provisional).toBe(false);
+    expect([...f.groups.values()].flat()[0]?.provisional).toBe(false);
+  });
+
   it("keeps a row's own provisional flag in an otherwise sourced file", () => {
     expect(radiators.provisional).toBe(false);
     const byId = (id: string) => [...radiators.groups.values()].flat().find((r) => r.id === id);
