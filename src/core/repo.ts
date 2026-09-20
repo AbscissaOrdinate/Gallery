@@ -11,6 +11,7 @@ import { parseNoteOpml, serializeNoteOpml } from "./codec/opml";
 import { indexCsv, typeCsv } from "./codec/csv";
 import { derivedColumns } from "./astro/derive";
 import { loadTables, TableSet } from "./designer/tables";
+import { migrateRecord } from "./schema/migrate";
 import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSelection, type ConstraintSet, type EffectiveConstraints } from "./designer/constraints";
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
@@ -31,6 +32,8 @@ export class Repository {
   constraintSets = new Map<string, ConstraintSet>();
   /** Problems from the table and constraint loaders, surfaced beside record problems. */
   designProblems: string[] = [];
+  /** Records the migrator brought forward on the last load, newest load only. */
+  migrationReport: { id: string; name: string; notes: string[] }[] = [];
   private byId = new Map<string, LoadedRecord>();
   private listeners = new Set<() => void>();
 
@@ -102,6 +105,14 @@ export class Repository {
           if (record.type === "unknown") record.type = type;
           if (record.type !== type) p.push(`type "${record.type}" disagrees with filename "${type}"`);
           loaded = { record, location: { path, format: fmt }, problems: p.length ? p : undefined };
+          // Records are migrated into the shape the app expects, in memory
+          // only. The file keeps whatever it was authored as until something
+          // saves it, so opening a vault never rewrites it.
+          const m = migrateRecord(record);
+          if (m.changed) {
+            loaded.record = m.record;
+            loaded.migrated = m.notes;
+          }
         }
         if (loaded) {
           if (next.has(loaded.record.id)) {
@@ -115,6 +126,7 @@ export class Repository {
       }
     }
     this.byId = next;
+    this.migrationReport = [...next.values()].filter((r) => r.migrated).map((r) => ({ id: r.record.id, name: r.record.name, notes: r.migrated! }));
     this.emit();
     const byType: Record<string, number> = {};
     for (const r of next.values()) byType[r.record.type] = (byType[r.record.type] ?? 0) + 1;

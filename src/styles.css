@@ -140,3 +140,36 @@ ul { margin: 0; }
 .maptip .t { font-weight: 600; font-size: var(--fs-sm); color: var(--text); }
 .maptip .l { color: var(--text-muted); }
 .mapzoom { position: absolute; left: 10px; bottom: 8px; font-size: 11px; pointer-events: none; }
+
+/* ---- Editor 1: the hull editor -------------------------------------------
+   Three panes plus a budget rail and a fleet strip. Every colour is a token
+   from theme.css; the canvas background reuses the record surface rather than
+   introducing a second dark. */
+.hullview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.hulltools { padding: var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--line); background: var(--surface); flex: none; gap: var(--sp-2); }
+.hullbody { display: grid; grid-template-columns: 248px 1fr 380px; flex: 1; min-height: 0; }
+.hullpane { overflow: auto; border-right: 1px solid var(--line); background: var(--surface); padding: var(--sp-3); font-size: var(--fs-sm); }
+.hullpane h4 { margin: var(--sp-4) 0 var(--sp-1); color: var(--text-faint); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.hullpane h4:first-child { margin-top: 0; }
+.hullrow { display: flex; gap: var(--sp-2); align-items: baseline; padding: 2px var(--sp-2); border-radius: var(--radius-sm); cursor: pointer; }
+.hullrow:hover { background: var(--surface-2); }
+.hullrow.active { background: var(--selection); box-shadow: inset 2px 0 0 var(--accent); }
+.hullrow .mono { font-size: var(--fs-xs); }
+.hullwrap { position: relative; min-width: 0; min-height: 0; background: var(--surface-muted); }
+.hullsvg { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+.hullzoom { position: absolute; left: 10px; bottom: 8px; font-size: 11px; display: flex; align-items: center; gap: var(--sp-2); }
+.hullside { overflow: auto; border-left: 1px solid var(--line); background: var(--bg); padding: var(--sp-3); }
+.hullside .card { margin-top: 0; margin-bottom: var(--sp-3); }
+.hullside .field { grid-template-columns: 110px 1fr; }
+.hulladv { padding: 3px var(--sp-2); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-sm); line-height: 1.35; border-left: 2px solid transparent; }
+.hulladv:hover { background: var(--surface-2); }
+.hulladv.error { border-left-color: var(--warn); }
+.hulladv.warn { border-left-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.hulladv.info { border-left-color: var(--line-strong); }
+.hullrail { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--sp-1); padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--line); background: var(--surface); flex: none; }
+.hullrail .stat { padding: 2px var(--sp-2); }
+.hullrail .stat .v { font-size: var(--fs-md); }
+.hullstrip { display: flex; gap: var(--sp-3); overflow-x: auto; padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--line); background: var(--bg); flex: none; }
+.hullplate { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 1px solid transparent; border-radius: var(--radius); padding: var(--sp-1) var(--sp-2); height: auto; cursor: pointer; }
+.hullplate:hover { border-color: var(--line-strong); background: var(--surface); }
+.hullplate span { font-size: var(--fs-xs); white-space: nowrap; }

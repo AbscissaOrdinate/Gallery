@@ -15,7 +15,8 @@ export type View =
   | { kind: "record"; id: string }
   | { kind: "settings" }
   | { kind: "import" }
-  | { kind: "map"; id: string };
+  | { kind: "map"; id: string }
+  | { kind: "hull"; id: string };
 
 interface AppState {
   repo: Repository | null;

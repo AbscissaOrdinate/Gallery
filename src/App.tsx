@@ -7,6 +7,7 @@ import { RecordEditor } from "./ui/RecordEditor";
 import { Settings } from "./ui/Settings";
 import { ImportDialog } from "./ui/ImportDialog";
 import { SystemMap } from "./ui/SystemMap";
+import { HullEditor } from "./ui/hull/HullEditor";
 import { isTauri } from "./core/storage/tauri";
 
 export function App() {
@@ -32,7 +33,7 @@ export function App() {
 
   const v = app.view;
   return (
-    <div className={"app" + (v.kind === "map" ? " map" : "")}>
+    <div className={"app" + (v.kind === "map" || v.kind === "hull" ? " map" : "")}>
       <div className="topbar">
         <span className="brand">GALLERY</span>
         <span className="path grow" title={app.repo.fs.label}>
@@ -61,8 +62,8 @@ export function App() {
         {!isTauri() && <span className="tag">browser demo</span>}
       </div>
       <Sidebar />
-      {v.kind !== "map" && <RecordList />}
-      <div className={"main" + (v.kind === "map" ? " mapmain" : "")}>
+      {v.kind !== "map" && v.kind !== "hull" && <RecordList />}
+      <div className={"main" + (v.kind === "map" || v.kind === "hull" ? " mapmain" : "")}>
         {app.error && (
           <div className="errorbar row">
             <span className="grow">{app.error}</span>
@@ -74,6 +75,7 @@ export function App() {
         {app.busy && <div className="muted">{app.busy}</div>}
         {v.kind === "record" && <RecordEditor key={v.id} id={v.id} />}
         {v.kind === "map" && <SystemMap key={v.id} id={v.id} />}
+        {v.kind === "hull" && <HullEditor key={v.id} id={v.id} />}
         {v.kind === "settings" && <Settings />}
         {v.kind === "import" && <ImportDialog />}
         {(v.kind === "list" || v.kind === "welcome") && <Overview />}

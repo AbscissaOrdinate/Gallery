@@ -61,7 +61,14 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * migration; editor 2 moves the budget engine over and drops it then.
  */
 const hullV1toV2: Migration = (f, notes) => {
-  if (isObject(f.spine)) return false; // already v2
+  // Shape detection has to be about content, not the presence of a key.
+  // `repo.create` fills schema defaults, so a hull built from a v1 preset under
+  // the v2 schema arrives carrying `spine: { station_pitch_m: 3, datum: "bow" }`
+  // — an object, but an empty one. Treating that as "already v2" left the v1
+  // length, beam and volume unmigrated and the hull drew as nothing at all.
+  const existing = isObject(f.spine) ? f.spine : undefined;
+  const hasProfile = existing !== undefined && (num(existing.length_m) > 0 || (isArray(existing.stations) && existing.stations.length > 0));
+  if (hasProfile) return false; // already v2
 
   const length = num(f.length_m);
   const beam = num(f.beam_m);
@@ -75,8 +82,10 @@ const hullV1toV2: Migration = (f, notes) => {
   }
 
   f.spine = {
+    // Keep anything the schema or the author already put there.
+    ...existing,
     length_m: length,
-    station_pitch_m: 3.0,
+    station_pitch_m: existing && num(existing.station_pitch_m) > 0 ? num(existing.station_pitch_m) : 3.0,
     datum: "bow",
     beam_m: beam > 0 ? beam : halfHeight * 2,
     stations: [
@@ -97,6 +106,7 @@ const hullV1toV2: Migration = (f, notes) => {
 
   if (!isArray(f.external_slots)) {
     const slots = isArray(f.slots) ? f.slots : [];
+    const pitch = num((f.spine as Record<string, unknown>).station_pitch_m);
     const external: Record<string, unknown>[] = [];
     let internalSlots = 0;
     for (const raw of slots) {
@@ -108,13 +118,23 @@ const hullV1toV2: Migration = (f, notes) => {
         continue; // internal capacity is a section volume in v2, not a slot
       }
       const id = typeof raw.id === "string" ? raw.id : kind;
-      // v1 x/y were silhouette percentages for drawing. x maps to a station;
-      // y above the midline reads as dorsal, below as ventral.
-      const x = (num(raw.x) / 100) * length;
+      // v1 x/y were silhouette percentages for drawing a whole *group*. x maps
+      // to a station; y above the midline reads as dorsal, below as ventral.
+      // A v1 x was a drawing percentage, not a survey, so it has no precision
+      // to lose by landing on a frame. Leaving it unsnapped produced one "off
+      // the station grid" advisory per slot on every migrated hull.
+      const x = pitch > 0 ? Math.round(((num(raw.x) / 100) * length) / pitch) * pitch : (num(raw.x) / 100) * length;
       const y = num(raw.y);
-      const theta = y === 0 || y === 50 ? 0 : y < 50 ? 0 : 180;
-      for (let i = 1; i <= count; i++) {
-        external.push({ id: count === 1 ? id : `${id}-${i}`, x, theta_deg: theta, type: kind, size: "M" });
+      const base = y === 0 || y === 50 ? 0 : y < 50 ? 0 : 180;
+      // v1 never recorded where the individual mounts of a group sat. Stacking
+      // all six turrets on one spot asserts something definitely false and
+      // makes every pair foul; fanning them about the angle the group was drawn
+      // at asserts only that they are distinct, which is definitely true. The
+      // record is flagged for review either way.
+      const step = Math.min(30, 360 / count);
+      for (let i = 0; i < count; i++) {
+        const theta = count === 1 ? base : (((base + (i - (count - 1) / 2) * step) % 360) + 360) % 360;
+        external.push({ id: count === 1 ? id : `${id}-${i + 1}`, x, theta_deg: Math.round(theta * 100) / 100, type: kind, size: "M" });
       }
     }
     f.external_slots = external;

@@ -19,6 +19,8 @@ import { Repository } from "../src/core/repo";
 import { demoVault } from "../src/ui/demo";
 import { computeBudget } from "../src/core/designer/budgets";
 import { migrateAll, migrateRecord, MIGRATABLE_TYPES } from "../src/core/schema/migrate";
+import { readHull } from "../src/core/designer/hull/record";
+import { hullAdvisories } from "../src/core/designer/hull/advisories";
 import { BUILTIN_SCHEMAS } from "../src/core/schema/builtin/schemas";
 import { BUILTIN_PRESETS } from "../src/core/schema/builtin/presets";
 import { grossVolume } from "../src/core/designer/hull/geometry";
@@ -74,6 +76,40 @@ describe("hull v1 → v2", () => {
     expect(notes.join(" ")).toMatch(/reproducing the authored volume/);
   });
 
+  it("migrates a v1 hull whose spine is nothing but schema defaults", () => {
+    // `repo.create` fills defaults from the v2 schema, so a hull built from a
+    // v1 preset arrives carrying an empty-but-present spine. Detecting v2 by
+    // the presence of the key left these hulls unmigrated and drawing as
+    // nothing at all — the editor showed a 0 m hull with 0 m³ of volume.
+    const rec = v1Hull();
+    rec.fields.spine = { station_pitch_m: 3, datum: "bow" };
+    const { record, changed } = migrateRecord(rec);
+    expect(changed).toBe(true);
+    const spine = record.fields.spine as Spine;
+    expect(spine.length_m).toBe(220);
+    expect(grossVolume(spine)).toBeCloseTo(60000, 6);
+  });
+
+  it("keeps a station pitch the author already chose", () => {
+    const rec = v1Hull();
+    rec.fields.spine = { station_pitch_m: 2.5 };
+    expect((migrateRecord(rec).record.fields.spine as Spine).station_pitch_m).toBe(2.5);
+  });
+
+  it("leaves a real v2 spine alone even when v1 fields are still beside it", () => {
+    const rec = v1Hull();
+    rec.fields.spine = { length_m: 180, beam_m: 16, stations: [{ x: 0, half_height_m: 4 }, { x: 180, half_height_m: 4 }] };
+    const { record, changed } = migrateRecord(rec);
+    expect(changed).toBe(false);
+    expect((record.fields.spine as Spine).length_m).toBe(180);
+  });
+
+  it("treats a spine carrying only stations as already migrated", () => {
+    const rec = v1Hull();
+    rec.fields.spine = { stations: [{ x: 0, half_height_m: 4 }] };
+    expect(migrateRecord(rec).changed).toBe(false);
+  });
+
   it("flags the record for review rather than pretending it drew a ship", () => {
     const { record } = migrateRecord(v1Hull());
     expect(record.fields.migration_review).toBe(true);
@@ -93,9 +129,42 @@ describe("hull v1 → v2", () => {
     expect(slots.filter((s) => s.type === "internal")).toHaveLength(0);
     expect(notes.join(" ")).toMatch(/8 internal slots became section volume/);
     // x% of the silhouette becomes a station in metres.
-    expect(slots.find((s) => s.type === "drive")?.x).toBeCloseTo(11, 9); // 5% of 220 m
-    expect(slots.find((s) => s.type === "turret")?.theta_deg).toBe(0); // y = 30, above the midline
-    expect(slots.find((s) => s.type === "radiator")?.theta_deg).toBe(180); // y = 80, below it
+    expect(slots.find((s) => s.type === "drive")?.x).toBeCloseTo(12, 9); // 5% of 220 m = 11, snapped to the 3 m grid
+    // v1 recorded one x/y for a whole group and nothing about the individuals,
+    // so the members are fanned about the angle the group was drawn at: the
+    // mean is preserved, and no two share a position.
+    const mean = (type: string) => {
+      const g = slots.filter((s) => s.type === type);
+      // Circular mean, so a group straddling 0 deg does not average to 180.
+      const rad = (d: number) => (d * Math.PI) / 180;
+      const x = g.reduce((a, s) => a + Math.cos(rad(s.theta_deg)), 0);
+      const y = g.reduce((a, s) => a + Math.sin(rad(s.theta_deg)), 0);
+      return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    };
+    expect(mean("turret")).toBeCloseTo(0, 6); // y = 30, above the midline
+    expect(mean("radiator")).toBeCloseTo(180, 6); // y = 80, below it
+    for (const type of ["turret", "radiator"]) {
+      const angles = slots.filter((s) => s.type === type).map((s) => s.theta_deg);
+      expect(new Set(angles).size).toBe(angles.length);
+    }
+  });
+
+  it("lands migrated slots on the station grid", () => {
+    const { record } = migrateRecord(v1Hull());
+    const spine = record.fields.spine as Spine;
+    const slots = record.fields.external_slots as { x: number }[];
+    const pitch = spine.station_pitch_m ?? 3;
+    // 50% of 220 m is 110, which is not a multiple of 3. Left unsnapped, every
+    // slot on every migrated hull raised an "off the station grid" advisory.
+    for (const s of slots) expect(s.x % pitch).toBeCloseTo(0, 9);
+  });
+
+  it("fans a multi-mount group far enough apart that it does not read as fouling", () => {
+    const hull = readHull(migrateRecord(v1Hull()).record.fields);
+    // Stacking all six turrets on one spot made every pair of them a fit
+    // advisory: fifteen per group, forty over the hull, on a record nobody
+    // had touched.
+    expect(hullAdvisories(hull).filter((v) => /will foul/.test(v.message))).toEqual([]);
   });
 
   it("puts the internal volume in one section spanning the hull", () => {

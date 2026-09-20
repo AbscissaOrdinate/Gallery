@@ -80,6 +80,12 @@ export interface LoadedRecord {
   location: RecordLocation;
   /** Parse/validation problems, if any. Record is still loaded. */
   problems?: string[];
+  /**
+   * What the record migrator did to bring this record up to the current shape,
+   * in memory. The file on disk is untouched until the record is saved — an
+   * upgrade must never rewrite a record behind the user's back.
+   */
+  migrated?: string[];
 }
 
 // ---------------------------------------------------------------------------
