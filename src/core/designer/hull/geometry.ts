@@ -30,7 +30,12 @@ import type { Appendage, HullGeometry, HullSection, MassItem, ShadowCone, Spine,
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
-/** Stations sorted fore to aft, with anything unusable dropped. */
+/**
+ * Stations sorted fore to aft. The sort is **stable**, which is load-bearing:
+ * two stations at the same x are a deliberate vertical step in the profile —
+ * a bulkhead, a collar, the flat face of a tank — and their authored order
+ * says which value is forward of the step and which is aft of it.
+ */
 export function sortedStations(spine: Spine): Station[] {
   return (spine.stations ?? [])
     .filter((s) => Number.isFinite(s?.x) && Number.isFinite(s?.half_height_m))
@@ -38,8 +43,24 @@ export function sortedStations(spine: Spine): Station[] {
     .sort((p, q) => p.x - q.x);
 }
 
-/** Linear interpolation over a sorted control list, flat beyond the ends. */
-function interpolate(points: { x: number; v: number }[], x: number): number {
+/**
+ * Which value to take where the profile is discontinuous. `aft` is the limit
+ * approaching x from the bow side, `fore` the limit leaving it towards the
+ * stern. They differ only at a step.
+ */
+export type Side = "aft" | "fore";
+
+/**
+ * Linear interpolation over a sorted control list, flat beyond the ends.
+ *
+ * At a step (two controls sharing an x) this returns the first value for
+ * `aft` and the last for `fore`, so a caller integrating a segment can ask for
+ * the value *inside* its own segment rather than the one across the step.
+ * Sampling the midpoint would be enough for drawing, but not for volume: a
+ * step read as a taper under-measures, and on a stepped hull that is tens of
+ * per cent of the internal volume.
+ */
+function interpolate(points: { x: number; v: number }[], x: number, side: Side = "aft"): number {
   if (!points.length) return 0;
   const first = points[0] as { x: number; v: number };
   const last = points[points.length - 1] as { x: number; v: number };
@@ -48,32 +69,45 @@ function interpolate(points: { x: number; v: number }[], x: number): number {
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1] as { x: number; v: number };
     const b = points[i] as { x: number; v: number };
-    if (x <= b.x) {
+    if (x < b.x) {
       const span = b.x - a.x;
       return span === 0 ? b.v : a.v + ((x - a.x) / span) * (b.v - a.v);
+    }
+    if (x === b.x) {
+      // Sitting exactly on a control. `aft` stops here; `fore` walks past any
+      // further controls at the same x to the far side of the step.
+      if (side === "aft") return b.v;
+      let j = i;
+      while (j + 1 < points.length && (points[j + 1] as { x: number }).x === x) j++;
+      return (points[j] as { x: number; v: number }).v;
     }
   }
   return last.v;
 }
 
 /** Profile half-height at station x, in metres. */
-export function halfHeightAt(spine: Spine, x: number): number {
-  return Math.max(0, interpolate(sortedStations(spine).map((s) => ({ x: s.x, v: s.half_height_m })), x));
+export function halfHeightAt(spine: Spine, x: number, side: Side = "aft"): number {
+  return Math.max(0, interpolate(sortedStations(spine).map((s) => ({ x: s.x, v: s.half_height_m })), x, side));
+}
+
+/** True where the profile jumps at x: two stations share it with different half-heights. */
+export function isStep(spine: Spine, x: number): boolean {
+  return halfHeightAt(spine, x, "aft") !== halfHeightAt(spine, x, "fore");
 }
 
 /** Beam at station x, in metres. Overrides interpolate; elsewhere the hull's nominal beam applies. */
-export function beamAt(spine: Spine, x: number): number {
+export function beamAt(spine: Spine, x: number, side: Side = "aft"): number {
   const overrides = (spine.beam_overrides ?? [])
     .filter((o) => Number.isFinite(o?.x) && Number.isFinite(o?.beam_m))
     .slice()
     .sort((p, q) => p.x - q.x);
   if (!overrides.length) return Math.max(0, spine.beam_m ?? 0);
-  return Math.max(0, interpolate(overrides.map((o) => ({ x: o.x, v: o.beam_m })), x));
+  return Math.max(0, interpolate(overrides.map((o) => ({ x: o.x, v: o.beam_m })), x, side));
 }
 
 /** Semi-axes of the cross-section at x: [vertical, horizontal]. */
-export function semiAxesAt(spine: Spine, x: number): [number, number] {
-  return [halfHeightAt(spine, x), beamAt(spine, x) / 2];
+export function semiAxesAt(spine: Spine, x: number, side: Side = "aft"): [number, number] {
+  return [halfHeightAt(spine, x, side), beamAt(spine, x, side) / 2];
 }
 
 /** Cross-sectional area at x, m². */
@@ -119,8 +153,11 @@ export function grossVolume(spine: Spine, x0?: number, x1?: number): number {
   for (let i = 1; i < xs.length; i++) {
     const xa = xs[i - 1] as number;
     const xb = xs[i] as number;
-    const [a0, b0] = semiAxesAt(spine, xa);
-    const [a1, b1] = semiAxesAt(spine, xb);
+    // Each segment is measured from inside itself: the value just *after* its
+    // fore end and just *before* its aft end. Reading across a step would
+    // measure a taper that is not there.
+    const [a0, b0] = semiAxesAt(spine, xa, "fore");
+    const [a1, b1] = semiAxesAt(spine, xb, "aft");
     total += frustumVolume(a0, b0, a1, b1, xb - xa);
   }
   return total;
@@ -171,12 +208,20 @@ export function wettedArea(spine: Spine, x0?: number, x1?: number, panels = 400)
   for (let i = 0; i < n; i++) {
     const xa = lo + i * h;
     const xb = xa + h;
-    const [aa, ba] = semiAxesAt(spine, xa);
-    const [ab, bb] = semiAxesAt(spine, xb);
+    const [aa, ba] = semiAxesAt(spine, xa, "fore");
+    const [ab, bb] = semiAxesAt(spine, xb, "aft");
     const perimeter = (ellipsePerimeter(aa, ba) + ellipsePerimeter(ab, bb)) / 2;
     // Surface step: average the two semi-axis slopes rather than assume dl = dx.
     const slope = (Math.abs(ab - aa) + Math.abs(bb - ba)) / 2 / h;
     total += perimeter * h * Math.sqrt(1 + slope * slope);
+  }
+  // A vertical step in the profile is a real annular face — the flat end of a
+  // tank, the front of a collar. It has area and it radiates, so it counts.
+  for (const x of breakpoints(spine)) {
+    if (x < lo || x > hi) continue;
+    const [aa, ba] = semiAxesAt(spine, x, "aft");
+    const [af, bf] = semiAxesAt(spine, x, "fore");
+    total += Math.abs(Math.PI * af * bf - Math.PI * aa * ba);
   }
   return total;
 }

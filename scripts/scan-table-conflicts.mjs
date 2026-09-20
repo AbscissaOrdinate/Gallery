@@ -73,12 +73,17 @@ const plant = (id) => {
   return { r, t_per_gw: r.mass_t / (r.power_out_kw / 1e6) };
 };
 
+// Like for like: a Gallery reactor row is core + shield + conversion and no
+// radiator, and heat rejection is about half of a published whole-system alpha
+// (NASA, 10.1 of ~20 kg/kWe at 200 kWe). Comparing the row against the full
+// system figure was the scope error the first pass made.
+const LITERATURE_NO_RADIATOR = 5000;
 compare({
-  quantity: "reactor specific mass, best fission plant in the set",
+  quantity: "reactor specific mass, best plant in the set, excluding heat rejection",
   unit: "t/GW",
-  a: { source: "terra-invicta", where: `reactors.rows/${best.id}`, value: best.specific_mass_t_per_gw },
-  b: { source: "literature", where: "reactors.cross_check, arXiv:2110.15198 §3.2", value: 10000 },
-  note: "Literature band is 10,000–30,000 t/GW (10–30 kg/kWe); the optimistic end is used.",
+  a: { source: "gallery", where: `reactors.rows/${best.id}, rebased`, value: best.specific_mass_t_per_gw },
+  b: { source: "literature", where: "arXiv:2110.15198 §3.2, less the heat-rejection half", value: LITERATURE_NO_RADIATOR },
+  note: "RULED 2026-09-20: the gap is the future-engineering allowance, floored at a bare core. See RECONCILIATION.md §1.",
 });
 compare({
   quantity: "reactor specific mass, best fission plant in the set",

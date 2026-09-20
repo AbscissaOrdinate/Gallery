@@ -26,8 +26,8 @@
  * flips y and applies the scale, so callers never do arithmetic on screen
  * pixels to know where a station is.
  */
-import type { HullGeometry, ShadowCone } from "./types";
-import { breakpoints, halfHeightAt, beamAt, placeAppendages, sectionVolumes, shadowRadiusAt } from "./geometry";
+import type { Appendage, HullGeometry, ShadowCone } from "./types";
+import { breakpoints, halfHeightAt, beamAt, placeAppendage, placeAppendages, sectionVolumes, shadowRadiusAt } from "./geometry";
 
 export type RenderMode = "silhouette" | "schematic";
 
@@ -63,10 +63,25 @@ export type SceneElement =
   | ({ kind: "circle"; id: string; cx: number; cy: number; r: number; role: string } & SceneStyle)
   | ({ kind: "text"; id: string; x: number; y: number; text: string; anchor?: "start" | "middle" | "end"; size?: number; role: string } & SceneStyle);
 
+/**
+ * Which way the ship points on screen.
+ *
+ * This is presentation only. The record is always bow-at-zero, x increasing
+ * aft (`docs/UNITS.md` §2), and every coordinate in a scene is in that frame.
+ * `bowSide` says how to look at it, and the fleet plates in
+ * `docs/refs/SolarSystem_Fleet_Deployment+Ship_Vector_Images.png` are drawn
+ * bow-right — nose and armour to the right, engineering and radiators to the
+ * left — so that is the default. Drawing +x rightward put the bow on the left
+ * and silently mirrored every ship against the established art.
+ */
+export type BowSide = "left" | "right";
+
 export interface HullScene {
   mode: RenderMode;
   /** Hull-frame bounds in metres: everything drawn fits inside these. */
   bounds: { x0: number; y0: number; x1: number; y1: number };
+  /** How a consumer should orient the scene. The coordinates are unaffected. */
+  bowSide: BowSide;
   elements: SceneElement[];
 }
 
@@ -90,6 +105,19 @@ export interface RenderOptions {
   scaleFigures?: boolean;
   /** Sampling density for the profile path. */
   samples?: number;
+  /** Which way the ship points on screen. Presentation only; defaults to bow-right. */
+  bowSide?: BowSide;
+  /**
+   * Parts fitted to the hull that the hull record does not own: the turrets,
+   * radiator wings and tankage editor 2 hangs on the external slots.
+   *
+   * This is the seam the "never store the SVG" rule exists to protect. They
+   * arrive as ordinary appendages so they mirror, measure and bound exactly
+   * like hull structure, and they are drawn under their own id prefix and role
+   * so an editor can tint or hide them and a click never mistakes a module for
+   * the hull.
+   */
+  fitted?: Appendage[];
 }
 
 const round = (n: number): number => Math.round(n * 1e4) / 1e4;
@@ -110,7 +138,16 @@ function profileXs(hull: HullGeometry, samples: number): number[] {
 function outlinePath(hull: HullGeometry, samples: number, useBeam = false): string {
   const xs = profileXs(hull, samples);
   if (xs.length < 2) return "";
-  const top = xs.map((x) => [x, useBeam ? beamAt(hull.spine, x) / 2 : halfHeightAt(hull.spine, x)] as [number, number]);
+  // Two points at the same x where the profile steps, so the outline carries a
+  // real vertical edge instead of cutting the corner off a bulkhead.
+  const at = (x: number, side: "aft" | "fore") => (useBeam ? beamAt(hull.spine, x, side) / 2 : halfHeightAt(hull.spine, x, side));
+  const top: [number, number][] = [];
+  for (const x of xs) {
+    const aft = at(x, "aft");
+    const fore = at(x, "fore");
+    top.push([x, aft]);
+    if (fore !== aft) top.push([x, fore]);
+  }
   const parts: string[] = [];
   top.forEach(([x, y], i) => parts.push(`${i === 0 ? "M" : "L"} ${round(x)} ${round(y)}`));
   for (let i = top.length - 1; i >= 0; i--) {
@@ -230,6 +267,25 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
     for (const [, y] of placed.outline) maxY = Math.max(maxY, Math.abs(y));
   }
 
+  // --- parts fitted to the hull but not owned by it -------------------------
+  // Editor 2's modules. Same geometry as an appendage so they mirror, measure
+  // and bound identically; a distinct id prefix and role so an editor can tint
+  // or hide them, and so they never look like hull structure to a click.
+  for (const part of options.fitted ?? []) {
+    for (const placed of placeAppendage(spine, part)) {
+      elements.push({
+        kind: "polygon",
+        id: `fitted-${placed.id}${placed.mirrored ? "-m" : ""}`,
+        role: `fitted:${placed.kind}`,
+        points: placed.outline,
+        fill: schematic ? "navy-700" : "navy-200",
+        stroke: "line-strong",
+        strokeWidth: 1,
+      });
+      for (const [, y] of placed.outline) maxY = Math.max(maxY, Math.abs(y));
+    }
+  }
+
   // --- external slots -------------------------------------------------------
   if (options.slots ?? schematic) {
     for (const slot of hull.external_slots ?? []) {
@@ -313,6 +369,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   return {
     mode,
     bounds: { x0: -pad, y0: -(maxY + pad), x1: length + pad, y1: maxY + pad },
+    bowSide: options.bowSide ?? "right",
     elements,
   };
 }
@@ -341,6 +398,7 @@ export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: str
   const { x0, y0, x1, y1 } = scene.bounds;
   const w = Math.max(1, (x1 - x0) * k);
   const h = Math.max(1, (y1 - y0) * k);
+  const mirrored = scene.bowSide !== "left";
   const body: string[] = [];
 
   for (const el of scene.elements) {
@@ -359,9 +417,13 @@ export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: str
         body.push(`<circle cx="${round(el.cx)}" cy="${round(el.cy)}" r="${el.r}" ${style} />`);
         break;
       case "text":
-        // Counter-flip so the glyphs are not upside down.
+        // Counter-flip so the glyphs come out upright whichever way the group
+        // is mirrored: the element transform is the inverse of the group's
+        // linear part, and the anchor is negated on each flipped axis.
         body.push(
-          `<text x="${round(el.x)}" y="${round(-el.y)}" transform="scale(1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${el.size ?? 3}" ${style}>${escapeText(el.text)}</text>`,
+          mirrored
+            ? `<text x="${round(-el.x)}" y="${round(-el.y)}" transform="scale(-1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${el.size ?? 3}" ${style}>${escapeText(el.text)}</text>`
+            : `<text x="${round(el.x)}" y="${round(-el.y)}" transform="scale(1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${el.size ?? 3}" ${style}>${escapeText(el.text)}</text>`,
         );
         break;
     }
@@ -371,7 +433,8 @@ export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: str
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="0 0 ${round(x1 - x0)} ${round(y1 - y0)}">`,
     title,
-    `<g transform="translate(${round(-x0)} ${round(y1)}) scale(1,-1)">`,
+    // Bow-left maps scene (x,y) to (x - x0, y1 - y); bow-right to (x1 - x, y1 - y).
+    mirrored ? `<g transform="translate(${round(x1)} ${round(y1)}) scale(-1,-1)">` : `<g transform="translate(${round(-x0)} ${round(y1)}) scale(1,-1)">`,
     ...body,
     `</g>`,
     `</svg>`,

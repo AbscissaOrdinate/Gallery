@@ -123,13 +123,15 @@ function spineAdvisories(hull: HullGeometry): Violation[] {
       );
     }
   }
-  // Duplicate stations are the usual cause of a zero-length frustum panel.
+  // Two stations at one x is a deliberate vertical step — a bulkhead, a collar,
+  // the flat face of a tank — and the geometry measures it as one. Three or
+  // more is ambiguous: only the outermost pair can be drawn.
   const seen = new Map<number, number>();
   for (const s of stations) seen.set(s.x, (seen.get(s.x) ?? 0) + 1);
   for (const [x, n] of seen) {
-    if (n > 1) {
+    if (n > 2) {
       out.push(
-        violation("warn", `${n} stations share x = ${fmt(x)} m. Only the last one read wins, so the profile may not be what the list says.`, {
+        violation("warn", `${n} stations share x = ${fmt(x)} m. A step uses two; the ones between them are not drawn and not measured.`, {
           field: "spine.stations",
           domain: "geometry",
           source: src,

@@ -411,11 +411,14 @@ function Advisories({ advisories, onGo }: { advisories: Violation[]; onGo: (v: V
 /** A fleet-strip plate: silhouette only, no handles, no annotation. */
 function Plate({ hull }: { hull: HullGeometry }) {
   const scene = renderHull(hull, { mode: "silhouette" });
-  const w = Math.max(1, scene.bounds.x1 - scene.bounds.x0);
-  const h = Math.max(1, scene.bounds.y1 - scene.bounds.y0);
+  const { x0, x1, y0, y1 } = scene.bounds;
+  const w = Math.max(1, x1 - x0);
+  const h = Math.max(1, y1 - y0);
+  // Bow-right, like every other plate — see renderHull's BowSide.
+  const flip = scene.bowSide !== "left";
   return (
-    <svg viewBox={`${scene.bounds.x0} ${-scene.bounds.y1} ${w} ${h}`} width={Math.min(140, w * 0.7)} height={30} preserveAspectRatio="xMidYMid meet">
-      <g transform="scale(1,-1)">
+    <svg viewBox={`${flip ? -x1 : x0} ${-y1} ${w} ${h}`} width={Math.min(140, w * 0.7)} height={30} preserveAspectRatio="xMidYMid meet">
+      <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
         {scene.elements
           .filter((e) => e.kind === "path" && e.id === "hull")
           .map((e) => (e.kind === "path" ? <path key={e.id} d={e.d} fill="var(--navy-300)" /> : null))}

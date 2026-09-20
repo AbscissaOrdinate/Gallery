@@ -9,9 +9,12 @@
  * never stored.
  *
  * Coordinates: the scene is in hull-frame metres with **y up and x aft from the
- * bow**. SVG is y-down, so a single `scale(1,-1)` on the root group flips it
- * once and everything inside stays in the units the geometry uses. Text is
- * counter-flipped where it appears.
+ * bow**. SVG is y-down, so one flip on the root group handles that and
+ * everything inside stays in the units the geometry uses. The same group also
+ * mirrors x when the scene is drawn bow-right, which is the default and matches
+ * the fleet plates; the record is bow-at-zero either way. Text counter-flips so
+ * the glyphs stay upright, and the pointer mapping inverts the same transform
+ * so a drag lands where it is aimed.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { renderHull, type RenderOptions, type SceneElement } from "../../core/designer/hull/render";
@@ -66,6 +69,11 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
 
   const scene = renderHull(hull, options);
   const b = scene.bounds;
+  // Presentation only: the scene stays bow-at-zero. `flip` mirrors the view so
+  // the ship points right, matching the fleet plates.
+  const flip = scene.bowSide !== "left";
+  /** Scene x to outer (pre-group) x, and back — the mirror is its own inverse. */
+  const ox = (x: number) => (flip ? -x : x);
 
   /** Frame the whole drawing. Called on mount and whenever the hull's extent changes. */
   const fit = useCallback(() => {
@@ -80,8 +88,9 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
     const aspect = el && el.clientHeight > 0 ? el.clientWidth / el.clientHeight : vw / vh;
     if (vw / vh > aspect) vh = vw / aspect;
     else vw = vh * aspect;
-    setView({ x: b.x0 - padX - (vw - w - padX * 2) / 2, y: -b.y1 - padY - (vh - h - padY * 2) / 2, w: vw, h: vh });
-  }, [b.x0, b.x1, b.y0, b.y1]);
+    const left = flip ? -b.x1 : b.x0;
+    setView({ x: left - padX - (vw - w - padX * 2) / 2, y: -b.y1 - padY - (vh - h - padY * 2) / 2, w: vw, h: vh });
+  }, [b.x0, b.x1, b.y0, b.y1, flip]);
 
   useEffect(() => {
     if (!userMoved.current) fit();
@@ -105,8 +114,8 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
     pt.x = clientX;
     pt.y = clientY;
     const p = pt.matrixTransform(m.inverse());
-    return { x: p.x, y: -p.y };
-  }, []);
+    return { x: flip ? -p.x : p.x, y: -p.y };
+  }, [flip]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -115,8 +124,9 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
       e.preventDefault();
       const k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
       const p = toHull(e.clientX, e.clientY);
+      const [ax, ay] = [ox(p.x), -p.y]; // anchor the zoom in outer coordinates
       userMoved.current = true;
-      setView((v) => (v ? { x: p.x - (p.x - v.x) * k, y: -p.y - (-p.y - v.y) * k, w: v.w * k, h: v.h * k } : v));
+      setView((v) => (v ? { x: ax - (ax - v.x) * k, y: ay - (ay - v.y) * k, w: v.w * k, h: v.h * k } : v));
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
@@ -202,13 +212,13 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
         onPointerLeave={endDrag}
         style={{ cursor: drag?.kind === "pan" ? "grabbing" : drag ? "grabbing" : "default" }}
       >
-        <g transform="scale(1,-1)">
+        <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
           {/* Station grid, behind everything. */}
           {ticks.map((x) => (
             <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-faded)" strokeWidth={px(0.5)} opacity={0.5} />
           ))}
           {scene.elements.map((el) => (
-            <SceneNode key={el.id} el={el} scale={px} selectedKey={selKey} hover={hover} onHover={setHover} />
+            <SceneNode key={el.id} el={el} scale={px} selectedKey={selKey} hover={hover} onHover={setHover} flip={flip} />
           ))}
 
           {/* Focused advisory: a full-height marker at the anchor station. */}
@@ -271,12 +281,14 @@ function SceneNode({
   selectedKey,
   hover,
   onHover,
+  flip,
 }: {
   el: SceneElement;
   scale: (n: number) => number;
   selectedKey: string;
   hover: string | null;
   onHover: (id: string | null) => void;
+  flip: boolean;
 }) {
   const pickKey = pickable(el);
   const on = pickKey !== undefined && pickKey === selectedKey;
@@ -301,13 +313,14 @@ function SceneNode({
     case "circle":
       return <circle cx={el.cx} cy={el.cy} r={el.r} {...common} />;
     case "text":
-      // Counter-flip about the label's own baseline so glyphs read upright:
-      // scale(1,-1) puts (x, y) at (x, -y), and translate(0, 2y) brings it back.
+      // Counter-flip so glyphs read upright whichever way the group is
+      // mirrored: the element transform inverts the group's linear part, and
+      // the anchor is negated on each flipped axis.
       return (
         <text
-          x={el.x}
-          y={el.y}
-          transform={`translate(0,${2 * el.y}) scale(1,-1)`}
+          x={flip ? -el.x : el.x}
+          y={-el.y}
+          transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}
           textAnchor={el.anchor ?? "start"}
           fontSize={scale(el.size ?? 11)}
           fill={el.fill ? `var(--${el.fill})` : "var(--text-muted)"}

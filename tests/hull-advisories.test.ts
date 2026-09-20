@@ -79,8 +79,19 @@ describe("spine", () => {
     expect(find(edit((h) => (h.spine.stations[1]!.half_height_m = -2)), /negative half-height/)?.severity).toBe("error");
   });
 
-  it("flags two stations at the same x, because only one of them is read", () => {
-    const v = find(edit((h) => h.spine.stations.push({ x: 40, half_height_m: 2 })), /share x = 40 m/);
+  it("says nothing about two stations at one x — that is a step, not a mistake", () => {
+    // A bulkhead, a collar, the flat face of a tank. The geometry measures it
+    // as a step and the renderer draws the vertical face; see hull-steps.
+    expect(find(edit((h) => h.spine.stations.push({ x: 40, half_height_m: 2 })), /share x = 40 m/)).toBeUndefined();
+  });
+
+  it("flags three or more at one x, where only a pair can be drawn", () => {
+    const v = find(
+      edit((h) => {
+        h.spine.stations.push({ x: 40, half_height_m: 2 }, { x: 40, half_height_m: 5 });
+      }),
+      /share x = 40 m/,
+    );
     expect(v?.severity).toBe("warn");
     expect(v?.anchor?.station).toBe(40);
   });

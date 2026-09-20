@@ -141,6 +141,21 @@ describe("scene construction", () => {
     expect(ring?.kind === "circle" && ring.r * 2).toBeCloseTo(1.4, 9);
   });
 
+  it("draws parts fitted by a later editor without letting them pass for hull", () => {
+    // Editor 2 hangs modules on the external slots and they must appear in the
+    // silhouette; this is the seam that makes "never store the SVG" worth it.
+    const turret = { id: "t1", kind: "turret", station: 72, attach_r: 9.5, outline: [[-2, 0], [2, 0], [2, 4], [-2, 4]] as [number, number][] };
+    const plain = renderHull(hull);
+    const fitted = renderHull(hull, { fitted: [turret] });
+    expect(ids(fitted)).toContain("fitted-t1");
+    expect(ids(fitted)).toContain("fitted-t1-m"); // mirrors like any other flat part
+    expect(fitted.elements.find((e) => e.id === "fitted-t1")?.role).toBe("fitted:turret");
+    // Not an appendage: the hull record does not own it and a click must not say it does.
+    expect(ids(fitted).filter((i) => i.startsWith("appendage-"))).toEqual(ids(plain).filter((i) => i.startsWith("appendage-")));
+    // It counts towards the drawing's extent like hull structure does.
+    expect(fitted.bounds.y1).toBeGreaterThanOrEqual(plain.bounds.y1);
+  });
+
   it("bounds everything it drew", () => {
     const scene = renderHull(hull, { mode: "schematic", scaleFigures: true });
     expect(scene.bounds.x0).toBeLessThanOrEqual(0);
@@ -165,12 +180,37 @@ describe("scene construction", () => {
 
 describe("SVG serialisation", () => {
   it("emits a standalone SVG with a flipped y axis", () => {
-    const svg = toSvg(renderHull(hull, { mode: "schematic" }), { title: "Test hull" });
+    const svg = toSvg(renderHull(hull, { mode: "schematic", bowSide: "left" }), { title: "Test hull" });
     expect(svg.startsWith("<svg xmlns=")).toBe(true);
     expect(svg.endsWith("</svg>")).toBe(true);
     expect(svg).toContain("<title>Test hull</title>");
     // y is flipped once on the group so scene coordinates stay "metres above the axis".
     expect(svg).toContain("scale(1,-1)");
+  });
+
+  it("points the ship bow-right by default, matching the fleet plates", () => {
+    // The record is always bow-at-zero; which way it faces is presentation.
+    // Drawing +x rightward put the bow on the left and mirrored every ship
+    // against the established art.
+    expect(renderHull(hull).bowSide).toBe("right");
+    const svg = toSvg(renderHull(hull, { mode: "schematic" }));
+    expect(svg).toContain("scale(-1,-1)"); // x and y both flipped on the group
+    expect(svg).not.toContain("scale(1,-1)>"); // and the group is not the unmirrored one
+  });
+
+  it("keeps the scene itself in hull coordinates whichever way it faces", () => {
+    const left = renderHull(hull, { bowSide: "left" });
+    const right = renderHull(hull, { bowSide: "right" });
+    expect(right.bounds).toEqual(left.bounds);
+    expect(right.elements).toEqual(left.elements);
+  });
+
+  it("counter-flips label glyphs on both axes when mirrored", () => {
+    const svg = toSvg(renderHull(hull, { mode: "schematic" }));
+    const label = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" transform="([^"]+)"/.exec(svg);
+    expect(label?.[3]).toBe("scale(-1,-1)"); // undoes the group, so text reads upright
+    // Anchored at the negation of the scene point on each flipped axis.
+    expect(Number(label?.[1])).toBeLessThanOrEqual(0);
   });
 
   it("writes every colour as a theme variable, never a literal", () => {
