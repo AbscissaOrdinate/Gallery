@@ -179,9 +179,48 @@ const moduleV1toV2: Migration = (f, notes) => {
   return changed;
 };
 
+// ---------------------------------------------------------------------------
+// craft v1 → v2
+// ---------------------------------------------------------------------------
+
+/**
+ * The only thing a craft migration can honestly do.
+ *
+ * v2 splits the flat `loadout` into `fittings` (one module per *named hull
+ * slot*) and `manifest` (volume in a *named section*). v1 recorded neither: its
+ * `slot` was a kind — "turret", "internal" — and which of six turrets carried
+ * the 450 mm gun was never written down. Converting would mean inventing a
+ * placement for every line, and a wrong placement is worse than none: it draws
+ * a silhouette that is not the ship and passes a fit check that means nothing.
+ *
+ * So the loadout is **left exactly as it is**. `ship/record.ts` reads it as
+ * unplaced lines, which count in every budget total precisely as they did
+ * before and are reported as waiting to be placed. Moving them onto real slots
+ * needs the hull open in front of someone, which is the ship editor's job.
+ *
+ * What does migrate is `watch_factor`, because the crew model needs it and the
+ * default is not one number: `gallery/05` §3 gives 3 for warships and 1 for
+ * stations and small craft, and only the record knows which it is.
+ */
+const CREWED_WATCHES: Record<string, number> = { ship: 3 };
+
+const craftV1toV2: Migration = (f, notes) => {
+  if (f.watch_factor !== undefined) return false;
+  const kind = typeof f.kind === "string" ? f.kind : "ship";
+  const watches = CREWED_WATCHES[kind] ?? 1;
+  f.watch_factor = watches;
+  notes.push(
+    watches > 1
+      ? `watch factor set to ${watches} for a crewed warship; module crew figures marked per_watch are now multiplied by it (docs/UNITS.md §4)`
+      : `watch factor set to 1: a ${kind} does not stand rotating watches`,
+  );
+  return true;
+};
+
 const MIGRATIONS: Record<string, Migration[]> = {
   hull: [hullV1toV2],
   module: [moduleV1toV2],
+  craft: [craftV1toV2],
 };
 
 /** Types this module knows how to migrate. */

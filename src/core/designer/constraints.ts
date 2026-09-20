@@ -111,6 +111,13 @@ export const ENGINE_PARAMS: EngineParamSpec[] = [
   { name: "ref_ir_min_flux_w_m2", dim: [1, 0, -3, 0], unit: "W/m²", usedBy: "EO/IR detection range (§3)", physical: false },
   { name: "ref_radar_power_mw", dim: [1, 2, -3, 0], unit: "MW", usedBy: "radar detection range (§3)", physical: false },
   { name: "ref_esm_sensitivity_w", dim: [1, 2, -3, 0], unit: "W", usedBy: "passive RF detection range (§3)", physical: false },
+  {
+    name: "max_gimbal_deg",
+    dim: DIMENSIONLESS,
+    unit: "°",
+    usedBy: "thrust-line balance (§3): how far a drive can vector to aim through the centre of gravity",
+    physical: false,
+  },
   { name: "cell_pitch_m", dim: [0, 1, 0, 0], unit: "m", usedBy: "laying NEBULOUS-catalogue mounts out along the spine", physical: false },
   { name: "cell_volume_m3", dim: [0, 3, 0, 0], unit: "m³", usedBy: "internal volume budgets for NEBULOUS-catalogue compartments", physical: false },
 ];

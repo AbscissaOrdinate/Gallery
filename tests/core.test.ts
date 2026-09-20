@@ -5,7 +5,7 @@ import { Repository } from "../src/core/repo";
 import { parseNoteOpml, serializeNoteOpml, parseOpml, collectOutlineTags } from "../src/core/codec/opml";
 import { parseRecordText, serializeRecord, typeFromFilename } from "../src/core/codec/record";
 import { importDynalistOpml } from "../src/core/importers/dynalist";
-import { computeBudget } from "../src/core/designer/budgets";
+import { analyseShip } from "../src/core/designer/ship";
 import { slugify } from "../src/core/ids";
 
 describe("ids", () => {
@@ -147,13 +147,19 @@ describe("repository", () => {
     expect(repo2.backlinks(drive.id)[0].rel).toBe("loadout.module");
 
     // budget
-    const b = computeBudget(repo2.typed(ship.id)!, repo2.typed(hull.id), (id) => repo2.typed(id));
+    const { budget: b } = analyseShip(repo2.typed(ship.id)!, { typed: (id: string) => repo2.typed(id), tables: repo2.tables, values: repo2.effectiveConstraints().values });
     expect(b.dryMass_t).toBeCloseTo(1800 + 120 + 60 + 2 * 12);
     expect(b.wetMass_t).toBeCloseTo(b.dryMass_t + 3000);
     expect(b.deltaV_kms).toBeGreaterThan(50);
-    expect(b.heatMargin_MW).toBeCloseTo(400 - 350);
+    // 400 MW of rejection against the reactor's 100 MW. The NSWR's 250 MW goes
+    // out with the exhaust, not into a radiator — it is an open-cycle drive
+    // (docs/UNITS.md §5), so it is not a rejection load at all.
+    expect(b.heatMargin_MW).toBeCloseTo(400 - 100);
     expect(b.powerMargin_MW).toBeCloseTo(50 - 1);
-    expect(b.warnings).toEqual([]);
+    // Every module resolves and no tank is loaded, so the budget itself has
+    // nothing to report. Loadout advisories (these lines are unplaced) are a
+    // separate list and are exercised in tests/ship-*.test.ts.
+    expect(b.advisories).toEqual([]);
 
     // notes
     const note = repo2.createNote("Scratch");

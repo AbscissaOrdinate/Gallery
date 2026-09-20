@@ -269,6 +269,38 @@ export function sectionVolumes(hull: HullGeometry): SectionVolume[] {
   });
 }
 
+/**
+ * The station the hull's own volume balances about.
+ *
+ * Structure mass has to sit somewhere for the centre of gravity to mean
+ * anything, and the honest place is the volumetric centroid: a hull that is
+ * fat aft has its structure aft. Integrated over the same breakpoints the
+ * volume uses, so the two agree exactly on where the hull is.
+ */
+export function volumeCentroid(spine: Spine): number | undefined {
+  const xs = breakpoints(spine);
+  let volume = 0;
+  let moment = 0;
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const xa = xs[i] as number;
+    const xb = xs[i + 1] as number;
+    const dx = xb - xa;
+    if (dx <= 0) continue;
+    const [aa, ba] = semiAxesAt(spine, xa, "fore");
+    const [ab, bb] = semiAxesAt(spine, xb, "aft");
+    const v = frustumVolume(aa, ba, ab, bb, dx);
+    // The panel's own centroid, exact for a linear taper: the area at each end
+    // weights where inside the panel its volume sits.
+    const areaA = Math.PI * aa * ba;
+    const areaB = Math.PI * ab * bb;
+    const total = areaA + areaB;
+    const offset = total > 0 ? (dx * (areaA + 2 * areaB)) / (3 * total) : dx / 2;
+    volume += v;
+    moment += v * (xa + offset);
+  }
+  return volume > 0 ? moment / volume : undefined;
+}
+
 /** Mass-weighted centre of gravity along the axis, in metres from the bow. */
 export function cgStation(items: MassItem[]): number | undefined {
   let mass = 0;

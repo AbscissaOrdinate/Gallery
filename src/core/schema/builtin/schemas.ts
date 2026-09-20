@@ -133,7 +133,7 @@ export const CHARACTER_SCHEMA: TypeSchema = {
 
 export const MODULE_SCHEMA: TypeSchema = {
   id: "module",
-  version: 2,
+  version: 3,
   title: "Module",
   description:
     "A component class that goes on a craft: drives, reactors, radiators, weapons, point defense, sensors, armor, habitats, tanks. Numbers feed the craft budget roll-up.",
@@ -167,7 +167,13 @@ export const MODULE_SCHEMA: TypeSchema = {
         ],
         default: "other",
       }),
-      slot: str("Slot type", { enum: ["internal", "external", "spinal", "turret", "drive", "radiator", "hangar"], default: "internal" }),
+      slot: str("Slot type", {
+        // The same vocabulary as a hull's `external_slots[].type`, plus
+        // `internal`. Before this a point-defence module could only call itself
+        // a turret, so every PD mount on every hull reported a mismatch.
+        enum: ["internal", "external", "spinal", "turret", "pd", "radiator", "comms", "sensor", "optics", "tank", "drive", "thruster", "dock", "pod", "hangar"],
+        default: "internal",
+      }),
       tech_level: str("Tech level / era"),
       maker: ref("Manufacturer", ["polity"], "made-by"),
       mass_t: num("Mass", "t", { minimum: 0, "x-group": "Budget" }),
@@ -176,6 +182,22 @@ export const MODULE_SCHEMA: TypeSchema = {
       power_in_MW: num("Power drawn", "MW", { minimum: 0, "x-group": "Budget" }),
       heat_out_MW: num("Waste heat produced", "MW", { minimum: 0, "x-group": "Budget" }),
       heat_reject_MW: num("Heat rejected (radiators)", "MW", { minimum: 0, "x-group": "Budget" }),
+      reject_temp_k: num("Radiator working temperature", "K", {
+        minimum: 0,
+        "x-group": "Budget",
+        description:
+          "Which array this radiator is. Life-support heat (~300 K) and reactor/weapon heat (800–1500 K) need separate arrays and are never summed into one rejection figure — docs/UNITS.md §5. A radiator that leaves this blank is counted against whichever array still needs it.",
+      }),
+      power_standby_MW: num("Power drawn on standby", "MW", {
+        minimum: 0,
+        "x-group": "Budget",
+        description: "Draw when idling but available. Without it, an operating mode's `standby` setting is budgeted as off rather than as a guessed fraction.",
+      }),
+      radiated_power_kw: num("Radiated RF power", "kW", {
+        minimum: 0,
+        "x-group": "Budget",
+        description: "What this module puts into space. Anything above zero is an emitter, and the EMCON mode template shuts it down.",
+      }),
       crew: num("Crew required", undefined, { minimum: 0, "x-group": "Budget" }),
       crew_basis: str("Crew basis", {
         enum: ["per_watch", "total"],
@@ -191,13 +213,28 @@ export const MODULE_SCHEMA: TypeSchema = {
       cost: num("Cost", "M$", { minimum: 0, "x-group": "Budget" }),
       thrust_kN: num("Thrust", "kN", { minimum: 0, "x-group": "Propulsion" }),
       isp_s: num("Specific impulse", "s", { minimum: 0, "x-group": "Propulsion" }),
-      propellant: str("Propellant", { "x-group": "Propulsion", description: "e.g. water, LH2, uranium brine (NSWR)" }),
+      propellant: str("Propellant", { "x-group": "Propulsion", description: "A `_tables/propellants.yaml` row id, so the tanks that feed this drive can be identified." }),
+      cycle: str("Cycle", {
+        enum: ["", "open", "closed"],
+        "x-group": "Propulsion",
+        description:
+          "Open-cycle drives carry their propulsion waste heat away in the exhaust and need no radiator for it; closed-cycle drives do — docs/UNITS.md §5. A drive that leaves this blank is treated as closed, which is the conservative half.",
+      }),
       propellant_capacity_t: num("Propellant capacity (tanks)", "t", { minimum: 0, "x-group": "Propulsion" }),
       range_km: num("Effective range", "km", { minimum: 0, "x-group": "Weapon" }),
       muzzle_velocity_kms: num("Muzzle / terminal velocity", "km/s", { minimum: 0, "x-group": "Weapon" }),
       rate_of_fire_rpm: num("Rate of fire", "rpm", { minimum: 0, "x-group": "Weapon" }),
       yield_MJ: num("Yield per shot", "MJ", { minimum: 0, "x-group": "Weapon" }),
       magazine: num("Magazine / rounds", undefined, { minimum: 0, "x-group": "Weapon" }),
+      weapon_family: str("Weapon family", {
+        enum: ["", "gun", "cell", "rocket", "arm", "laser", "plasma", "particle", "ciws"],
+        "x-group": "Weapon",
+        description:
+          "What this mounting looks like on the silhouette. Weapons that work the same way share a shape and differ by scale — every barrel weapon is `gun` — so this is only needed where the category does not decide it, e.g. a rocket bundle or a one-armed bandit among the kinetics.",
+      }),
+      bore_mm: num("Bore", "mm", { minimum: 0, "x-group": "Weapon", description: "From a mount's `ammo_mm`. Sets barrel length and thickness in the silhouette." }),
+      barrels: { type: "integer" as const, title: "Barrels", minimum: 0, "x-group": "Weapon", description: "Tubes in the mounting. Widens the gunhouse and draws one barrel each." },
+      launch_cells: { type: "integer" as const, title: "Launch cells", minimum: 0, "x-group": "Weapon", description: "Cells or tubes, from a launcher's `cells_capacity`. Sets how many hatches are drawn." },
       guidance: str("Guidance / seeker", { "x-group": "Weapon" }),
       description: text("Description"),
     },
@@ -271,7 +308,7 @@ export const HULL_SCHEMA: TypeSchema = {
             id: str("Id"),
             x0: num("From", "m", { minimum: 0 }),
             x1: num("To", "m", { minimum: 0 }),
-            allowed: strs("Allowed archetypes"),
+            allowed: strs("Allowed module categories"),
             pressurised: { type: "boolean" as const, title: "Pressurised" },
           },
         },
@@ -431,8 +468,10 @@ export const STYLE_SCHEMA: TypeSchema = {
 
 export const CRAFT_SCHEMA: TypeSchema = {
   id: "craft",
+  version: 2,
   title: "Craft",
-  description: "Ships, stations, strike craft, missiles, drones: a hull plus a loadout of modules. Budgets are computed.",
+  description:
+    "Ships, stations, strike craft, missiles, drones: what fills a hull. Slot assignments, the internal manifest, tank fill, magazines, crew and operating modes. Geometry belongs to the hull and is never changed here.",
   folder: "craft",
   icon: "➤",
   rels: ["operated-by", "built-by", "variant-of", "carries", "based-at", "successor-of"],
@@ -450,19 +489,123 @@ export const CRAFT_SCHEMA: TypeSchema = {
       parent: ref("Variant of", ["craft"], "variant-of"),
       status: str("Status", { enum: ["concept", "prototype", "in service", "reserve", "retired", "lost"], default: "concept" }),
       introduced: str("Introduced"),
+      fittings: {
+        type: "array",
+        title: "Fittings",
+        "x-group": "Loadout",
+        description: "External modules, one per hull slot. A slot holds one fitting, so the hull's slot id is the fitting's identity.",
+        items: {
+          type: "object",
+          properties: {
+            slot: str("Hull slot", { description: "The id of an `external_slots` entry on the hull." }),
+            module: ref("Module", ["module"], "carries"),
+            magazine: {
+              type: "array",
+              title: "Munition mix",
+              description:
+                "Rounds loaded, by munitions-table row. Counts only: `_tables/munitions.yaml` carries no mass per round, so a magazine is checked against the launcher's capacity and adds no mass.",
+              items: {
+                type: "object",
+                properties: {
+                  munition: str("Munition", { description: "`_tables/munitions.yaml` row id." }),
+                  rounds: { type: "integer" as const, title: "Rounds", minimum: 0, default: 0 },
+                },
+              },
+            },
+            note: str("Note"),
+          },
+        },
+      },
+      manifest: {
+        type: "array",
+        title: "Internal manifest",
+        "x-group": "Loadout",
+        description: "Internal components, spending a section's volume budget. Volume totals against the section's `allowed` list — there is no bin-packing.",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            section: str("Hull section", { description: "The id of a `sections` entry on the hull." }),
+            module: ref("Module", ["module"], "carries"),
+            count: { type: "integer" as const, title: "Count", default: 1, minimum: 1 },
+          },
+        },
+      },
+      tanks: {
+        type: "array",
+        title: "Tanks",
+        "x-group": "Loadout",
+        description: "Propellant loads. The tank module carries the dry tankage mass and the capacity; the propellant row carries the density that turns volume into mass.",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            section: str("Hull section"),
+            module: ref("Tank module", ["module"], "carries"),
+            propellant: str("Propellant", { description: "`_tables/propellants.yaml` row id." }),
+            volume_m3: num("Load", "m³", { minimum: 0 }),
+            jettison_order: {
+              type: "integer" as const,
+              title: "Jettison order",
+              minimum: 0,
+              default: 0,
+              description: "0 is integral and burns last; 1 is dropped first, then 2. Staging recomputes the rocket equation at each drop.",
+            },
+          },
+        },
+      },
+      modes: {
+        type: "array",
+        title: "Operating modes",
+        "x-group": "Loadout",
+        description:
+          "Power and heat are reported per mode. A component a mode does not name runs at full, so a craft with no modes budgets exactly as it did before modes existed.",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            name: str("Name"),
+            duties: {
+              type: "array" as const,
+              title: "Duties",
+              description: "What each component is doing in this mode. Anything not listed runs at full.",
+              items: {
+                type: "object" as const,
+                properties: {
+                  component: str("Component", { description: "A fitting's slot id, a manifest entry's id, or a tank's id." }),
+                  duty: str("Duty", { description: "`off`, `standby`, `full`, or a fraction between 0 and 1." }),
+                },
+              },
+            },
+            note: str("Note"),
+          },
+        },
+      },
       loadout: {
         type: "array",
-        title: "Loadout",
+        title: "Loadout (v1, unplaced)",
+        "x-group": "Loadout",
+        description:
+          "The pre-v2 flat loadout. `slot` here was a slot *kind*, not a place, so these lines count in every total but are not drawn and not checked for fit until they are moved onto a slot or into a section. The migrator deliberately leaves them alone rather than guessing a placement.",
         items: {
           type: "object",
           properties: {
             module: ref("Module", ["module"], "carries"),
             count: { type: "integer", title: "Count", default: 1, minimum: 1 },
-            slot: str("Slot"),
+            slot: str("Slot kind"),
           },
         },
       },
-      propellant_t: num("Propellant loaded", "t", { minimum: 0, "x-group": "Budget" }),
+      propellant_t: num("Propellant loaded", "t", { minimum: 0, "x-group": "Budget", description: "The pre-v2 bare propellant mass, with no tank and no propellant type. Read only while `tanks` is empty." }),
+      watch_factor: num("Watches", undefined, {
+        minimum: 1,
+        maximum: 3,
+        default: 3,
+        "x-group": "Budget",
+        description:
+          "Watches the crew rotates through. Only modules whose `crew_basis` is `per_watch` are multiplied by it; the NEBULOUS-seeded catalogue is `total` and is exempt — docs/UNITS.md §4. 3 for warships, 1 for stations and small craft.",
+      }),
+      endurance_days: num("Endurance", "days", { minimum: 0, "x-group": "Budget", description: "Needs a constraint set's `kg_per_crew_day` to become a consumables mass." }),
       crew_override: num("Crew (override)", undefined, { minimum: 0, "x-group": "Budget" }),
       carried: refs("Carried craft", ["craft"], "carries"),
       units: strs("Named units"),

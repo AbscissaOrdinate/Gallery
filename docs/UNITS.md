@@ -153,3 +153,29 @@ modules sit in one fleet without either being 3× wrong.
   it; closed-cycle drives do. Carry the `cycle` field through to the heat budget.
 - Life-support heat (~300 K) and reactor/weapon heat (800–1500 K) need **separate arrays**;
   the low-temperature array is usually the larger. Never sum them into one rejection figure.
+
+## 6. Module fields the ship budget reads (added 2026-09-20, editor 2)
+
+Both rules above needed a field on the module record before the budget could honour them,
+and three more were needed before a fitted weapon could reach the silhouette at its own
+scale. All are optional; a module that omits one contributes nothing rather than a guess.
+
+| Field | Unit | What it decides |
+|---|---|---|
+| `cycle` | `open` \| `closed` | An **open**-cycle drive's `heat_out_MW` is not a rejection load at all. Absent reads as `closed`, the conservative half. |
+| `reject_temp_k` | K | Which array a radiator belongs to: below 400 K it serves the life-support loop, above it the reactor loop. A radiator that omits it is counted against whichever array still needs it, and the budget says so. |
+| `power_standby_MW` | MW | What an operating mode's `standby` setting actually draws. Without it, `standby` is budgeted as **off** rather than as an invented fraction of full draw. |
+| `radiated_power_kw` | kW | Anything above zero is an emitter, and the EMCON mode template shuts it down. This is what makes emission control mean something other than a category guess. |
+| `bore_mm`, `barrels`, `launch_cells` | mm, count, count | Silhouette scale. These are `_tables/mounts.yaml`'s `ammo_mm` and `cells_capacity` under the names the part generator uses. |
+
+A module's `propellant` is a **`_tables/propellants.yaml` row id**, not prose, so the tanks
+that feed a drive can be identified. A drive naming its propellant in prose is reported as a
+vocabulary gap, never as the wrong fuel.
+
+A module's `slot` uses the same vocabulary as a hull's `external_slots[].type`, plus
+`internal`. They were two different lists until editor 2, which meant a point-defence mount
+could only call itself a turret.
+
+Three figures the budget still needs and no set supplies — `automation_factor`,
+`kg_per_crew_day` and `max_gimbal_deg`. Each leaves its term at zero (or its check
+unavailable) and says so in the budget's `assumptions`. See `missingParams()`.

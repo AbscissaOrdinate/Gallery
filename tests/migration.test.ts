@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { MemoryAdapter } from "../src/core/storage/memory";
 import { Repository } from "../src/core/repo";
 import { demoVault } from "../src/ui/demo";
-import { computeBudget } from "../src/core/designer/budgets";
+import { analyseShip } from "../src/core/designer/ship";
 import { migrateAll, migrateRecord, MIGRATABLE_TYPES } from "../src/core/schema/migrate";
 import { readHull } from "../src/core/designer/hull/record";
 import { hullAdvisories } from "../src/core/designer/hull/advisories";
@@ -234,24 +234,32 @@ describe("module v1 → v2", () => {
 
 describe("migrateAll", () => {
   it("reports what changed and leaves everything else alone", () => {
-    const records = [v1Hull(), { ...v1Hull(), id: "h2", type: "craft" } as TypedRecord];
+    const records = [
+      v1Hull(),
+      { ...v1Hull(), id: "c1", type: "craft", fields: { kind: "ship" } } as TypedRecord,
+      // A polity has no migration at all, and must come back untouched.
+      { ...v1Hull(), id: "p1", type: "polity", fields: { kind: "nation" } } as TypedRecord,
+    ];
     const { records: out, report } = migrateAll(records);
-    expect(out).toHaveLength(2);
-    expect(report.migrated).toHaveLength(1);
-    expect(report.migrated[0]?.type).toBe("hull");
-    expect(report.unchanged).toBe(1); // craft has no migration yet
+    expect(out).toHaveLength(3);
+    expect(report.migrated.map((m) => m.type).sort()).toEqual(["craft", "hull"]);
+    expect(report.unchanged).toBe(1);
   });
 
   it("knows which types it can migrate", () => {
-    expect(MIGRATABLE_TYPES.sort()).toEqual(["hull", "module"]);
+    expect(MIGRATABLE_TYPES.sort()).toEqual(["craft", "hull", "module"]);
   });
 });
 
 describe("schema versions", () => {
-  it("bumps hull and module, and ships bus and style", () => {
+  it("bumps hull, module and craft, and ships bus and style", () => {
     const byId = Object.fromEntries(BUILTIN_SCHEMAS.map((s) => [s.id, s]));
     expect(byId.hull?.version).toBe(2);
-    expect(byId.module?.version).toBe(2);
+    // Editor 2 added the six fields the ship kernel reads: standby draw,
+    // radiator temperature, radiated power, and the three weapon-scale figures.
+    expect(byId.module?.version).toBe(3);
+    // Fittings, manifest, tanks, modes, watch factor and endurance.
+    expect(byId.craft?.version).toBe(2);
     expect(byId.bus?.version).toBe(1);
     expect(byId.style?.version).toBe(1);
   });
@@ -330,6 +338,55 @@ describe("regression gate (§9)", () => {
     expect(lost).toEqual([]);
   });
 
+/**
+ * What editor 2 deliberately changed, and why the rest must not move.
+ *
+ * The baseline was captured with the phase-1 engine. Editor 2 replaced it, so
+ * two of its entries are expected to differ — and only two. Naming them here,
+ * rather than re-capturing the fixture, keeps the gate comparing the code to a
+ * record of what it used to do instead of to itself.
+ *
+ * - **`crew`** — the phase-1 engine summed module `crew` raw. `docs/UNITS.md`
+ *   §4's model multiplies `crew_basis: per_watch` figures by the craft's watch
+ *   factor, and the migration sets that to 3 for a warship. 23 people on watch
+ *   is a complement of 69; the old figure was the watch, mislabelled.
+ * - **`warnings`** — a flat string list became the `Violation` currency, and
+ *   the slot-fit check moved from counting v1 slot *kinds* to named, positioned
+ *   slots. The two substantive warnings must survive that move; the third was
+ *   an artefact of counting kinds and has no successor.
+ * - **`heatOut_MW`** — the phase-1 engine summed every module's waste heat,
+ *   including the NSWR's. An open-cycle drive throws its heat out with the
+ *   propellant and needs no radiator for it (`docs/UNITS.md` §5), so 250 MW of
+ *   exhaust left the rejection budget. The ships did not get cooler; the figure
+ *   stopped counting heat no array ever had to shed.
+ *
+ * Every other key is compared exactly, which is the whole point.
+ */
+const DELIBERATE = new Set(["crew", "warnings", "heatOut_MW"]);
+
+/** Waste heat that an array actually has to reject, now the drive is excluded. */
+const EXPECTED_HEAT: Record<string, number> = {
+  "Sword-of-State-class": 245,
+  "Sword-of-Justice-class leader": 245,
+};
+
+/**
+ * Baselined warnings that must still be reported, in some form, by the new
+ * kernel. The wording moved; the finding must not. "Radiator deficit 295.0 MW"
+ * is now a high-temperature deficit of the same 295 MW, which is the number
+ * that matters.
+ */
+const MUST_SURVIVE: Record<string, string[]> = {
+  "Sword-of-State-class": ["exceeds tank capacity", "short by 45 MW"],
+  "Sword-of-Justice-class leader": ["exceeds tank capacity", "short by 45 MW"],
+};
+
+/** The complement each craft now reports, under the watch model. */
+const EXPECTED_CREW: Record<string, number> = {
+  "Sword-of-State-class": 69,
+  "Sword-of-Justice-class leader": 69,
+};
+
   it("every craft in the demo vault produces identical budget numbers", async () => {
     const fs = new MemoryAdapter();
     await demoVault(fs);
@@ -337,22 +394,34 @@ describe("regression gate (§9)", () => {
     await repo.load();
 
     const drift: string[] = [];
+    const seen = new Set<string>();
     for (const lr of repo.ofType("craft")) {
       const craft = lr.record;
       if (isNote(craft)) continue;
-      const hull = typeof craft.fields.hull === "string" ? repo.typed(craft.fields.hull) : undefined;
-      const budget = computeBudget(craft, hull, (id) => repo.typed(id)) as unknown as Record<string, unknown>;
       const expected = baseline.budgets[craft.name];
-      expect(expected, `${craft.name} is missing from the baseline`).toBeDefined();
+      // Craft added after the baseline was captured are not regressions; the
+      // gate's job is that nothing baselined has *drifted* or disappeared.
       if (!expected) continue;
+      seen.add(craft.name);
+      const { budget, advisories } = analyseShip(craft, { typed: (id) => repo.typed(id), tables: repo.tables, values: repo.effectiveConstraints().values });
+      const numbers = budget as unknown as Record<string, unknown>;
       for (const [key, want] of Object.entries(expected)) {
-        const got = budget[key];
+        if (DELIBERATE.has(key)) continue;
+        const got = numbers[key];
         const same = Array.isArray(want) ? JSON.stringify(got) === JSON.stringify(want) : got === want;
         if (!same) drift.push(`${craft.name}.${key}: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
       }
+      // The deliberate changes, asserted rather than waved through.
+      expect(budget.crew, `${craft.name} complement`).toBe(EXPECTED_CREW[craft.name]);
+      expect(budget.crewOnWatch, `${craft.name} on watch`).toBe(expected.crew);
+      expect(budget.heatOut_MW, `${craft.name} rejectable heat`).toBe(EXPECTED_HEAT[craft.name]);
+      const text = advisories.map((v) => v.message).join(" | ");
+      for (const fragment of MUST_SURVIVE[craft.name] ?? []) {
+        expect(text, `${craft.name}: "${fragment}" was reported before and must still be`).toContain(fragment);
+      }
     }
     expect(drift).toEqual([]);
-    expect(repo.ofType("craft")).toHaveLength(Object.keys(baseline.budgets).length);
+    expect([...seen].sort(), "a baselined craft has disappeared from the demo vault").toEqual(Object.keys(baseline.budgets).sort());
   });
 
   it("budgets are still identical after every record is migrated", async () => {
@@ -369,12 +438,13 @@ describe("regression gate (§9)", () => {
     const drift: string[] = [];
     for (const record of migrated) {
       if (record.type !== "craft") continue;
-      const hull = typeof record.fields.hull === "string" ? byId.get(record.fields.hull) : undefined;
-      const budget = computeBudget(record, hull, (id) => byId.get(id)) as unknown as Record<string, unknown>;
+      const { budget } = analyseShip(record, { typed: (id) => byId.get(id), tables: repo.tables, values: repo.effectiveConstraints().values });
+      const numbers = budget as unknown as Record<string, unknown>;
       const expected = baseline.budgets[record.name];
       if (!expected) continue;
       for (const [key, want] of Object.entries(expected)) {
-        const got = budget[key];
+        if (DELIBERATE.has(key)) continue;
+        const got = numbers[key];
         const same = Array.isArray(want) ? JSON.stringify(got) === JSON.stringify(want) : got === want;
         if (!same) drift.push(`${record.name}.${key} after migration: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
       }

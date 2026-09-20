@@ -87,6 +87,19 @@ table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: ta
 .link:hover { color: var(--rust-200); }
 .svgbox { background: var(--surface-muted); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-3); max-height: 260px; overflow: auto; }
 .svgbox svg { max-width: 100%; height: auto; color: var(--text); }
+/* Per-mode power and heat, and the provisional marker that rides with any
+   figure derived from an unverified table row (docs/CLAUDE.md). Theme tokens
+   only — no new colours. */
+table.modes td, table.modes th { white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.modes td.warn { color: var(--warn); }
+/* A card that has something to say, without recolouring everything inside it. */
+.card.flagged { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+/* Severity, in tokens that already exist. */
+.advisories li.error { color: var(--warn); }
+.advisories li.warn { color: var(--text); }
+.advisories li.info { color: var(--text-muted); }
+.provisional { margin-top: var(--sp-2); }
+.provisional::before { content: "⚠"; margin-right: 4px; color: var(--warn); }
 .budget { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-2); }
 .stat { background: var(--surface-muted); border: 1px solid var(--line-faded); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); }
 .stat .k { color: var(--text-faint); font-size: var(--fs-xs); }

@@ -21,7 +21,7 @@ standalone scripts run against a preview server:
 
 ```bash
 npm run build && npx vite preview     # then, in another shell:
-node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}.mjs
+node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}, -hull, -ship
 ```
 
 ## Layout

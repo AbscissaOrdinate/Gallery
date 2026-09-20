@@ -50,7 +50,8 @@ export const BUILTIN_PRESETS: Preset[] = [
     id: "nswr-drive",
     type: "module",
     title: "NSWR drive (nuclear salt-water rocket)",
-    description: "Zubrin-style continuous-fission torch. Huge thrust and Isp; horrendous exhaust; needs uranium brine.",
+    description:
+      "Zubrin-style continuous-fission torch. Huge thrust and Isp; horrendous exhaust. The tank holds a uranium tetrabromide brine at about 20% enrichment; `propellant` names the water it is dissolved in, which is the propellants-table row the density comes from.",
     tags: ["drive", "nuclear"],
     fields: {
       category: "drive",
@@ -58,7 +59,8 @@ export const BUILTIN_PRESETS: Preset[] = [
       mass_t: 120,
       thrust_kN: 12000,
       isp_s: 6700,
-      propellant: "uranium tetrabromide brine (20% enriched)",
+      propellant: "water",
+      cycle: "open",
       heat_out_MW: 250,
       cost: 900,
       crew: 6,
@@ -69,28 +71,28 @@ export const BUILTIN_PRESETS: Preset[] = [
     type: "module",
     title: "Solid-core NTR",
     tags: ["drive", "nuclear"],
-    fields: { category: "drive", slot: "drive", mass_t: 40, thrust_kN: 330, isp_s: 900, propellant: "LH2", heat_out_MW: 30, cost: 120, crew: 2 },
+    fields: { category: "drive", slot: "drive", mass_t: 40, thrust_kN: 330, isp_s: 900, propellant: "hydrogen-liquid", cycle: "open", heat_out_MW: 30, cost: 120, crew: 2 },
   },
   {
     id: "chemical-drive",
     type: "module",
     title: "Chemical engine (methalox)",
     tags: ["drive", "chemical"],
-    fields: { category: "drive", slot: "drive", mass_t: 8, thrust_kN: 2200, isp_s: 360, propellant: "CH4/LOX", heat_out_MW: 2, cost: 15 },
+    fields: { category: "drive", slot: "drive", mass_t: 8, thrust_kN: 2200, isp_s: 360, propellant: "methane-liquid", cycle: "open", heat_out_MW: 2, cost: 15 },
   },
   {
     id: "fission-reactor",
     type: "module",
     title: "Fission reactor, 50 MWe",
     tags: ["power", "nuclear"],
-    fields: { category: "reactor", slot: "internal", mass_t: 60, power_out_MW: 50, heat_out_MW: 100, cost: 200, crew: 4 },
+    fields: { category: "reactor", slot: "internal", mass_t: 60, volume_m3: 900, power_out_MW: 50, heat_out_MW: 100, cost: 200, crew: 4 },
   },
   {
     id: "dhe3-fusion-reactor",
     type: "module",
     title: "D–He3 fusion reactor, 200 MWe",
     tags: ["power", "fusion"],
-    fields: { category: "reactor", slot: "internal", mass_t: 180, power_out_MW: 200, heat_out_MW: 250, cost: 1200, crew: 8 },
+    fields: { category: "reactor", slot: "internal", mass_t: 180, volume_m3: 2400, power_out_MW: 200, heat_out_MW: 250, cost: 1200, crew: 8 },
   },
   {
     id: "droplet-radiator",
@@ -153,14 +155,104 @@ export const BUILTIN_PRESETS: Preset[] = [
     type: "module",
     title: "Point-defense pulse laser",
     tags: ["defense", "laser"],
-    fields: { category: "point-defense", slot: "turret", mass_t: 6, power_in_MW: 3, heat_out_MW: 2.5, range_km: 300, rate_of_fire_rpm: 600, cost: 40 },
+    fields: { category: "point-defense", slot: "pd", mass_t: 6, power_in_MW: 3, power_standby_MW: 0.2, heat_out_MW: 2.5, range_km: 300, rate_of_fire_rpm: 600, cost: 40 },
   },
   {
     id: "pd-flak",
     type: "module",
     title: "Point-defense flak cannon",
     tags: ["defense", "kinetic"],
-    fields: { category: "point-defense", slot: "turret", mass_t: 9, power_in_MW: 0.5, heat_out_MW: 0.3, range_km: 40, rate_of_fire_rpm: 1200, magazine: 5000, cost: 12 },
+    fields: { category: "point-defense", slot: "pd", mass_t: 9, power_in_MW: 0.5, power_standby_MW: 0.05, heat_out_MW: 0.3, range_km: 40, rate_of_fire_rpm: 1200, magazine: 5000, cost: 12 },
+  },
+  // ---- module: the UJCN fit ------------------------------------------------
+  // Design figures, not sourced physical constants: these exist so the ship
+  // editor has mounts whose *scale* reaches the silhouette, and so the two
+  // radiator loops are distinguishable. `bore_mm`, `barrels` and `launch_cells`
+  // are the columns `_tables/mounts.yaml` already carries as `ammo_mm` and
+  // `cells_capacity`.
+  {
+    id: "mk66-twin",
+    type: "module",
+    title: "Mk66 450 mm twin",
+    description: "The UJCN destroyer's main battery: a twin 450 mm coilgun in a barbette.",
+    tags: ["weapon", "kinetic", "ujcn"],
+    fields: {
+      category: "weapon-kinetic",
+      slot: "turret",
+      weapon_family: "gun",
+      bore_mm: 450,
+      barrels: 2,
+      mass_t: 95,
+      volume_m3: 260,
+      power_in_MW: 2,
+      power_standby_MW: 0.2,
+      heat_out_MW: 3,
+      magazine: 240,
+      crew: 12,
+      bus_iface: "UJCN-M",
+      cost: 120,
+    },
+  },
+  {
+    id: "mk81-single",
+    type: "module",
+    title: "Mk81 300 mm single",
+    description: "The same gunhouse pattern two calibres down: the after mount and the export fit.",
+    tags: ["weapon", "kinetic", "ujcn"],
+    fields: {
+      category: "weapon-kinetic",
+      slot: "turret",
+      weapon_family: "gun",
+      bore_mm: 300,
+      barrels: 1,
+      mass_t: 34,
+      volume_m3: 90,
+      power_in_MW: 1,
+      power_standby_MW: 0.1,
+      heat_out_MW: 1.5,
+      magazine: 180,
+      crew: 6,
+      bus_iface: "UJCN-S",
+      cost: 45,
+    },
+  },
+  {
+    id: "vls-32",
+    type: "module",
+    title: "32-cell vertical launcher",
+    tags: ["weapon", "missile", "ujcn"],
+    fields: { category: "weapon-missile", slot: "turret", launch_cells: 32, magazine: 32, mass_t: 60, volume_m3: 220, power_in_MW: 0.4, crew: 4, bus_iface: "UJCN-L", cost: 70 },
+  },
+  {
+    id: "beam-turret",
+    type: "module",
+    title: "Main-battery laser turret",
+    tags: ["weapon", "laser", "ujcn"],
+    fields: { category: "weapon-laser", slot: "turret", mass_t: 70, volume_m3: 180, power_in_MW: 40, power_standby_MW: 1.5, heat_out_MW: 36, crew: 5, bus_iface: "UJCN-L", cost: 160 },
+  },
+  {
+    id: "search-radar",
+    type: "module",
+    title: "Search radar",
+    description: "The set an ESM receiver hears first — `radiated_power_kw` is what EMCON shuts down.",
+    tags: ["sensor", "emitter"],
+    fields: { category: "sensor", slot: "external", mass_t: 9, volume_m3: 40, power_in_MW: 3.6, power_standby_MW: 0.4, heat_out_MW: 3.2, radiated_power_kw: 4100, crew: 2, cost: 60 },
+  },
+  {
+    id: "hot-loop-radiator",
+    type: "module",
+    title: "High-temperature radiator array",
+    description: "The reactor and drive loop. Small for its rejection because it runs hot; useless for anything a crew lives next to.",
+    tags: ["thermal"],
+    fields: { category: "radiator", slot: "radiator", mass_t: 18, heat_reject_MW: 120, reject_temp_k: 1150, power_in_MW: 0.3, cost: 30 },
+  },
+  {
+    id: "cold-loop-radiator",
+    type: "module",
+    title: "Low-temperature radiator array",
+    description: "Life support and electronics at ~330 K. Rejects far less per tonne, and every crewed ship needs one — docs/UNITS.md §5.",
+    tags: ["thermal"],
+    fields: { category: "radiator", slot: "radiator", mass_t: 11, heat_reject_MW: 12, reject_temp_k: 330, power_in_MW: 0.2, cost: 14 },
   },
   {
     id: "missile-pod",
@@ -201,6 +293,14 @@ export const BUILTIN_PRESETS: Preset[] = [
     fields: { category: "habitat", slot: "internal", mass_t: 150, volume_m3: 4000, power_in_MW: 2, heat_out_MW: 2, cost: 90 },
   },
   {
+    id: "berthing",
+    type: "module",
+    title: "Berthing and messing",
+    description: "Bunks, heads, galley and mess for a destroyer's watch bill. Supplies no crew of its own; what it *supports* is not modelled until modules can declare a capacity.",
+    tags: ["crew"],
+    fields: { category: "habitat", slot: "internal", mass_t: 55, volume_m3: 1400, power_in_MW: 0.9, heat_out_MW: 1.1, cost: 22 },
+  },
+  {
     id: "hangar-bay",
     type: "module",
     title: "Hangar bay (4 strike craft)",
@@ -221,7 +321,11 @@ export const BUILTIN_PRESETS: Preset[] = [
       truss_pitch_m: 3,
       station_pitch_m: 3,
       ring_size: "UJCN standard ring, 1.4 m clear",
-      mount_ifaces: ["turret", "pd", "radiator", "comms", "sensor", "tank", "drive"],
+      // Named mounting standards a module is built *to*, by size class. The
+      // earlier list repeated the hull's slot *types*, which are a different
+      // thing: a slot's type says what goes there, an interface says whether it
+      // bolts on. Editor 2's fit check is the first thing to read this.
+      mount_ifaces: ["UJCN-S", "UJCN-M", "UJCN-L"],
       notes: "The yard dimensions every UJCN hull is built to. A tug, an oiler and a destroyer share tank barrels and ring sizes, which is what makes them look like one navy up close.",
     },
   },
@@ -295,9 +399,13 @@ export const BUILTIN_PRESETS: Preset[] = [
         ],
       },
       sections: [
-        { id: "forward", x0: 0, x1: 48, allowed: ["cic", "sensor", "crew"], pressurised: true },
-        { id: "magazine", x0: 48, x1: 87, allowed: ["magazine", "weapon_support"] },
-        { id: "engineering", x0: 87, x1: 138, allowed: ["reactor", "drive", "damage_control"] },
+        // Module categories, not archetypes: a module record carries a
+        // `category` and will not carry an archetype until editor 3 authors
+        // them, and a list in a vocabulary the other side cannot speak checks
+        // nothing.
+        { id: "forward", x0: 0, x1: 48, allowed: ["habitat", "sensor", "ew", "other"], pressurised: true },
+        { id: "magazine", x0: 48, x1: 87, allowed: ["weapon-missile", "weapon-kinetic", "cargo", "other"] },
+        { id: "engineering", x0: 87, x1: 138, allowed: ["reactor", "drive", "radiator", "tank", "other"] },
       ],
       armor_zones: [{ id: "bow", x0: 0, x1: 48, material: "composite", thickness_cm: 6 }],
       external_slots: [
@@ -395,49 +503,49 @@ export const BUILTIN_PRESETS: Preset[] = [
     id: "destroyer",
     type: "craft",
     title: "Destroyer",
-    fields: { kind: "ship", hull_class: "DD", role: "screen / escort", status: "concept", propellant_t: 3000 },
+    fields: { kind: "ship", hull_class: "DD", role: "screen / escort", status: "concept", propellant_t: 3000, watch_factor: 3 },
   },
   {
     id: "cruiser",
     type: "craft",
     title: "Cruiser",
-    fields: { kind: "ship", hull_class: "CC", role: "independent operations / flag", status: "concept", propellant_t: 9000 },
+    fields: { kind: "ship", hull_class: "CC", role: "independent operations / flag", status: "concept", propellant_t: 9000, watch_factor: 3 },
   },
   {
     id: "frigate",
     type: "craft",
     title: "Frigate",
-    fields: { kind: "ship", hull_class: "FF", role: "patrol / convoy escort", status: "concept", propellant_t: 1200 },
+    fields: { kind: "ship", hull_class: "FF", role: "patrol / convoy escort", status: "concept", propellant_t: 1200, watch_factor: 3 },
   },
   {
     id: "monitor",
     type: "craft",
     title: "Monitor",
-    fields: { kind: "ship", hull_class: "BM", role: "orbital fire support / static defense", status: "concept", propellant_t: 400 },
+    fields: { kind: "ship", hull_class: "BM", role: "orbital fire support / static defense", status: "concept", propellant_t: 400, watch_factor: 3 },
   },
   {
     id: "carrier",
     type: "craft",
     title: "Carrier",
-    fields: { kind: "ship", hull_class: "CV", role: "strike-craft carrier", status: "concept", propellant_t: 8000 },
+    fields: { kind: "ship", hull_class: "CV", role: "strike-craft carrier", status: "concept", propellant_t: 8000, watch_factor: 3 },
   },
   {
     id: "station",
     type: "craft",
     title: "Station",
-    fields: { kind: "station", hull_class: "ST", role: "orbital station", status: "concept", propellant_t: 0 },
+    fields: { kind: "station", hull_class: "ST", role: "orbital station", status: "concept", propellant_t: 0, watch_factor: 1 },
   },
   {
     id: "strikecraft",
     type: "craft",
     title: "Strike craft",
-    fields: { kind: "strikecraft", hull_class: "SC", role: "silocraft / interceptor", status: "concept", propellant_t: 40 },
+    fields: { kind: "strikecraft", hull_class: "SC", role: "silocraft / interceptor", status: "concept", propellant_t: 40, watch_factor: 1 },
   },
   {
     id: "missile",
     type: "craft",
     title: "Missile",
-    fields: { kind: "missile", hull_class: "MSL", role: "anti-ship missile", status: "concept", propellant_t: 1.2 },
+    fields: { kind: "missile", hull_class: "MSL", role: "anti-ship missile", status: "concept", propellant_t: 1.2, watch_factor: 1 },
   },
 
   // ---- character ---------------------------------------------------------

@@ -10,6 +10,8 @@ import type { StorageAdapter } from "../core/storage/adapter";
 import { serializeNoteOpml } from "../core/codec/opml";
 import type { TypedRecord } from "../core/types";
 
+const NL = String.fromCharCode(10);
+
 export async function demoVault(fs: StorageAdapter): Promise<void> {
   const repo = new Repository(fs);
   await repo.init();
@@ -150,6 +152,144 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
   pattern.summary = "The UJCN yard pattern destroyer hull: armoured nose, magazine amidships, ventral radiators.";
   pattern.tags = ["ujcn", "destroyer"];
   await save(pattern);
+
+  // ---- three loadouts on one hull -----------------------------------------
+  // The acceptance criterion for editor 2 (`gallery/07` §3): one hull, three
+  // fits, three visibly different silhouettes. They share a bus, a style kit
+  // and every slot; what differs is what is bolted into them.
+  // A slice of the working vault's `_tables/propellants.yaml`, rows and header
+  // verbatim, so the demo exercises the whole chain: tank volume → density →
+  // mass → Δv, and the provisional marker that rides along with it. Every row
+  // in that file is unverified and says so; nothing here is a new figure.
+  await fs.writeText(
+    "_tables/propellants.yaml",
+    [
+      "# Propellants — tank sizing and drive compatibility.",
+      "#",
+      "# WARNING: every density below is a recalled standard value, NOT taken from a cited source.",
+      "# Per section 0 of the spec they are all marked provisional and must render with the",
+      "# provisional marker until verified against the NIST Chemistry WebBook or an equivalent.",
+      "meta:",
+      '  status: "UNVERIFIED — verify every row before trusting a Delta-v number that depends on tank volume."',
+      '  verify_against: "NIST Chemistry WebBook (https://webbook.nist.gov/chemistry/)"',
+      "rows:",
+      '  - { id: hydrogen-liquid, name: "Liquid hydrogen", density_kg_m3: 70.8, storage: "cryogenic, ~20 K", boiloff: high, provisional: true }',
+      '  - { id: methane-liquid,  name: "Liquid methane",  density_kg_m3: 422,  storage: "cryogenic, ~111 K", boiloff: moderate, provisional: true }',
+      '  - { id: water,           name: "Water",           density_kg_m3: 1000, storage: "ambient", boiloff: none, provisional: true }',
+      '  - { id: lox,             name: "Liquid oxygen",   density_kg_m3: 1141, storage: "cryogenic, ~90 K", boiloff: moderate, provisional: true }',
+      '  - { id: fissiles,        name: "Fissile fuel",    density_kg_m3: 18000, storage: "solid, shielded", boiloff: none, provisional: true }',
+      "",
+    ].join(NL),
+  );
+
+  const mk66 = repo.create("module", "Mk66 450 mm twin", P("module", "mk66-twin"));
+  const mk81 = repo.create("module", "Mk81 300 mm single", P("module", "mk81-single"));
+  const vls = repo.create("module", "Mk41 32-cell VLS", P("module", "vls-32"));
+  const beam = repo.create("module", "Type 7 beam turret", P("module", "beam-turret"));
+  const radar = repo.create("module", "SR-12 search radar", P("module", "search-radar"));
+  const hotLoop = repo.create("module", "Hot-loop radiator", P("module", "hot-loop-radiator"));
+  const coldLoop = repo.create("module", "Cold-loop radiator", P("module", "cold-loop-radiator"));
+  const flak = repo.create("module", "PD flak mount", P("module", "pd-flak"));
+  const berthing = repo.create("module", "Berthing and messing", P("module", "berthing"));
+  for (const m of [mk66, mk81, vls, beam, radar, hotLoop, coldLoop, flak, berthing]) {
+    m.fields.maker = uesc.id;
+    await save(m);
+  }
+
+  /** Everything the three fits share: plant, cooling, sensors, tankage, crew. */
+  const halberdCommon = () => ({
+    hull: pattern.id,
+    operator: ujcn.id,
+    builder: uesc.id,
+    watch_factor: 3,
+    endurance_days: 90,
+    fittings: [
+      { slot: "radar", module: radar.id },
+      { slot: "comms", module: radar.id },
+      { slot: "eo", module: sensors.id },
+      { slot: "pd-p", module: flak.id },
+      // Two loops, because life support and a reactor do not share an array
+      // (docs/UNITS.md §5).
+      { slot: "rad-1", module: hotLoop.id },
+      { slot: "rad-2", module: coldLoop.id },
+      { slot: "drive", module: nswr.id },
+    ],
+    manifest: [
+      // One plant, not two: the hull has a single high-temperature radiator
+      // slot, and 100 MW of reactor is what 120 MW of hot loop can cool.
+      { id: "reactor-1", section: "engineering", module: reactor.id, count: 1 },
+      { id: "hab", section: "forward", module: berthing.id, count: 1 },
+    ],
+    tanks: [
+      { id: "main", section: "engineering", module: tank.id, propellant: "water", volume_m3: 500, jettison_order: 0 },
+      // A drop tank on the ventral hardpoint: external, so it spends no
+      // internal volume, and it takes its own dry mass with it when it goes.
+      { id: "drop", slot: "tank", module: tank.id, propellant: "water", volume_m3: 500, jettison_order: 1 },
+    ],
+    modes: [
+      { id: "cruise", name: "Cruise", duties: [{ component: "gun-a", duty: "off" }, { component: "gun-b", duty: "off" }, { component: "cells", duty: "off" }, { component: "pd-p", duty: "standby" }] },
+      { id: "combat", name: "Combat", duties: [] },
+      // EMCON silences what radiates and keeps what cruise already shut down.
+      {
+        id: "emcon",
+        name: "EMCON (silent)",
+        duties: [
+          { component: "radar", duty: "off" },
+          { component: "comms", duty: "off" },
+          { component: "gun-a", duty: "off" },
+          { component: "gun-b", duty: "off" },
+          { component: "cells", duty: "off" },
+          { component: "pd-p", duty: "standby" },
+        ],
+      },
+    ],
+  });
+
+  const halberdGun = repo.create("craft", "Halberd-class (DD)", P("craft", "destroyer"));
+  Object.assign(halberdGun.fields, halberdCommon(), {
+    hull_class: "DD",
+    role: "gun destroyer",
+    status: "in service",
+    fittings: [
+      ...halberdCommon().fittings,
+      { slot: "gun-a", module: mk66.id, magazine: [{ munition: "450mm-ap", rounds: 140 }, { munition: "450mm-he", rounds: 100 }] },
+      { slot: "gun-b", module: mk66.id, magazine: [{ munition: "450mm-ap", rounds: 140 }, { munition: "450mm-he", rounds: 100 }] },
+      { slot: "gun-y", module: mk81.id, magazine: [{ munition: "250mm-he", rounds: 180 }] },
+    ],
+  });
+  halberdGun.summary = "The baseline fit: two 450 mm twins forward, a 300 mm single aft.";
+  halberdGun.tags = ["ujcn", "destroyer", "halberd"];
+  await save(halberdGun);
+
+  const halberdMissile = repo.create("craft", "Halberd-class (DDG)", P("craft", "destroyer"));
+  Object.assign(halberdMissile.fields, halberdCommon(), {
+    hull_class: "DDG",
+    role: "guided-missile destroyer",
+    status: "in service",
+    fittings: [
+      ...halberdCommon().fittings,
+      { slot: "gun-a", module: mk81.id, magazine: [{ munition: "250mm-he", rounds: 180 }] },
+      { slot: "cells", module: vls.id, magazine: [{ munition: "450mm-ap", rounds: 32 }] },
+    ],
+  });
+  halberdMissile.summary = "The magazine fit: one gun forward, thirty-two cells amidships.";
+  halberdMissile.tags = ["ujcn", "destroyer", "halberd"];
+  await save(halberdMissile);
+
+  const halberdBeam = repo.create("craft", "Halberd-class (DDL)", P("craft", "destroyer"));
+  Object.assign(halberdBeam.fields, halberdCommon(), {
+    hull_class: "DDL",
+    role: "beam-armed escort",
+    status: "prototype",
+    fittings: [
+      ...halberdCommon().fittings,
+      { slot: "gun-a", module: beam.id },
+      { slot: "cells", module: beam.id },
+    ],
+  });
+  halberdBeam.summary = "The experimental fit: two beam turrets on a hull sized for guns. It cruises, and in combat it runs out of both power and radiator — which is what the prototype exists to find out.";
+  halberdBeam.tags = ["ujcn", "destroyer", "halberd", "experimental"];
+  await save(halberdBeam);
 
   const hull = repo.create("hull", "Sword hull (DD)", P("hull", "destroyer-hull"));
   hull.fields.armor = "Whipple bumper + spaced ceramic belt over the spine";

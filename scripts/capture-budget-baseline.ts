@@ -9,14 +9,23 @@
  * was taken before the change.
  *
  *   npx tsx scripts/capture-budget-baseline.ts
+ *
+ * **Do not re-run it to make a failing gate pass.** The fixture in the repo was
+ * captured before the schema v2 bumps; overwriting it with today's numbers
+ * would leave a test that compares the code to itself. Re-run it only when
+ * starting a *new* baseline for a migration that has not landed yet.
+ *
+ * The advisory list it captures is the new `Violation` currency, not the old
+ * flat `warnings` array — see the gate in `tests/migration.test.ts` for how the
+ * two are compared across that change.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { MemoryAdapter } from "../src/core/storage/memory";
 import { Repository } from "../src/core/repo";
 import { demoVault } from "../src/ui/demo";
-import { computeBudget } from "../src/core/designer/budgets";
-import { isNote } from "../src/core/types";
+import { analyseShip } from "../src/core/designer/ship";
+import { isNote, type TypedRecord } from "../src/core/types";
 
 const fs = new MemoryAdapter();
 await demoVault(fs);
@@ -32,8 +41,11 @@ const crafts = repo
 const budgets: Record<string, unknown> = {};
 for (const craft of crafts) {
   if (isNote(craft)) continue;
-  const hull = typeof craft.fields.hull === "string" ? repo.typed(craft.fields.hull) : undefined;
-  const b = computeBudget(craft, hull, (id) => repo.typed(id));
+  const { budget: b, advisories } = analyseShip(craft as TypedRecord, {
+    typed: (id: string) => repo.typed(id),
+    tables: repo.tables,
+    values: repo.effectiveConstraints().values,
+  });
   budgets[craft.name] = {
     structuralMass_t: b.structuralMass_t,
     moduleMass_t: b.moduleMass_t,
@@ -52,7 +64,7 @@ for (const craft of crafts) {
     deltaV_kms: b.deltaV_kms,
     cost: b.cost,
     crew: b.crew,
-    warnings: b.warnings,
+    advisories: advisories.map((v) => `${v.severity}: ${v.message}`),
   };
 }
 
