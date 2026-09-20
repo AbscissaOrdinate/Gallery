@@ -235,6 +235,8 @@ export const BUILTIN_PRESETS: Preset[] = [
       ld_ratio_max: 16,
       max_beam_m: 34,
       part_radiator: "fin",
+      radiator_panels: 3,
+      radiator_sweep_deg: -25,
       part_turret: "barbette",
       part_tank: "barrel",
       part_thruster: "bell",
@@ -243,7 +245,8 @@ export const BUILTIN_PRESETS: Preset[] = [
       greeble_density: "medium",
       doctrine_armour: "nose_heavy",
       crewed: true,
-      notes: "Swept radiator fins, barbette mountings and barrel tankage. Nose-heavy armour: UJCN doctrine is to fight bow-on and accept the beam aspect.",
+      notes:
+        "Three aft-swept radiator fins per array, barbette mountings and barrel tankage. Nose-heavy armour: UJCN doctrine is to fight bow-on and accept the beam aspect.",
     },
   },
 

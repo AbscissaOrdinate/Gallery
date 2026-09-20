@@ -8,7 +8,7 @@
  * only — a magazine is section volume and must not appear.
  */
 import { describe, it, expect } from "vitest";
-import { makePart, partsForHull, partKindFor, slotIdOf, PART_KINDS, type PartFamilies } from "../src/core/designer/hull/parts";
+import { makePart, partsForHull, partKindFor, slotIdOf, PART_KINDS, type PartFamilies, type PartsOptions, type WeaponFamily } from "../src/core/designer/hull/parts";
 import { polygonArea } from "../src/core/designer/hull/geometry";
 import { renderHull } from "../src/core/designer/hull/render";
 import type { HullGeometry } from "../src/core/designer/hull/types";
@@ -53,7 +53,7 @@ describe("generating a part", () => {
     // polygon. These have to stay distinct polygons.
     expect(makePart({ kind: "thruster", size: "M", families: { thruster: "cluster" } })).toHaveLength(2);
     expect(makePart({ kind: "turret", size: "M", weapon: "gun" })).toHaveLength(2); // mounting + barrel
-    expect(makePart({ kind: "turret", size: "M", weapon: "missile" })).toHaveLength(2);
+    expect(makePart({ kind: "turret", size: "M", weapon: "cell", cells: 4 })).toHaveLength(5); // deck + 4 hatches
     expect(makePart({ kind: "pd", size: "M" })).toHaveLength(3);
     expect(makePart({ kind: "radiator", size: "M", families: { radiator: "fin" } })).toHaveLength(1);
   });
@@ -79,20 +79,50 @@ describe("generating a part", () => {
     expect(Math.max(...xs)).toBeGreaterThan(0);
   });
 
-  it("gives each family a visibly different shape", () => {
-    const shapes = (["fin", "panel", "droplet-boom"] as const).map((radiatorFamily) =>
-      JSON.stringify(makePart({ kind: "radiator", size: "L", families: { radiator: radiatorFamily } })),
+  it("gives each radiator family a visibly different shape", () => {
+    const shapes = (["fin", "panel", "droplet-boom", "spine-array", "hoop", "membrane"] as const).map((radiator) =>
+      JSON.stringify(makePart({ kind: "radiator", size: "L", families: { radiator } })),
     );
-    expect(new Set(shapes).size).toBe(3);
+    expect(new Set(shapes).size).toBe(6);
   });
 
-  it("changes a turret with the weapon in it", () => {
-    const of = (weapon: "gun" | "railgun" | "missile" | "beam") => makePart({ kind: "turret", size: "M", weapon });
-    // A railgun's barrel reaches further forward than a gun's; a missile cell has none.
-    const reach = (w: "gun" | "railgun" | "missile" | "beam") => -Math.min(...of(w).flat().map(([x]) => x));
-    expect(reach("railgun")).toBeGreaterThan(reach("gun"));
-    expect(reach("gun")).toBeGreaterThan(reach("missile"));
-    expect(new Set([of("gun"), of("railgun"), of("missile"), of("beam")].map((o) => JSON.stringify(o))).size).toBe(4);
+  it("varies a radiator within its family by array size and sweep", () => {
+    // Two classes in the same navy differ by this, not by changing family.
+    const arr = (panels: number) => makePart({ kind: "radiator", size: "L", families: { radiator: "fin" }, panels });
+    expect(arr(1)).toHaveLength(1);
+    expect(arr(4)).toHaveLength(4);
+    const raked = (sweep_deg: number) => JSON.stringify(makePart({ kind: "radiator", size: "L", families: { radiator: "fin" }, sweep_deg }));
+    expect(raked(30)).not.toBe(raked(0));
+    expect(raked(30)).not.toBe(raked(-30)); // forward and reverse sweep differ
+  });
+
+  it("draws every weapon family differently", () => {
+    // A CIWS must not read as a railgun, a VLS must not read as a particle
+    // beam. Weapons that work the same way share a shape; the rest do not.
+    const families: WeaponFamily[] = ["gun", "cell", "rocket", "arm", "laser", "plasma", "particle", "ciws"];
+    const shapes = families.map((weapon) => JSON.stringify(makePart({ kind: "turret", size: "M", weapon })));
+    expect(new Set(shapes).size).toBe(families.length);
+  });
+
+  it("scales a gun by its bore and barrel count instead of redrawing it", () => {
+    // A 450 mm Mk66 and a 300 mm Mk81 work the same way, so they are the same
+    // shape at different scales. That is the point of the shared family.
+    const gun = (bore_mm: number, barrels = 1) => makePart({ kind: "turret", size: "M", weapon: "gun", bore_mm, barrels });
+    const reach = (bore_mm: number, barrels = 1) => -Math.min(...gun(bore_mm, barrels).flat().map(([x]) => x));
+    expect(reach(450)).toBeGreaterThan(reach(300)); // bigger bore, longer barrel
+    expect(gun(300, 1)).toHaveLength(2);
+    expect(gun(300, 3)).toHaveLength(4); // gunhouse plus one tube each
+    const house = (barrels: number) => {
+      const xs = gun(300, barrels)[0]!.map(([x]) => x);
+      return Math.max(...xs) - Math.min(...xs);
+    };
+    expect(house(3)).toBeGreaterThan(house(1)); // more barrels, longer gunhouse
+  });
+
+  it("scales a launcher by how many cells it has", () => {
+    const cells = (n: number) => makePart({ kind: "turret", size: "M", weapon: "cell", cells: n });
+    expect(cells(4)).toHaveLength(5);
+    expect(cells(8)).toHaveLength(9);
   });
 
   it("does not confuse point defence with a main turret", () => {
@@ -111,8 +141,23 @@ describe("placing parts on a hull", () => {
     expect(r?.outline.every(([, y]) => y <= 0)).toBe(true);
   });
 
-  it("never mirrors a part, because a slot is one fitting and not a pair", () => {
-    for (const p of partsForHull(hull)) expect(p.mirror).toBe("none");
+  it("mirrors a radiator array and nothing else", () => {
+    // A radiator array is radially symmetric about the thrust axis: panels
+    // below mean panels above, from one slot. Every other fitting sits at one
+    // clock angle and is a single thing.
+    for (const p of partsForHull(hull)) expect(p.mirror, p.id).toBe(p.kind === "radiator" ? "vertical" : "none");
+  });
+
+  it("draws a ventral radiator on both sides of the axis", () => {
+    const scene = renderHull(hull, { fitted: partsForHull(hull) });
+    const ids = scene.elements.map((e) => e.id);
+    expect(ids).toContain("fitted-r1"); // the ventral array
+    expect(ids).toContain("fitted-r1-m"); // and its dorsal mirror
+    const ys = scene.elements
+      .filter((e) => e.kind === "polygon" && e.id.startsWith("fitted-r1"))
+      .flatMap((e) => (e.kind === "polygon" ? e.points.map(([, y]) => y) : []));
+    expect(Math.min(...ys)).toBeLessThan(0);
+    expect(Math.max(...ys)).toBeGreaterThan(0);
   });
 
   it("draws nothing for a beam-on slot rather than inventing a projection", () => {
@@ -136,11 +181,11 @@ describe("placing parts on a hull", () => {
     expect(JSON.stringify(withKit)).not.toBe(JSON.stringify(plain));
   });
 
-  it("takes the weapon family editor 2 will supply", () => {
-    // The mounting is the same either way; the barrel is what changes, so the
-    // whole fitting has to be compared rather than its first piece.
-    const fitting = (weapons?: Record<string, "railgun">) => partsForHull(hull, { weapons }).filter((p) => slotIdOf(p.id) === "t1");
-    expect(JSON.stringify(fitting({ t1: "railgun" }))).not.toBe(JSON.stringify(fitting()));
+  it("takes the weapon editor 2 will supply, bore and all", () => {
+    const fitting = (weapons?: PartsOptions["weapons"]) => partsForHull(hull, { weapons }).filter((p) => slotIdOf(p.id) === "t1");
+    expect(JSON.stringify(fitting({ t1: { weapon: "laser" } }))).not.toBe(JSON.stringify(fitting()));
+    // Bore alone changes the drawing, without changing the family.
+    expect(JSON.stringify(fitting({ t1: { weapon: "gun", bore_mm: 450 } }))).not.toBe(JSON.stringify(fitting({ t1: { weapon: "gun", bore_mm: 120 } })));
   });
 
   it("names extra pieces after their slot, so a click reaches the fitting", () => {

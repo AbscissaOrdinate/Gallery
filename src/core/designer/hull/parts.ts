@@ -47,21 +47,53 @@ const SIZE_M: Record<SizeClass, number> = { S: 2, M: 4, L: 8, XL: 14 };
  * a name with no generator behind it draws nothing.
  */
 export interface PartFamilies {
-  radiator?: "fin" | "panel" | "droplet-boom";
+  radiator?: RadiatorFamily;
+  /** Panels in a radiator array. A class differs from its sisters by this, not by family. */
+  radiator_panels?: number;
+  /** Radiator rake: positive forward, negative aft. */
+  radiator_sweep_deg?: number;
   turret?: "box" | "barbette" | "cupola";
   tank?: "barrel" | "spherical" | "conformal";
   thruster?: "bell" | "block" | "cluster";
   antenna?: "dish" | "phased-panel" | "whip";
 }
 
-/** What a turret looks like depends on what is in it. */
-export type WeaponFamily = "gun" | "railgun" | "missile" | "beam" | "pd";
+export type RadiatorFamily = "fin" | "panel" | "droplet-boom" | "spine-array" | "hoop" | "membrane";
+
+/**
+ * What a turret looks like depends on what is in it. A CIWS must not read as a
+ * railgun and a VLS must not read as a particle beam.
+ *
+ * Weapons that work the same way share a shape and are told apart by scale
+ * instead: every barrel weapon — cannon, railgun, coilgun, ETC, recoilless,
+ * mass driver — is a gunhouse and barrels, sized by bore and barrel count.
+ * Everything with a different mechanism gets its own silhouette.
+ */
+export type WeaponFamily =
+  | "gun" // cannon, railgun, coilgun, ETC, recoilless, mass driver
+  | "cell" // VLS, MLS, CLS, TLS — flush vertical cells
+  | "rocket" // RL-series tube bundles
+  | "arm" // one-armed bandit: a trainable rail
+  | "laser" // beam turret
+  | "plasma" // plasma cannon: a coil stack
+  | "particle" // particle beam: a long segmented accelerator
+  | "ciws"; // point defence fitted as a turret
 
 export interface PartSpec {
   kind: PartKind;
   size?: SizeClass | number;
   families?: PartFamilies;
   weapon?: WeaponFamily;
+  /** Bore in millimetres, from a mount's `ammo_mm`. Sets barrel length and thickness. */
+  bore_mm?: number;
+  /** Barrels in the mounting. Widens the gunhouse and draws one barrel each. */
+  barrels?: number;
+  /** Cells or tubes, from a launcher's `cells_capacity`. Sets how many hatches are drawn. */
+  cells?: number;
+  /** Panels in a radiator array. */
+  panels?: number;
+  /** Radiator sweep: positive rakes forward, negative aft. */
+  sweep_deg?: number;
 }
 
 type Outline = [number, number][];
@@ -98,84 +130,226 @@ const centre = (p: Part, L: number): Part => p.map((o) => o.map(([x, y]) => [x -
 // Generators. Each returns an outline in part-local metres, +y outward.
 // ---------------------------------------------------------------------------
 
-function radiator(L: number, family: PartFamilies["radiator"]): Part {
+/**
+ * Radiators. The family is the polity's signature; `panels` and `sweep_deg`
+ * are how one class differs from another within the same navy.
+ */
+function radiator(L: number, family: RadiatorFamily | undefined, panels: number, sweepDeg: number): Part {
+  const n = Math.max(1, Math.min(8, Math.round(panels)));
+  const tan = Math.tan((Math.max(-60, Math.min(60, sweepDeg)) * Math.PI) / 180);
+  /** Rake a piece: every point leans by its height times the sweep. */
+  const rake = (o: Outline): Outline => o.map(([x, y]) => [x + y * tan, y] as [number, number]);
+  /** Lay `n` copies of one panel along the hull, centred on the slot. */
+  const array = (panel: (span: number) => Outline): Part => {
+    const span = L / n;
+    return Array.from({ length: n }, (_, i) => rake(panel(span).map(([x, y]) => [x + i * span, y] as [number, number])));
+  };
+
   switch (family) {
     case "droplet-boom": {
-      // Two booms and a thin sheet between them: the shape that says "this is
-      // not a solid panel" at silhouette size.
+      // Two booms with a droplet sheet between them.
       const h = L * 1.1;
-      return [[
-        [0, 0],
-        [L * 0.12, 0],
-        [L * 0.12, h * 0.82],
-        [L * 0.88, h * 0.82],
-        [L * 0.88, 0],
-        [L, 0],
-        [L, h],
-        [0, h],
-      ]];
+      return [
+        rake([
+          [0, 0],
+          [L * 0.12, 0],
+          [L * 0.12, h * 0.82],
+          [L * 0.88, h * 0.82],
+          [L * 0.88, 0],
+          [L, 0],
+          [L, h],
+          [0, h],
+        ]),
+      ];
+    }
+    case "spine-array": {
+      // A boom with a row of panels hung off it: the array that grows by
+      // adding panels rather than by getting bigger.
+      const h = L * 1.15;
+      const boom = box(0, 0, L, h * 0.12);
+      return [
+        boom,
+        ...array((span) => [
+          [span * 0.12, h * 0.12],
+          [span * 0.88, h * 0.12],
+          [span * 0.88, h],
+          [span * 0.12, h],
+        ]),
+      ];
+    }
+    case "hoop": {
+      // A closed loop standing off a short pylon — a moving-belt radiator.
+      const h = L * 1.2;
+      const t = L * 0.1;
+      const hoop: Part = [
+        box(L * 0.45, 0, L * 0.55, h * 0.25),
+        [
+          [0, h * 0.25],
+          [L, h * 0.25],
+          [L, h],
+          [0, h],
+        ],
+        // The hole, wound the same way so it reads as a rim at plate size.
+        box(t, h * 0.25 + t, L - t, h - t),
+      ];
+      return hoop.map(rake);
+    }
+    case "membrane": {
+      // A slack sheet between two spars: shallow, wide, and obviously not rigid.
+      const h = L * 0.75;
+      return [
+        rake([
+          [0, 0],
+          [L, 0],
+          [L * 0.94, h * 0.55],
+          [L * 0.72, h],
+          [L * 0.28, h],
+          [L * 0.06, h * 0.55],
+        ]),
+      ];
     }
     case "fin": {
-      // A swept triangular fin, deeper than it is long.
+      // Swept triangular fins, one per panel.
       const h = L * 1.45;
-      return [[
+      return array((span) => [
         [0, 0],
-        [L, 0],
-        [L * 0.62, h],
-        [L * 0.18, h],
-      ]];
+        [span, 0],
+        [span * 0.62, h],
+        [span * 0.18, h],
+      ]);
     }
     case "panel":
     default: {
-      // A flat rectangular panel on a short stalk.
+      // Flat rectangular panels on a short stalk.
       const h = L * 1.25;
       const stalk = h * 0.16;
-      return [[
-        [L * 0.42, 0],
-        [L * 0.58, 0],
-        [L * 0.58, stalk],
-        [L, stalk],
-        [L, h],
+      return array((span) => [
+        [span * 0.42, 0],
+        [span * 0.58, 0],
+        [span * 0.58, stalk],
+        [span, stalk],
+        [span, h],
         [0, h],
         [0, stalk],
-        [L * 0.42, stalk],
-      ]];
+        [span * 0.42, stalk],
+      ]);
     }
   }
 }
 
-function turret(L: number, family: PartFamilies["turret"], weapon: WeaponFamily): Part {
+
+/**
+ * A turret is a mounting in the polity's style plus whatever the weapon
+ * actually is. The mounting family is the navy's signature; the weapon is what
+ * stops a CIWS reading as a railgun.
+ */
+function turret(L: number, family: PartFamilies["turret"], spec: PartSpec): Part {
+  const weapon = spec.weapon ?? "gun";
   const h = L * 0.55;
-  const barrelLen = weapon === "railgun" ? L * 1.9 : weapon === "gun" ? L * 1.25 : 0;
-  const base: Outline =
+  /** The mounting, in the polity's family. */
+  const mount = (len = L, height = h): Outline =>
     family === "barbette"
       ? [
           [0, 0],
-          [L, 0],
-          [L * 0.86, h],
-          [L * 0.14, h],
+          [len, 0],
+          [len * 0.86, height],
+          [len * 0.14, height],
         ]
       : family === "cupola"
         ? [
             [0, 0],
-            [L, 0],
-            [L, h * 0.45],
-            [L * 0.78, h],
-            [L * 0.22, h],
-            [0, h * 0.45],
+            [len, 0],
+            [len, height * 0.45],
+            [len * 0.78, height],
+            [len * 0.22, height],
+            [0, height * 0.45],
           ]
-        : box(0, 0, L, h);
+        : box(0, 0, len, height);
 
-  if (barrelLen > 0) {
-    // A barrel laid along the hull, pointing forward, which is how a trained-fore gun reads.
-    const by = h * 0.62;
-    const bt = h * 0.18;
-    return [base, box(L * 0.5 - barrelLen, by - bt, L * 0.5, by)];
+  switch (weapon) {
+    case "gun": {
+      // Every barrel weapon. Bore sets barrel length and thickness; barrel
+      // count widens the gunhouse and draws one tube each. A 450 mm Mk66 and a
+      // 300 mm Mk81 are the same shape at different scales, which is right —
+      // they work the same way.
+      const barrels = Math.max(1, Math.min(4, Math.round(spec.barrels ?? 1)));
+      const bore = spec.bore_mm && spec.bore_mm > 0 ? spec.bore_mm : 200;
+      const calibre = Math.min(2.6, 0.9 + bore / 300); // longer barrels on bigger bores
+      const tube = Math.max(h * 0.1, Math.min(h * 0.42, (bore / 1000) * (L / 4)));
+      const house = L * (1 + (barrels - 1) * 0.22);
+      const pieces: Part = [mount(house)];
+      for (let i = 0; i < barrels; i++) {
+        const y = barrels === 1 ? h * 0.62 : h * (0.34 + (0.52 * i) / (barrels - 1));
+        pieces.push(box(house * 0.5 - L * calibre, y - tube / 2, house * 0.5, y + tube / 2));
+      }
+      return pieces;
+    }
+    case "cell": {
+      // VLS and its relatives: a flush block of hatches, no mounting at all.
+      const cells = Math.max(2, Math.min(12, Math.round(spec.cells ?? 4)));
+      const deck = h * 0.55;
+      const pieces: Part = [box(0, 0, L, deck)];
+      const w = L / cells;
+      for (let i = 0; i < cells; i++) pieces.push(box(i * w + w * 0.18, deck, i * w + w * 0.82, deck * 1.45));
+      return pieces;
+    }
+    case "rocket": {
+      // A bundle of tubes on a low trainable base: muzzles showing, not hatches.
+      const tubes = Math.max(2, Math.min(8, Math.round(spec.cells ?? 6)));
+      const rows = tubes > 4 ? 2 : 1;
+      const per = Math.ceil(tubes / rows);
+      const pieces: Part = [mount(L, h * 0.45)];
+      const w = L / per;
+      for (let r = 0; r < rows; r++) {
+        for (let i = 0; i < per; i++) {
+          const y = h * 0.45 + r * h * 0.42;
+          pieces.push(box(i * w + w * 0.12, y, i * w + w * 0.88, y + h * 0.34));
+        }
+      }
+      return pieces;
+    }
+    case "arm": {
+      // A one-armed bandit: a pedestal and a single trainable rail, raked up.
+      const armLen = L * 1.5;
+      const t = h * 0.16;
+      return [
+        mount(L * 0.7, h * 0.6),
+        [
+          [L * 0.35, h * 0.6],
+          [L * 0.35 + armLen * 0.94, h * 0.6 + armLen * 0.34],
+          [L * 0.35 + armLen * 0.9, h * 0.6 + armLen * 0.34 + t],
+          [L * 0.35 - t * 0.6, h * 0.6 + t],
+        ],
+      ];
+    }
+    case "laser": {
+      // A low dome with a short, fat aperture. Nothing that reads as a barrel.
+      return [mount(L, h * 0.7), box(L * 0.28, h * 0.7, L * 0.72, h * 1.15), box(L * 0.38, h * 1.15, L * 0.62, h * 1.35)];
+    }
+    case "plasma": {
+      // A stack of accelerator coils around a stubby muzzle.
+      const pieces: Part = [mount(L, h * 0.6)];
+      for (let i = 0; i < 3; i++) pieces.push(box(L * (0.2 + i * 0.2), h * 0.6, L * (0.34 + i * 0.2), h * 1.25));
+      pieces.push(box(L * 0.26, h * 1.25, L * 0.8, h * 1.45));
+      return pieces;
+    }
+    case "particle": {
+      // A long, slender, segmented accelerator — longer than any gun barrel and
+      // obviously not a tube.
+      const len = L * 2.4;
+      const t = h * 0.22;
+      const pieces: Part = [mount(L * 0.8, h * 0.5), box(L * 0.4 - len, h * 0.5, L * 0.4, h * 0.5 + t)];
+      for (let i = 0; i < 4; i++) {
+        const x = L * 0.4 - len * (0.18 + i * 0.22);
+        pieces.push(box(x - t * 0.35, h * 0.5 - t * 0.35, x + t * 0.35, h * 0.5 + t * 1.35));
+      }
+      return pieces;
+    }
+    case "ciws":
+      return pointDefence(L);
   }
-  if (weapon === "missile") return [box(0, 0, L, h * 0.7), box(L * 0.1, h * 0.7, L * 0.9, h)]; // cell hatches
-  if (weapon === "beam") return [base, box(L * 0.3, h, L * 0.7, h * 1.45)]; // a short wide aperture
-  return [base];
 }
+
 
 function pointDefence(L: number): Part {
   // Small, stubby, a short barrel cluster. Deliberately unlike a main turret at a glance.
@@ -292,6 +466,13 @@ function dock(L: number): Part {
  */
 const AXIAL: ReadonlySet<PartKind> = new Set<PartKind>(["thruster"]);
 
+/**
+ * Fittings that go all the way round the hull rather than sitting at one clock
+ * angle. A radiator array is symmetric about the thrust axis — panels below
+ * mean panels above — so one slot draws both sides.
+ */
+const RADIALLY_SYMMETRIC: ReadonlySet<PartKind> = new Set<PartKind>(["radiator"]);
+
 /** Centre a part across the axis instead of along the hull, for axial parts. */
 const centreY = (p: Part, h: number): Part => p.map((o) => o.map(([x, y]) => [x, y - h / 2] as [number, number]));
 
@@ -308,9 +489,9 @@ export function makePart(spec: PartSpec): Part {
   }
   switch (spec.kind) {
     case "radiator":
-      return centre(radiator(L, f.radiator), L);
+      return centre(radiator(L, f.radiator, spec.panels ?? f.radiator_panels ?? 1, spec.sweep_deg ?? f.radiator_sweep_deg ?? 0), L);
     case "turret":
-      return centre(turret(L, f.turret, spec.weapon ?? "gun"), L);
+      return centre(turret(L, f.turret, spec), L);
     case "pd":
       return centre(pointDefence(L), L);
     case "antenna":
@@ -355,10 +536,17 @@ function isBeamOn(theta_deg: number): boolean {
   return (t > 45 && t < 135) || (t > 225 && t < 315);
 }
 
+/** What editor 2 knows about the module in a slot, once one is assigned. */
+export type FittedWeapon = Pick<PartSpec, "weapon" | "bore_mm" | "barrels" | "cells">;
+
 export interface PartsOptions {
   families?: PartFamilies;
-  /** Weapon family per slot id, supplied by editor 2 once a module is assigned. */
-  weapons?: Record<string, WeaponFamily>;
+  /**
+   * The weapon in each slot, by slot id. Editor 2 fills this from the mount
+   * row — `ammo_mm` becomes `bore_mm`, `cells_capacity` becomes `cells` — so a
+   * 450 mm Mk66 draws bigger than a 300 mm Mk81 without either being hand-drawn.
+   */
+  weapons?: Record<string, FittedWeapon>;
 }
 
 /**
@@ -375,7 +563,12 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
     if (isBeamOn(slot.theta_deg)) continue; // edge-on: the slot marker is the honest drawing
     const kind = partKindFor(slot);
     if (!kind) continue;
-    const pieces = makePart({ kind, size: slot.size as SizeClass, families: options.families, weapon: options.weapons?.[slot.id] });
+    const pieces = makePart({
+      kind,
+      size: slot.size as SizeClass,
+      families: options.families,
+      ...(options.weapons?.[slot.id] ?? {}),
+    });
     const ventral = (((slot.theta_deg % 360) + 360) % 360) >= 135;
     const skin = halfHeightAt(hull.spine, slot.x);
     // An axial part sits inboard on the thrust line; everything else stands on
@@ -390,7 +583,10 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
         kind,
         station: slot.x,
         attach_r: ventral ? -attach : attach,
-        mirror: "none", // one slot is one fitting, not a symmetric pair
+        // A radiator array is radially symmetric about the thrust axis: panels
+        // below imply panels above. Everything else is one fitting at one clock
+        // angle, so it is not mirrored.
+        mirror: RADIALLY_SYMMETRIC.has(kind) ? "vertical" : "none",
         outline: ventral ? outline.map(([x, y]) => [x, -y] as [number, number]) : outline,
         part: kind,
       });
@@ -422,8 +618,17 @@ export function familiesOf(style: Record<string, unknown> | undefined): PartFami
     const v = style?.[`part_${key}`];
     return typeof v === "string" && allowed.includes(v) ? (v as PartFamilies[K]) : undefined;
   };
+  const num = (key: string): number | undefined => {
+    const v = style?.[key];
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  };
   const f: PartFamilies = {};
-  const radiator = pick("radiator", ["fin", "panel", "droplet-boom"]);
+  const panels = num("radiator_panels");
+  const sweep = num("radiator_sweep_deg");
+  if (panels !== undefined) f.radiator_panels = panels;
+  if (sweep !== undefined) f.radiator_sweep_deg = sweep;
+  const radiator = pick("radiator", ["fin", "panel", "droplet-boom", "spine-array", "hoop", "membrane"]);
   const turret = pick("turret", ["box", "barbette", "cupola"]);
   const tank = pick("tank", ["barrel", "spherical", "conformal"]);
   const thruster = pick("thruster", ["bell", "block", "cluster"]);

@@ -32,6 +32,8 @@ export interface StyleKit {
   crewed?: boolean;
   /** The part families this polity builds to. See `parts.ts`. */
   part_radiator?: string;
+  radiator_panels?: number;
+  radiator_sweep_deg?: number;
   part_turret?: string;
   part_tank?: string;
   part_thruster?: string;

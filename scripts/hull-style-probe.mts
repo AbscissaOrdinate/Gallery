@@ -10,7 +10,7 @@
 import { writeFileSync } from "node:fs";
 import { renderHull, toSvg } from "../src/core/designer/hull/render";
 import { hullMetrics } from "../src/core/designer/hull/geometry";
-import { partsForHull, type PartFamilies } from "../src/core/designer/hull/parts";
+import { makePart, partsForHull, type FittedWeapon, type PartFamilies, type RadiatorFamily, type WeaponFamily } from "../src/core/designer/hull/parts";
 import type { Appendage, HullGeometry, Station } from "../src/core/designer/hull/types";
 
 /** A run of frames: the rhythmic banding all over the reference plates. */
@@ -139,16 +139,16 @@ const hulls: { name: string; hull: HullGeometry }[] = [
 ];
 
 /** Two notional polities, to see whether the families actually read apart. */
-const KITS: { name: string; families: PartFamilies; weapons?: Record<string, "gun" | "railgun" | "missile" | "beam"> }[] = [
+const KITS: { name: string; families: PartFamilies; weapons?: Record<string, FittedWeapon> }[] = [
   {
     name: "UJCN — fins, barbettes, barrel tanks",
     families: { radiator: "fin", turret: "barbette", tank: "barrel", thruster: "bell", antenna: "dish" },
-    weapons: { a1: "railgun", a2: "gun", a3: "gun" },
+    weapons: { a1: { weapon: "gun", bore_mm: 450 }, a2: { weapon: "gun", bore_mm: 300 }, a3: { weapon: "ciws" } },
   },
   {
     name: "CDN — panels, boxes, spherical tanks",
     families: { radiator: "panel", turret: "box", tank: "spherical", thruster: "cluster", antenna: "phased-panel" },
-    weapons: { a1: "missile", a2: "missile", a3: "beam" },
+    weapons: { a1: { weapon: "cell", cells: 8 }, a2: { weapon: "cell", cells: 4 }, a3: { weapon: "laser" } },
   },
 ];
 
@@ -171,6 +171,49 @@ const cards = hulls
   })
   .join("\n");
 
+/** One part on its own, drawn from part-local metres. */
+function swatch(pieces: [number, number][][], label: string): string {
+  const pts = pieces.flat();
+  const x0 = Math.min(...pts.map(([x]) => x)) - 1;
+  const x1 = Math.max(...pts.map(([x]) => x)) + 1;
+  const y0 = Math.min(...pts.map(([, y]) => y)) - 1;
+  const y1 = Math.max(...pts.map(([, y]) => y)) + 1;
+  const body = pieces.map((o) => `<polygon points="${o.map(([x, y]) => `${x.toFixed(2)},${(-y).toFixed(2)}`).join(" ")}" fill="#c8d2ea" stroke="#39415f" stroke-width="0.25"/>`).join("");
+  return `<figure><svg viewBox="${x0.toFixed(2)} ${(-y1).toFixed(2)} ${(x1 - x0).toFixed(2)} ${(y1 - y0).toFixed(2)}" width="120" height="96" preserveAspectRatio="xMidYMid meet">${body}</svg><figcaption>${label}</figcaption></figure>`;
+}
+
+const WEAPONS: { w: WeaponFamily; label: string; extra?: Record<string, number> }[] = [
+  { w: "gun", label: "gun 300mm", extra: { bore_mm: 300 } },
+  { w: "gun", label: "gun 600mm", extra: { bore_mm: 600 } },
+  { w: "gun", label: "gun 300mm x3", extra: { bore_mm: 300, barrels: 3 } },
+  { w: "cell", label: "VLS x4", extra: { cells: 4 } },
+  { w: "cell", label: "VLS x10", extra: { cells: 10 } },
+  { w: "rocket", label: "rocket tubes", extra: { cells: 6 } },
+  { w: "arm", label: "one-armed bandit" },
+  { w: "laser", label: "laser" },
+  { w: "plasma", label: "plasma" },
+  { w: "particle", label: "particle beam" },
+  { w: "ciws", label: "CIWS" },
+];
+const RADIATORS: { f: RadiatorFamily; label: string; panels?: number; sweep?: number }[] = [
+  { f: "panel", label: "panel" },
+  { f: "panel", label: "panel x3", panels: 3 },
+  { f: "fin", label: "fin" },
+  { f: "fin", label: "fin x4, +35°", panels: 4, sweep: 35 },
+  { f: "fin", label: "fin x4, −35°", panels: 4, sweep: -35 },
+  { f: "droplet-boom", label: "droplet boom" },
+  { f: "spine-array", label: "spine array x4", panels: 4 },
+  { f: "hoop", label: "hoop" },
+  { f: "membrane", label: "membrane" },
+];
+
+const gallery = `<section>
+  <h2>Weapon families — a CIWS must not read as a railgun</h2>
+  <div class="swatches">${WEAPONS.map((x) => swatch(makePart({ kind: "turret", size: "M", weapon: x.w, ...(x.extra ?? {}) }), x.label)).join("")}</div>
+  <h2>Radiator families, array size and sweep</h2>
+  <div class="swatches">${RADIATORS.map((x) => swatch(makePart({ kind: "radiator", size: "L", families: { radiator: x.f }, panels: x.panels, sweep_deg: x.sweep }), x.label)).join("")}</div>
+</section>`;
+
 const out = process.argv[2] ?? "hull-style-probe.html";
 writeFileSync(
   out,
@@ -185,9 +228,13 @@ writeFileSync(
   h3 { font-size:12px; font-weight:500; margin:12px 0 2px; color:#8f9ab8; }
   h2 { font-size:15px; font-weight:600; margin:28px 0 2px; color:#e2a07a; }
   p { margin:0 0 10px; color:#8f9ab8; font-size:12px; font-variant-numeric:tabular-nums; }
+  .swatches { display:flex; flex-wrap:wrap; gap:10px; }
+  figure { margin:0; background:#171b2b; border:1px solid #2b3149; border-radius:6px; padding:6px; text-align:center; }
+  figcaption { font-size:10px; color:#8f9ab8; margin-top:4px; }
   .plate { background:#171b2b; border:1px solid #2b3149; border-radius:6px; padding:10px; margin-bottom:8px; overflow-x:auto; }
 </style>
 <h1>Hull style probe — can the spine model make the fleet-plate shapes?</h1>
+${gallery}
 ${cards}
 `,
 );
