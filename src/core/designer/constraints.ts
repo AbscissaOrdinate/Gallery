@@ -111,6 +111,8 @@ export const ENGINE_PARAMS: EngineParamSpec[] = [
   { name: "ref_ir_min_flux_w_m2", dim: [1, 0, -3, 0], unit: "W/m²", usedBy: "EO/IR detection range (§3)", physical: false },
   { name: "ref_radar_power_mw", dim: [1, 2, -3, 0], unit: "MW", usedBy: "radar detection range (§3)", physical: false },
   { name: "ref_esm_sensitivity_w", dim: [1, 2, -3, 0], unit: "W", usedBy: "passive RF detection range (§3)", physical: false },
+  { name: "cell_pitch_m", dim: [0, 1, 0, 0], unit: "m", usedBy: "laying NEBULOUS-catalogue mounts out along the spine", physical: false },
+  { name: "cell_volume_m3", dim: [0, 3, 0, 0], unit: "m³", usedBy: "internal volume budgets for NEBULOUS-catalogue compartments", physical: false },
 ];
 
 const PARAM_BY_NAME = new Map(ENGINE_PARAMS.map((p) => [p.name, p]));
@@ -139,6 +141,21 @@ export const DEFAULT_CONSTRAINT_SET: ConstraintSet = {
       unit: "K",
       source: "Fixsen 2009, 'The Temperature of the Cosmic Microwave Background', ApJ 707:916 — T_CMB = 2.72548 ± 0.00057 K",
       note: "The coldest sink a radiator can see, with no nearby body or star in view. A set modelling a ship close to a planet or the sun should raise this.",
+    },
+    // The two NEBULOUS-import conventions, decided 2026-09-19. Provisional because they
+    // are inferences about an abstract game grid, not cited figures — so every volume
+    // derived from them carries the provisional marker. Reasoning in docs/UNITS.md §4.
+    cell_pitch_m: {
+      value: 3.0,
+      unit: "m",
+      provisional: true,
+      note: "Bounded above by the C90 600 mm gun (12 cells on its long axis; a 600 mm L/50 barrel plus breech is ~36 m) and corroborated by height-1 compartments reading as 3 m decks. Only for placing mounts along the spine — never as a bounding box, since a cells triple's axis order is unreliable.",
+    },
+    cell_volume_m3: {
+      value: 27,
+      unit: "m³",
+      provisional: true,
+      note: "Floored by NEBULOUS's own magazine capacities: capacity_per_slot_size is m3 per cell (a 4x1x8 Reinforced Magazine reads 320 m3 = 32 cells x 10), and bulk-magazine is 15 m3 per cell, so a cell cannot be under 15 m3. This falsifies the earlier 2 m/cell (8 m3). At 27 m3 a bulk magazine runs at 56% stowage efficiency.",
     },
   },
   rules: [],

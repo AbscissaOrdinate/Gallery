@@ -94,10 +94,30 @@ describe("composition", () => {
 });
 
 describe("sourcing discipline", () => {
-  it("ships a base set carrying only a figure that can be cited", () => {
-    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params)).toEqual(["T_ENV"]);
+  it("ships a base set whose only sourced figure is cited, and whose conventions are marked", () => {
+    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params).sort()).toEqual(["T_ENV", "cell_pitch_m", "cell_volume_m3"]);
+    // The one looked-up figure carries its citation and is not provisional.
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.source).toMatch(/Fixsen 2009/);
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.provisional).toBeFalsy();
+    // The two NEBULOUS-import conventions are rulings, not measurements: no source,
+    // provisional, so every volume derived from them keeps the marker.
+    for (const name of ["cell_pitch_m", "cell_volume_m3"]) {
+      expect(DEFAULT_CONSTRAINT_SET.params[name]?.source, name).toBeUndefined();
+      expect(DEFAULT_CONSTRAINT_SET.params[name]?.provisional, name).toBe(true);
+      expect(DEFAULT_CONSTRAINT_SET.params[name]?.note, name).toBeTruthy();
+    }
+  });
+
+  it("pins the cell ruling to the published figure it was derived from", () => {
+    // NEBULOUS ship editor: a Reinforced Magazine in a 4x1x8 compartment reads
+    // "Capacity: 280/320 m3". 4 x 1 x 8 = 32 cells, and reinforced-magazine yields
+    // 10 m3 per cell, so 32 x 10 = 320. A cell must hold at least bulk-magazine's
+    // 15 m3, which is what rules out the old 2 m/cell (8 m3).
+    const cells = 4 * 1 * 8;
+    expect(cells * 10).toBe(320);
+    const cellVolume = DEFAULT_CONSTRAINT_SET.params.cell_volume_m3?.value as number;
+    expect(cellVolume).toBeGreaterThanOrEqual(15);
+    expect(Math.pow(DEFAULT_CONSTRAINT_SET.params.cell_pitch_m?.value as number, 3)).toBeCloseTo(cellVolume, 9);
   });
 
   it("treats a parameter written without a source as provisional", () => {
@@ -111,13 +131,14 @@ describe("sourcing discipline", () => {
   it("lists the engine parameters nothing has set yet", () => {
     const eff = composeConstraints([DEFAULT_CONSTRAINT_SET], {});
     const missing = missingParams(eff).map((p) => p.name);
-    expect(missing).not.toContain("T_ENV"); // the one figure that is sourced
+    // Set by the base set: one sourced figure and the two decided conventions.
+    for (const name of ["T_ENV", "cell_pitch_m", "cell_volume_m3"]) expect(missing).not.toContain(name);
     // Everything else is a campaign assumption that has to be chosen, not looked up.
     expect(missing).toContain("target_accel_g");
     expect(missing).toContain("closing_speed_kps");
     expect(missing).toContain("automation_factor");
     expect(missing).toContain("kg_per_crew_day");
-    expect(missing).toHaveLength(ENGINE_PARAMS.length - 1);
+    expect(missing).toHaveLength(ENGINE_PARAMS.length - 3);
   });
 
   it("marks exactly one declared engine parameter as physically citable", () => {
