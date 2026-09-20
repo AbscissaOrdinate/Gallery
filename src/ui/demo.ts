@@ -133,8 +133,28 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
     m.fields.maker = uesc.id;
     await save(m);
   }
+  // The yard standard and the house style, so the hull editor's conformance
+  // panel has something real to check against.
+  const bus = repo.create("bus", "UJCN Mk2 bus", P("bus", "ujcn-mk2-bus"));
+  await save(bus);
+  const style = repo.create("style", "UJCN style kit", P("style", "ujcn-style"));
+  await save(style);
+
+  // A hull authored to the v2 contract, so the editor has a real ship to open
+  // and the fleet strip has something to sit beside. Deliberately not the hull
+  // the Sword craft uses: that one stays on the v1 preset so the migration
+  // regression gate keeps testing the migrator.
+  const pattern = repo.create("hull", "Halberd hull (DD, UJCN pattern)", P("hull", "ujcn-destroyer-hull"));
+  pattern.fields.bus = bus.id;
+  pattern.fields.style = style.id;
+  pattern.summary = "The UJCN yard pattern destroyer hull: armoured nose, magazine amidships, ventral radiators.";
+  pattern.tags = ["ujcn", "destroyer"];
+  await save(pattern);
+
   const hull = repo.create("hull", "Sword hull (DD)", P("hull", "destroyer-hull"));
   hull.fields.armor = "Whipple bumper + spaced ceramic belt over the spine";
+  hull.fields.bus = bus.id;
+  hull.fields.style = style.id;
   hull.assets = [{ role: "portrait", path: "assets/sword-hull.svg" }];
   await repo.putTextAsset(
     "sword-hull.svg",

@@ -18,7 +18,8 @@
  */
 import { violation, type Violation } from "../violations";
 import type { HullGeometry, ShadowCone } from "./types";
-import { halfHeightAt, hullMetrics, placeAppendages, sectionVolumes, sectionShadowing, sortedStations } from "./geometry";
+import { beamAt, halfHeightAt, hullMetrics, placeAppendages, sectionVolumes, sectionShadowing, sortedStations } from "./geometry";
+import { familiesOf, partKindFor } from "./parts";
 
 /** The polity style kit's proportion and doctrine rules (`gallery/06` §3.2). */
 export interface StyleKit {
@@ -27,13 +28,14 @@ export interface StyleKit {
   ld_ratio_min?: number;
   ld_ratio_max?: number;
   max_beam_m?: number;
-  radiator_family?: string;
   doctrine_armour?: string;
   crewed?: boolean;
-  parts_nose?: string[];
-  parts_tank?: string[];
-  parts_radiator?: string[];
-  parts_drive?: string[];
+  /** The part families this polity builds to. See `parts.ts`. */
+  part_radiator?: string;
+  part_turret?: string;
+  part_tank?: string;
+  part_thruster?: string;
+  part_antenna?: string;
 }
 
 /** The yard's shared dimensions (`gallery/06` §3.1). */
@@ -160,10 +162,13 @@ function spineAdvisories(hull: HullGeometry): Violation[] {
   // A pointed bow with a constant beam renders as a blade: wider than it is
   // tall at the tip. That is what the data says and the geometry is right for
   // it, so this is information, not a fault — but it is almost never intended.
-  const bow = halfHeightAt(spine, 0);
-  if (spine.beam_m > 0 && bow > 0 && spine.beam_m / 2 > bow * 4) {
+  // The beam AT the bow, not the nominal beam: a hull that already carries a
+  // taper via beam_overrides was still being told to add one.
+  const bow = halfHeightAt(spine, 0, "fore");
+  const bowBeam = beamAt(spine, 0, "fore");
+  if (bowBeam > 0 && bow > 0 && bowBeam / 2 > bow * 4) {
     out.push(
-      violation("info", `At the bow the hull is ${fmt(spine.beam_m / 2 / bow)}× wider than it is tall. Add a beam override near the bow to taper the beam with the profile.`, {
+      violation("info", `At the bow the hull is ${fmt(bowBeam / 2 / bow)}× wider than it is tall. Add a beam override near the bow to taper the beam with the profile.`, {
         field: "spine.beam_overrides",
         domain: "geometry",
         source: src,
@@ -479,15 +484,22 @@ function styleAdvisories(hull: HullGeometry, ctx: AdvisoryContext): Violation[] 
       }),
     );
   }
-  const parts = new Set([...(style.parts_nose ?? []), ...(style.parts_tank ?? []), ...(style.parts_radiator ?? []), ...(style.parts_drive ?? [])]);
-  if (parts.size > 0) {
-    for (const a of hull.appendages ?? []) {
-      if (a.part && !parts.has(a.part)) {
-        out.push(
-          violation("info", `Appendage “${a.id}” uses part “${a.part}”, which is not in ${kit}.`, { field: "appendages", domain: "style", source: src, anchor: { station: a.station, componentId: a.id } }),
-        );
-      }
-    }
+  // A slot that overrides its part is off-kit by construction. That is allowed
+  // — a captured hull or an export model is supposed to be able to — so this
+  // is a deviation to list and offer to conform, never a refusal.
+  for (const slot of hull.external_slots ?? []) {
+    if (!slot.part) continue;
+    const fitted = partKindFor(slot);
+    const standard = partKindFor({ ...slot, part: undefined });
+    if (fitted === standard) continue;
+    out.push(
+      violation("info", `Slot “${slot.id}” carries a ${fitted ?? "nothing"} where ${kit} fits a ${standard ?? "nothing"}.`, {
+        field: "external_slots",
+        domain: "style",
+        source: src,
+        anchor: { station: slot.x, componentId: slot.id },
+      }),
+    );
   }
   if (style.crewed === false && (hull.sections ?? []).some((s) => s.pressurised)) {
     out.push(violation("info", `${kit} builds uncrewed hulls, but this one has pressurised sections.`, { field: "sections", domain: "doctrine", source: src }));

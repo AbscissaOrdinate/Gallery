@@ -411,6 +411,31 @@ export function partKindFor(slot: ExternalSlot & { part?: string }): PartKind | 
  * The slot a drawn piece belongs to. `partsForHull` names extra pieces
  * `<slot>~1`, `<slot>~2`; a click on a gun's barrel has to select the gun.
  */
+/**
+ * Read a style record's `part_*` fields into families the generators
+ * understand. A value with no generator behind it is dropped rather than
+ * drawn as a default, so a typo shows up as the fallback shape and not as a
+ * silently wrong one.
+ */
+export function familiesOf(style: Record<string, unknown> | undefined): PartFamilies {
+  const pick = <K extends keyof PartFamilies>(key: K, allowed: readonly string[]): PartFamilies[K] | undefined => {
+    const v = style?.[`part_${key}`];
+    return typeof v === "string" && allowed.includes(v) ? (v as PartFamilies[K]) : undefined;
+  };
+  const f: PartFamilies = {};
+  const radiator = pick("radiator", ["fin", "panel", "droplet-boom"]);
+  const turret = pick("turret", ["box", "barbette", "cupola"]);
+  const tank = pick("tank", ["barrel", "spherical", "conformal"]);
+  const thruster = pick("thruster", ["bell", "block", "cluster"]);
+  const antenna = pick("antenna", ["dish", "phased-panel", "whip"]);
+  if (radiator) f.radiator = radiator;
+  if (turret) f.turret = turret;
+  if (tank) f.tank = tank;
+  if (thruster) f.thruster = thruster;
+  if (antenna) f.antenna = antenna;
+  return f;
+}
+
 export function slotIdOf(partId: string): string {
   const i = partId.indexOf("~");
   return i === -1 ? partId : partId.slice(0, i);

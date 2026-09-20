@@ -73,6 +73,12 @@ export interface ExternalSlot {
   type: string;
   /** S | M | L | XL, or a numeric size class. */
   size: string | number;
+  /**
+   * Draw this part instead of the one the style kit gives this slot's type.
+   * How a captured or export hull carries a foreign fitting — honoured by the
+   * renderer and reported as a style deviation, never blocked.
+   */
+  part?: string;
 }
 
 /**

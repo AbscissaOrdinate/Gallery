@@ -207,7 +207,116 @@ export const BUILTIN_PRESETS: Preset[] = [
     fields: { category: "hangar", slot: "hangar", mass_t: 120, volume_m3: 6000, power_in_MW: 1, cost: 60, crew: 20 },
   },
 
+  // ---- bus and style -------------------------------------------------------
+  // One worked example of each. Others are added as polities are authored; the
+  // point of these is that the editor's conformance panel has something real to
+  // check against, and that a hull preset can reference them.
+  {
+    id: "ujcn-mk2-bus",
+    type: "bus",
+    title: "UJCN Mk2 bus",
+    fields: {
+      core_diameter_m: 9,
+      tank_barrel_m: 18,
+      truss_pitch_m: 3,
+      station_pitch_m: 3,
+      ring_size: "UJCN standard ring, 1.4 m clear",
+      mount_ifaces: ["turret", "pd", "radiator", "comms", "sensor", "tank", "drive"],
+      notes: "The yard dimensions every UJCN hull is built to. A tug, an oiler and a destroyer share tank barrels and ring sizes, which is what makes them look like one navy up close.",
+    },
+  },
+  {
+    id: "ujcn-style",
+    type: "style",
+    title: "UJCN style kit",
+    fields: {
+      construction: "mixed",
+      ld_ratio_min: 6,
+      ld_ratio_max: 16,
+      max_beam_m: 34,
+      part_radiator: "fin",
+      part_turret: "barbette",
+      part_tank: "barrel",
+      part_thruster: "bell",
+      part_antenna: "dish",
+      code_format: "{PREFIX}-{TYPE}-{NUM}",
+      greeble_density: "medium",
+      doctrine_armour: "nose_heavy",
+      crewed: true,
+      notes: "Swept radiator fins, barbette mountings and barrel tankage. Nose-heavy armour: UJCN doctrine is to fight bow-on and accept the beam aspect.",
+    },
+  },
+
   // ---- hull --------------------------------------------------------------
+  {
+    // Hand-built to the v2 contract: a real profile with hard shoulders, a
+    // slot inventory on the station grid, and sections that cover the hull.
+    // This is what a hull authored in editor 1 looks like, as against the v1
+    // presets below which exist to exercise the migrator.
+    id: "ujcn-destroyer-hull",
+    type: "hull",
+    title: "Destroyer hull (UJCN pattern)",
+    fields: {
+      hull_class: "DD",
+      environment: "orbital",
+      packing_efficiency: 0.78,
+      structure_mass_fraction: 0.16,
+      structural_mass_t: 1650,
+      structural_cost: 380,
+      armor: "Nose-heavy: spaced ceramic over the bow third, whipple elsewhere",
+      spine: {
+        length_m: 138,
+        beam_m: 13,
+        station_pitch_m: 3,
+        datum: "bow",
+        stations: [
+          { x: 0, half_height_m: 0.9 },
+          { x: 27, half_height_m: 5.2 }, // the armoured nose taper
+          { x: 27, half_height_m: 6.5 }, // shoulder onto the forward block
+          { x: 48, half_height_m: 6.5 },
+          { x: 48, half_height_m: 4.2 }, // waist
+          { x: 60, half_height_m: 4.2 },
+          { x: 60, half_height_m: 6.8 }, // midships magazine block
+          { x: 87, half_height_m: 6.8 },
+          { x: 87, half_height_m: 5.4 },
+          { x: 132, half_height_m: 5.4 }, // engineering
+          { x: 138, half_height_m: 5.4 }, // blunt transom
+        ],
+        // Without these the beam stays at its nominal 13 m all the way to a
+        // 0.9 m bow, and the hull renders as a blade wider than it is tall.
+        // The advisory kernel catches it; this is the fix it points at.
+        beam_overrides: [
+          { x: 0, beam_m: 2.2 },
+          { x: 27, beam_m: 13 },
+          { x: 138, beam_m: 13 },
+        ],
+      },
+      sections: [
+        { id: "forward", x0: 0, x1: 48, allowed: ["cic", "sensor", "crew"], pressurised: true },
+        { id: "magazine", x0: 48, x1: 87, allowed: ["magazine", "weapon_support"] },
+        { id: "engineering", x0: 87, x1: 138, allowed: ["reactor", "drive", "damage_control"] },
+      ],
+      armor_zones: [{ id: "bow", x0: 0, x1: 48, material: "composite", thickness_cm: 6 }],
+      external_slots: [
+        { id: "gun-a", x: 21, theta_deg: 0, type: "turret", size: "M" },
+        { id: "gun-b", x: 36, theta_deg: 0, type: "turret", size: "M" },
+        { id: "gun-y", x: 84, theta_deg: 180, type: "turret", size: "S" },
+        { id: "eo", x: 30, theta_deg: 0, type: "optics", size: "S" },
+        { id: "radar", x: 42, theta_deg: 0, type: "sensor", size: "M" },
+        { id: "comms", x: 54, theta_deg: 0, type: "comms", size: "M" },
+        { id: "cells", x: 66, theta_deg: 0, type: "turret", size: "L" },
+        { id: "pd-p", x: 72, theta_deg: 180, type: "pd", size: "S" },
+        { id: "rad-1", x: 96, theta_deg: 180, type: "radiator", size: "L" },
+        { id: "rad-2", x: 114, theta_deg: 180, type: "radiator", size: "L" },
+        { id: "tank", x: 108, theta_deg: 0, type: "tank", size: "L" },
+        { id: "ring", x: 12, theta_deg: 180, type: "dock", size: "S" },
+        { id: "drive", x: 138, theta_deg: 0, type: "drive", size: "L" },
+      ],
+      design_notes:
+        "Nose-heavy armour and a bow-on fighting doctrine: the beam aspect is accepted. Magazine amidships behind the waist, radiators ventral and aft so the dorsal arc stays clear for the fire-control radar.",
+    },
+  },
+
   {
     id: "destroyer-hull",
     type: "hull",

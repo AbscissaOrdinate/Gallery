@@ -105,6 +105,19 @@ describe("spine", () => {
     expect(v?.severity).toBe("info");
     expect(v?.field).toBe("spine.beam_overrides"); // points at the fix, not the symptom
   });
+
+  it("stops complaining once the beam actually tapers", () => {
+    // It read the nominal beam rather than the beam at the bow, so a hull that
+    // had already been fixed was still told to fix it.
+    const tapered = edit((h) => {
+      h.spine.stations[0]!.half_height_m = 1;
+      h.spine.beam_overrides = [
+        { x: 0, beam_m: 2 },
+        { x: 40, beam_m: 16 },
+      ];
+    });
+    expect(find(tapered, /wider than it is tall/)).toBeUndefined();
+  });
 });
 
 describe("sections", () => {
@@ -264,11 +277,18 @@ describe("style kit", () => {
     expect(find(clean, /will not fit the yard's slips/, { style: kit })?.field).toBe("spine.beam_m");
   });
 
-  it("flags an off-kit part without refusing it", () => {
-    const hull = edit((h) => (h.appendages![0]!.part = "osp-boom"));
-    const v = find(hull, /not in the ans kit/, { style: { id: "ans", parts_radiator: ["ans-panel"] } });
+  it("lists an off-kit fitting as a deviation without refusing it", () => {
+    // A captured hull carrying a foreign radiator where the kit fits a turret.
+    const hull = edit((h) => (h.external_slots![0]!.part = "radiator"));
+    const v = find(hull, /carries a radiator where the ans kit fits a turret/, { style: { id: "ans" } });
     expect(v?.severity).toBe("info");
-    expect(v?.anchor?.componentId).toBe("a1");
+    expect(v?.domain).toBe("style");
+    expect(v?.anchor?.componentId).toBe("t1");
+  });
+
+  it("says nothing when a slot fits what the kit would fit anyway", () => {
+    const hull = edit((h) => (h.external_slots![0]!.part = "turret"));
+    expect(find(hull, /carries a/, { style: { id: "ans" } })).toBeUndefined();
   });
 
   it("notes a pressurised section on an uncrewed polity's hull as doctrine, not style", () => {

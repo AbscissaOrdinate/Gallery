@@ -299,7 +299,21 @@ describe("regression gate (§9)", () => {
       }
     }
     expect(failures).toEqual([]);
-    expect(BUILTIN_PRESETS.length).toBe(Object.keys(baseline.presets).length);
+
+    // The gate's job is that nothing DISAPPEARS, and that every preset that was
+    // baselined still carries the fields it had. Counting presets instead
+    // failed on every legitimate addition, which trains people to edit the
+    // baseline rather than read it.
+    const present = new Map(BUILTIN_PRESETS.map((p) => [`${p.type}/${p.id}`, p]));
+    const missing = Object.keys(baseline.presets).filter((k) => !present.has(k));
+    expect(missing, "a baselined preset was removed or renamed").toEqual([]);
+
+    const lostFields: string[] = [];
+    for (const [key, fields] of Object.entries(baseline.presets as Record<string, string[]>)) {
+      const record = repo.create(present.get(key)!.type, "T", present.get(key)!);
+      for (const field of fields) if (!(field in record.fields)) lostFields.push(`${key}.${field}`);
+    }
+    expect(lostFields, "a preset lost a field it used to set").toEqual([]);
   });
 
   it("no preset lost a field in the bump", () => {

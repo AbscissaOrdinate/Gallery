@@ -72,13 +72,15 @@ export function readHull(fields: Record<string, unknown>): HullGeometry {
 
   const external_slots: ExternalSlot[] = list(fields.external_slots).map((raw, i) => {
     const s = obj(raw);
-    return {
+    const slot: ExternalSlot = {
       id: idAt(s.id, "slot", i),
       x: num(s.x),
       theta_deg: num(s.theta_deg),
       type: str(s.type, "external"),
       size: typeof s.size === "number" ? s.size : str(s.size, "M"),
     };
+    if (s.part !== undefined && str(s.part).trim()) slot.part = str(s.part).trim();
+    return slot;
   });
 
   const armor_zones: ArmorZone[] = list(fields.armor_zones).map((raw, i) => {

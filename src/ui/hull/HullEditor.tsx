@@ -20,6 +20,7 @@ import { readHull, stationPitch, writeHull } from "../../core/designer/hull/reco
 import { hullAdvisories, type AdvisoryContext, type BusStandard, type StyleKit } from "../../core/designer/hull/advisories";
 import { hullMetrics } from "../../core/designer/hull/geometry";
 import { renderHull, toSvg } from "../../core/designer/hull/render";
+import { familiesOf, partsForHull, slotIdOf } from "../../core/designer/hull/parts";
 import { byDomain, sortViolations, type Violation } from "../../core/designer/violations";
 import type { HullGeometry, ShadowCone } from "../../core/designer/hull/types";
 import type { RenderMode } from "../../core/designer/hull/render";
@@ -37,7 +38,7 @@ export function HullEditor({ id }: { id: string }) {
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<RenderMode>("schematic");
-  const [overlays, setOverlays] = useState({ beam: true, slots: true, sections: true, figures: true, cone: false, ghost: true });
+  const [overlays, setOverlays] = useState({ beam: true, slots: true, sections: true, figures: true, cone: false, ghost: true, parts: true });
   const timer = useRef<number | null>(null);
 
   // Autosave, mirroring RecordEditor: 900 ms after the last edit, and on unmount.
@@ -89,6 +90,12 @@ export function HullEditor({ id }: { id: string }) {
   const parent = refRecord(repo, draft, "parent");
   const ghost = overlays.ghost && parent ? readHull(parent.fields) : undefined;
 
+  // The kit's fittings, generated from the record every render like everything
+  // else. Editor 2 replaces `weapons` with what is actually loaded.
+  const styleRecord = refRecord(repo, draft, "style");
+  const families = useMemo(() => familiesOf(styleRecord?.fields), [styleRecord?.fields]);
+  const fitted = useMemo(() => (overlays.parts ? partsForHull(hull, { families }) : undefined), [hull, families, overlays.parts]);
+
   if (!repo || !draft || !loaded) return <div className="muted">Hull not found.</div>;
 
   /** Write geometry back through the adapter so unrelated fields survive. */
@@ -133,13 +140,14 @@ export function HullEditor({ id }: { id: string }) {
         <span className="tag">{String(draft.fields.hull_class ?? "—")}</span>
         <span className="grow" />
         <Toggle on={mode === "schematic"} onClick={() => setMode((m) => (m === "schematic" ? "silhouette" : "schematic"))} label="Schematic" />
-        {(["beam", "slots", "sections", "figures", "cone", "ghost"] as const).map((k) => (
+        {(["parts", "beam", "slots", "sections", "figures", "cone", "ghost"] as const).map((k) => (
           <Toggle
             key={k}
             on={overlays[k]}
             onClick={() => setOverlays((o) => ({ ...o, [k]: !o[k] }))}
             label={k === "figures" ? "Scale" : k[0]!.toUpperCase() + k.slice(1)}
             disabled={k === "ghost" && !parent}
+            title={k === "parts" ? (styleRecord ? `Fittings from ${styleRecord.name}` : "Fittings — no style kit linked, so defaults are used") : undefined}
           />
         ))}
         <span className="muted" style={{ fontSize: 11 }}>
@@ -169,6 +177,7 @@ export function HullEditor({ id }: { id: string }) {
             scaleFigures: overlays.figures,
             shadowCone: overlays.cone ? ctx.shadowCone : undefined,
             ghost,
+            fitted,
           }}
           selection={selection}
           onSelect={(s) => {
@@ -182,6 +191,7 @@ export function HullEditor({ id }: { id: string }) {
 
         <div className="hullside">
           <Inspector hull={hull} selection={selection} commit={commit} pitch={pitch} />
+          <Conformance hull={hull} style={styleRecord} commit={commit} />
           <Advisories
             advisories={advisories}
             onGo={(v) => {
@@ -233,9 +243,9 @@ export function HullEditor({ id }: { id: string }) {
 
 // ---------------------------------------------------------------------------
 
-function Toggle({ on, onClick, label, disabled }: { on: boolean; onClick: () => void; label: string; disabled?: boolean }) {
+function Toggle({ on, onClick, label, disabled, title }: { on: boolean; onClick: () => void; label: string; disabled?: boolean; title?: string }) {
   return (
-    <button className={on && !disabled ? "" : "ghost"} disabled={disabled} onClick={onClick} style={{ height: 24, padding: "0 8px", fontSize: 11 }}>
+    <button className={on && !disabled ? "" : "ghost"} disabled={disabled} title={title} onClick={onClick} style={{ height: 24, padding: "0 8px", fontSize: 11 }}>
       {label}
     </button>
   );
@@ -339,6 +349,7 @@ function Inspector({ hull, selection, commit, pitch }: { hull: HullGeometry; sel
         <Num label="Clock" unit="°" value={s.theta_deg} onChange={(theta_deg) => set({ theta_deg })} />
         <Text label="Type" value={s.type} onChange={(type) => set({ type })} />
         <Text label="Size" value={String(s.size)} onChange={(size) => set({ size })} />
+        <Text label="Part override" value={s.part ?? ""} onChange={(part) => set({ part: part.trim() || undefined })} />
       </div>
     );
   }
@@ -404,6 +415,67 @@ function Advisories({ advisories, onGo }: { advisories: Violation[]; onGo: (v: V
         </div>
       ))}
       {advisories.length === 0 && <div className="muted">Nothing to report. Advisories never block a save.</div>}
+    </div>
+  );
+}
+
+/**
+ * Style conformance. Every deviation is listed and every one can be conformed
+ * in a click — but nothing here refuses a save, because a captured hull or an
+ * export model is supposed to be able to break the house style.
+ */
+function Conformance({ hull, style, commit }: { hull: HullGeometry; style: TypedRecord | undefined; commit: (h: HullGeometry) => void }) {
+  const off = (hull.external_slots ?? []).filter((s) => s.part);
+  if (!style) {
+    return (
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Style</h3>
+        <div className="muted">No style kit linked. Fittings fall back to the default families.</div>
+      </div>
+    );
+  }
+  const families = familiesOf(style.fields);
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>
+        Style · {style.name} {off.length === 0 && <span className="ok">· conforms</span>}
+      </h3>
+      <div className="chips" style={{ marginBottom: 8 }}>
+        {Object.entries(families).map(([k, v]) => (
+          <span key={k} className="chip">
+            {k} <span className="muted">{String(v)}</span>
+          </span>
+        ))}
+        {Object.keys(families).length === 0 && <span className="muted">kit declares no part families</span>}
+      </div>
+      {off.length > 0 && (
+        <>
+          <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+            {off.length} deviation{off.length === 1 ? "" : "s"} — allowed, and never blocked.
+          </div>
+          {off.map((s) => (
+            <div key={s.id} className="row" style={{ justifyContent: "space-between", padding: "2px 0" }}>
+              <span>
+                {s.id} <span className="muted">{s.part}</span>
+              </span>
+              <button
+                className="ghost"
+                style={{ height: 20, padding: "0 6px", fontSize: 11 }}
+                onClick={() => commit({ ...hull, external_slots: (hull.external_slots ?? []).map((t) => (t.id === s.id ? { ...t, part: undefined } : t)) })}
+              >
+                Conform
+              </button>
+            </div>
+          ))}
+          <button
+            className="ghost"
+            style={{ marginTop: 4 }}
+            onClick={() => commit({ ...hull, external_slots: (hull.external_slots ?? []).map((t) => ({ ...t, part: undefined })) })}
+          >
+            Conform all
+          </button>
+        </>
+      )}
     </div>
   );
 }
