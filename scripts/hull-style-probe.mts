@@ -10,6 +10,7 @@
 import { writeFileSync } from "node:fs";
 import { renderHull, toSvg } from "../src/core/designer/hull/render";
 import { hullMetrics } from "../src/core/designer/hull/geometry";
+import { partsForHull, type PartFamilies } from "../src/core/designer/hull/parts";
 import type { Appendage, HullGeometry, Station } from "../src/core/designer/hull/types";
 
 /** A run of frames: the rhythmic banding all over the reference plates. */
@@ -65,7 +66,21 @@ const hulls: { name: string; hull: HullGeometry }[] = [
         { id: "midships", x0: 44, x1: 82 },
         { id: "engineering", x0: 82, x1: 120 },
       ],
-      appendages: [...collar("mid", 46, 5.2, 3), ...collar("eng", 94, 4.6, 5, 4, 2.4)],
+      external_slots: [
+        { id: "a1", x: 16, theta_deg: 0, type: "turret", size: "M" },
+        { id: "a2", x: 30, theta_deg: 0, type: "turret", size: "M" },
+        { id: "a3", x: 34, theta_deg: 180, type: "turret", size: "S" },
+        { id: "op", x: 24, theta_deg: 0, type: "optics", size: "S" },
+        { id: "m1", x: 42, theta_deg: 0, type: "comms", size: "M" },
+        { id: "pd1", x: 50, theta_deg: 0, type: "pd", size: "S" },
+        { id: "r1", x: 52, theta_deg: 180, type: "radiator", size: "L" },
+        { id: "sr", x: 62, theta_deg: 0, type: "sensor", size: "M" },
+        { id: "pd2", x: 70, theta_deg: 180, type: "pd", size: "S" },
+        { id: "r2", x: 76, theta_deg: 180, type: "radiator", size: "L" },
+        { id: "tk", x: 96, theta_deg: 0, type: "tank", size: "L" },
+        { id: "dr", x: 118, theta_deg: 0, type: "drive", size: "L" },
+      ],
+      appendages: [...collar("eng", 94, 4.6, 4, 4, 2.4)],
     },
   },
   {
@@ -123,17 +138,35 @@ const hulls: { name: string; hull: HullGeometry }[] = [
   },
 ];
 
+/** Two notional polities, to see whether the families actually read apart. */
+const KITS: { name: string; families: PartFamilies; weapons?: Record<string, "gun" | "railgun" | "missile" | "beam"> }[] = [
+  {
+    name: "UJCN — fins, barbettes, barrel tanks",
+    families: { radiator: "fin", turret: "barbette", tank: "barrel", thruster: "bell", antenna: "dish" },
+    weapons: { a1: "railgun", a2: "gun", a3: "gun" },
+  },
+  {
+    name: "CDN — panels, boxes, spherical tanks",
+    families: { radiator: "panel", turret: "box", tank: "spherical", thruster: "cluster", antenna: "phased-panel" },
+    weapons: { a1: "missile", a2: "missile", a3: "beam" },
+  },
+];
+
 const cards = hulls
   .map(({ name, hull }) => {
     const m = hullMetrics(hull);
-    const plate = toSvg(renderHull(hull, { mode: "silhouette" }), { pxPerMetre: 7 });
+    const fitted = KITS.map(
+      (kit) =>
+        `<h3>${kit.name}</h3><div class="plate">${toSvg(renderHull(hull, { mode: "silhouette", fitted: partsForHull(hull, { families: kit.families, weapons: kit.weapons }) }), { pxPerMetre: 7 })}</div>`,
+    ).join("");
     const schematic = toSvg(renderHull(hull, { mode: "schematic", sections: true, showBeam: true, scaleFigures: true }), { pxPerMetre: 7 });
     return `<section>
   <h2>${name}</h2>
-  <p>${m.length_m.toFixed(0)} m · beam ${m.max_beam_m.toFixed(1)} m · L/D ${m.length_over_diameter.toFixed(2)}
-     · gross ${Math.round(m.gross_volume_m3).toLocaleString()} m³ · wetted ${Math.round(m.wetted_area_m2).toLocaleString()} m²</p>
-  <div class="plate">${plate}</div>
-  <div class="plate">${schematic}</div>
+  <p>${m.length_m.toFixed(0)} m / beam ${m.max_beam_m.toFixed(1)} m / L/D ${m.length_over_diameter.toFixed(2)}
+     / gross ${Math.round(m.gross_volume_m3).toLocaleString()} m3 / wetted ${Math.round(m.wetted_area_m2).toLocaleString()} m2</p>
+  <h3>bare hull</h3><div class="plate">${toSvg(renderHull(hull, { mode: "silhouette" }), { pxPerMetre: 7 })}</div>
+  ${fitted}
+  <h3>schematic</h3><div class="plate">${schematic}</div>
 </section>`;
   })
   .join("\n");
@@ -149,6 +182,7 @@ writeFileSync(
           --line-strong:#4d5678; --ok:#6fae8f; }
   body { background:#12151f; color:#c8d2ea; font:14px/1.5 system-ui, sans-serif; margin:24px 32px; }
   h1 { font-weight:600; letter-spacing:.02em; }
+  h3 { font-size:12px; font-weight:500; margin:12px 0 2px; color:#8f9ab8; }
   h2 { font-size:15px; font-weight:600; margin:28px 0 2px; color:#e2a07a; }
   p { margin:0 0 10px; color:#8f9ab8; font-size:12px; font-variant-numeric:tabular-nums; }
   .plate { background:#171b2b; border:1px solid #2b3149; border-radius:6px; padding:10px; margin-bottom:8px; overflow-x:auto; }
