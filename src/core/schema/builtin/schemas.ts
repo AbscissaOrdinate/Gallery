@@ -133,6 +133,7 @@ export const CHARACTER_SCHEMA: TypeSchema = {
 
 export const MODULE_SCHEMA: TypeSchema = {
   id: "module",
+  version: 2,
   title: "Module",
   description:
     "A component class that goes on a craft: drives, reactors, radiators, weapons, point defense, sensors, armor, habitats, tanks. Numbers feed the craft budget roll-up.",
@@ -176,6 +177,17 @@ export const MODULE_SCHEMA: TypeSchema = {
       heat_out_MW: num("Waste heat produced", "MW", { minimum: 0, "x-group": "Budget" }),
       heat_reject_MW: num("Heat rejected (radiators)", "MW", { minimum: 0, "x-group": "Budget" }),
       crew: num("Crew required", undefined, { minimum: 0, "x-group": "Budget" }),
+      crew_basis: str("Crew basis", {
+        enum: ["per_watch", "total"],
+        default: "per_watch",
+        "x-group": "Budget",
+        description:
+          "Whether `crew` is the people on station in one watch, or the whole complement for this module. Per-watch figures get the watch multiplier; totals do not. The NEBULOUS catalogue is `total` \u2014 see docs/UNITS.md \u00a74.",
+      }),
+      bus_iface: str("Bus interface", {
+        "x-group": "Budget",
+        description: "Mounting standard this module is built to. A module on a hull built to a different standard raises a fit advisory.",
+      }),
       cost: num("Cost", "M$", { minimum: 0, "x-group": "Budget" }),
       thrust_kN: num("Thrust", "kN", { minimum: 0, "x-group": "Propulsion" }),
       isp_s: num("Specific impulse", "s", { minimum: 0, "x-group": "Propulsion" }),
@@ -194,37 +206,205 @@ export const MODULE_SCHEMA: TypeSchema = {
 
 export const HULL_SCHEMA: TypeSchema = {
   id: "hull",
+  version: 2,
   title: "Hull",
-  description: "A reusable hull: silhouette (SVG asset), dimensions, structural mass, and the slots modules can occupy.",
+  description:
+    "A reusable hull: the spine and its stations, the volumetric sections, the external slot inventory, armour zones and appendages. This is the frozen contract \u2014 a ship built on the hull fills it but never reshapes it.",
   folder: "hulls",
-  icon: "⬠",
-  rels: ["derived-from", "built-by"],
-  indexColumns: ["hull_class", "length_m", "structural_mass_t"],
+  icon: "\u2b20",
+  rels: ["derived-from", "built-by", "variant-of", "uses-bus", "uses-style"],
+  indexColumns: ["hull_class", "spine.length_m", "structural_mass_t"],
   fields: {
     type: "object",
     properties: {
       hull_class: str("Hull class code", { description: "e.g. DD, CL, FF, PC, SC" }),
-      length_m: num("Length", "m", { minimum: 0, "x-group": "Dimensions" }),
-      beam_m: num("Beam", "m", { minimum: 0, "x-group": "Dimensions" }),
-      volume_m3: num("Internal volume", "m³", { minimum: 0, "x-group": "Dimensions" }),
+      environment: str("Environment", {
+        enum: ["orbital", "aerobrake", "lander"],
+        default: "orbital",
+        description: "Aerodynamic parts are only available to a hull that meets an atmosphere.",
+      }),
+      bus: ref("Bus standard", ["bus"], "uses-bus"),
+      style: ref("Style kit", ["style"], "uses-style"),
+      parent: ref("Variant of", ["hull"], "variant-of"),
+      spine: {
+        type: "object",
+        title: "Spine",
+        "x-group": "Geometry",
+        description:
+          "Side profile mirrored about the long axis, with an independent beam giving an elliptical cross-section. x is metres from the bow.",
+        properties: {
+          length_m: num("Length", "m", { minimum: 0 }),
+          beam_m: num("Beam", "m", { minimum: 0, description: "Nominal beam where no override applies." }),
+          station_pitch_m: num("Station pitch", "m", { minimum: 0, default: 3, description: "Snap grid and in-universe frame spacing. Defaults to the constraint set's cell_pitch_m." }),
+          datum: str("Datum", { enum: ["bow"], default: "bow" }),
+          stations: {
+            type: "array",
+            title: "Stations",
+            items: {
+              type: "object",
+              properties: {
+                x: num("Station", "m", { minimum: 0 }),
+                half_height_m: num("Half-height", "m", { minimum: 0 }),
+              },
+            },
+          },
+          beam_overrides: {
+            type: "array",
+            title: "Beam overrides",
+            items: {
+              type: "object",
+              properties: { x: num("Station", "m", { minimum: 0 }), beam_m: num("Beam", "m", { minimum: 0 }) },
+            },
+          },
+        },
+      },
+      packing_efficiency: num("Packing efficiency", undefined, { minimum: 0, maximum: 1, "x-group": "Geometry", description: "Usable fraction of gross internal volume." }),
+      structure_mass_fraction: num("Structure mass fraction", undefined, { minimum: 0, "x-group": "Budget" }),
+      sections: {
+        type: "array",
+        title: "Sections",
+        "x-group": "Geometry",
+        description: "Internal volumetric budgets along the hull. Placement is volume totals against the allowed list \u2014 there is no bin-packing.",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            x0: num("From", "m", { minimum: 0 }),
+            x1: num("To", "m", { minimum: 0 }),
+            allowed: strs("Allowed archetypes"),
+            pressurised: { type: "boolean" as const, title: "Pressurised" },
+          },
+        },
+      },
+      external_slots: {
+        type: "array",
+        title: "External slots",
+        "x-group": "Geometry",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            x: num("Station", "m", { minimum: 0 }),
+            theta_deg: num("Clock angle", "\u00b0", { description: "0 dorsal, 90 starboard beam, 180 ventral." }),
+            type: str("Slot type", { enum: ["spinal", "turret", "pod", "radiator", "comms", "sensor", "dock", "tank", "hangar", "external"] }),
+            size: str("Size", { enum: ["S", "M", "L", "XL"] }),
+          },
+        },
+      },
+      armor_zones: {
+        type: "array",
+        title: "Armour zones",
+        "x-group": "Budget",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            x0: num("From", "m", { minimum: 0 }),
+            x1: num("To", "m", { minimum: 0 }),
+            material: str("Material"),
+            thickness_cm: num("Thickness", "cm", { minimum: 0 }),
+          },
+        },
+      },
+      appendages: {
+        type: "array",
+        title: "Appendages",
+        "x-group": "Geometry",
+        description: "Flat parts in the silhouette plane, mirrored vertically \u2014 never swept.",
+        items: {
+          type: "object",
+          properties: {
+            id: str("Id"),
+            kind: str("Kind", { enum: ["radiator", "pylon", "sponson", "boom", "antenna", "tank_strap", "greeble"] }),
+            station: num("Station", "m", { minimum: 0 }),
+            attach_r: num("Attach height", "m", { minimum: 0 }),
+            mirror: str("Mirror", { enum: ["vertical", "none"], default: "vertical" }),
+            part: str("Style-kit part"),
+          },
+        },
+      },
       structural_mass_t: num("Structural mass", "t", { minimum: 0, "x-group": "Budget" }),
       structural_cost: num("Structural cost", "M$", { minimum: 0, "x-group": "Budget" }),
-      armor: str("Armor scheme"),
+      armor: str("Armour scheme"),
+      migration_review: {
+        type: "boolean" as const,
+        title: "Needs geometry review",
+        "x-hidden": true,
+        description: "Set by the v1 to v2 migration: the spine was synthesised to preserve the authored volume and the real profile still needs drawing.",
+      },
       slots: {
         type: "array",
-        title: "Slots",
+        title: "Slots (v1, deprecated)",
+        "x-hidden": true,
+        description: "Kept so the phase-1 budget engine keeps producing identical numbers. Editor 2 moves the budget engine onto external_slots and sections, and this goes.",
         items: {
           type: "object",
           properties: {
             id: str("Slot id"),
             kind: str("Kind", { enum: ["internal", "external", "spinal", "turret", "drive", "radiator", "hangar"] }),
-            count: { type: "integer", title: "Count", default: 1, minimum: 1 },
+            count: { type: "integer" as const, title: "Count", default: 1, minimum: 1 },
             x: num("x (silhouette %)"),
             y: num("y (silhouette %)"),
           },
         },
       },
       design_notes: text("Design notes"),
+    },
+  },
+};
+
+export const BUS_SCHEMA: TypeSchema = {
+  id: "bus",
+  version: 1,
+  title: "Bus standard",
+  description:
+    "The shared dimensions a yard builds to: core diameters, tank barrel lengths, truss pitch, docking-ring sizes, mount interface sizes. This is what makes a nation's tug, oiler and frigate visibly share parts.",
+  folder: "buses",
+  icon: "\u2500",
+  rels: ["derived-from", "adopted-by"],
+  indexColumns: ["core_diameter_m", "ring_size"],
+  fields: {
+    type: "object",
+    properties: {
+      core_diameter_m: num("Core diameter", "m", { minimum: 0 }),
+      tank_barrel_m: num("Tank barrel length", "m", { minimum: 0 }),
+      truss_pitch_m: num("Truss pitch", "m", { minimum: 0 }),
+      station_pitch_m: num("Station pitch", "m", { minimum: 0, default: 3 }),
+      ring_size: str("Docking ring standard"),
+      mount_ifaces: strs("Mount interfaces"),
+      notes: text("Notes"),
+    },
+  },
+};
+
+export const STYLE_SCHEMA: TypeSchema = {
+  id: "style",
+  version: 1,
+  title: "Style kit",
+  description:
+    "A polity's kit of parts and proportions. New hulls for that polity start from it; anything off-kit is listed as a deviation and never blocked, since a captured or export hull should be able to violate it.",
+  folder: "styles",
+  icon: "\u25e7",
+  rels: ["used-by"],
+  indexColumns: ["construction"],
+  fields: {
+    type: "object",
+    properties: {
+      construction: str("Construction", { enum: ["truss", "monocoque", "mixed"], default: "mixed" }),
+      ld_ratio_min: num("Slenderness, min", undefined, { minimum: 0, "x-group": "Proportions" }),
+      ld_ratio_max: num("Slenderness, max", undefined, { minimum: 0, "x-group": "Proportions" }),
+      max_beam_m: num("Maximum beam", "m", { minimum: 0, "x-group": "Proportions" }),
+      radiator_family: str("Radiator family", { "x-group": "Parts" }),
+      parts_nose: strs("Nose parts"),
+      parts_tank: strs("Tank parts"),
+      parts_radiator: strs("Radiator parts"),
+      parts_drive: strs("Drive parts"),
+      code_format: str("Hull code format", { "x-group": "Markings", description: "e.g. {PREFIX}-{TYPE}-{NUM}" }),
+      greeble_density: str("Greeble density", { enum: ["low", "medium", "high"], default: "medium", "x-group": "Markings" }),
+      doctrine_drives: strs("Doctrinal drive families"),
+      doctrine_armour: str("Armour doctrine", { enum: ["none", "nose_heavy", "uniform", "belt"], default: "nose_heavy" }),
+      crewed: { type: "boolean" as const, title: "Crewed", default: true },
+      notes: text("Notes"),
     },
   },
 };
@@ -281,5 +461,7 @@ export const BUILTIN_SCHEMAS: TypeSchema[] = [
   CHARACTER_SCHEMA,
   MODULE_SCHEMA,
   HULL_SCHEMA,
+  BUS_SCHEMA,
+  STYLE_SCHEMA,
   CRAFT_SCHEMA,
 ];
