@@ -1,5 +1,19 @@
 import { chromium } from "@playwright/test";
-const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+import { existsSync } from "node:fs";
+
+// Playwright defaults to the headless shell, which is a separate download from
+// the full browser. Use whichever is actually on this machine rather than
+// telling the user to re-run `playwright install`.
+async function launch() {
+  const exe = process.env.SMOKE_CHROME;
+  if (exe && existsSync(exe)) return chromium.launch({ executablePath: exe });
+  try {
+    return await chromium.launch();
+  } catch {
+    return chromium.launch({ channel: "chromium" }); // the full build, not the shell
+  }
+}
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1380, height: 860 } });
 const errors = [];
 p.on("pageerror", e => errors.push("pageerror: " + e.message));
