@@ -147,6 +147,11 @@ export class TableSet {
     return [...f.groups.values()].flat();
   }
 
+  /** A file's `meta` block, for conventions that belong to the table as a whole. */
+  metaOf(file: string): Record<string, unknown> | undefined {
+    return this.files.get(file)?.meta;
+  }
+
   groupNames(file: string): string[] {
     return [...(this.files.get(file)?.groups.keys() ?? [])];
   }

@@ -94,6 +94,16 @@ export interface PartSpec {
   panels?: number;
   /** Radiator sweep: positive rakes forward, negative aft. */
   sweep_deg?: number;
+  /**
+   * Linear scale on the part's span, above whatever its size class gives.
+   *
+   * This is how a radiator ends up drawn in proportion to what it actually
+   * rejects. The part scales in both dimensions, so its drawn **area** goes as
+   * the square of this — a caller wanting area proportional to rejection passes
+   * `√(reject / reference)`. Clamped at both ends so a rounding error or a
+   * zero-rejection radiator cannot make a part vanish or swallow the hull.
+   */
+  scale?: number;
 }
 
 type Outline = [number, number][];
@@ -477,8 +487,11 @@ const RADIALLY_SYMMETRIC: ReadonlySet<PartKind> = new Set<PartKind>(["radiator"]
 const centreY = (p: Part, h: number): Part => p.map((o) => o.map(([x, y]) => [x, y - h / 2] as [number, number]));
 
 /** Build one part, as its pieces, in part-local metres with +y outward (or +x aft, if axial). */
+/** Keep a scaled part recognisable: an eighth of its class at worst, triple at most. */
+const clampScale = (v: number | undefined): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.min(3, Math.max(0.125, v)) : 1);
+
 export function makePart(spec: PartSpec): Part {
-  const L = span(spec.size);
+  const L = span(spec.size) * clampScale(spec.scale);
   const f = spec.families ?? {};
   if (spec.kind === "thruster") {
     // Extends aft from the slot and straddles the thrust line, so it reads as
@@ -542,6 +555,12 @@ export type FittedWeapon = Pick<PartSpec, "weapon" | "bore_mm" | "barrels" | "ce
 export interface PartsOptions {
   families?: PartFamilies;
   /**
+   * Per-slot linear scale, above the slot's size class. Editor 2 fills this so
+   * a radiator is drawn in proportion to what it actually rejects — see
+   * `ship/silhouette.ts`.
+   */
+  scales?: Record<string, number>;
+  /**
    * The weapon in each slot, by slot id. Editor 2 fills this from the mount
    * row — `ammo_mm` becomes `bore_mm`, `cells_capacity` becomes `cells` — so a
    * 450 mm Mk66 draws bigger than a 300 mm Mk81 without either being hand-drawn.
@@ -567,6 +586,7 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
       kind,
       size: slot.size as SizeClass,
       families: options.families,
+      ...(options.scales?.[slot.id] === undefined ? {} : { scale: options.scales[slot.id] }),
       ...(options.weapons?.[slot.id] ?? {}),
     });
     const ventral = (((slot.theta_deg % 360) + 360) % 360) >= 135;

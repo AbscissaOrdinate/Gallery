@@ -95,13 +95,14 @@ describe("composition", () => {
 
 describe("sourcing discipline", () => {
   it("ships a base set whose only sourced figure is cited, and whose conventions are marked", () => {
-    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params).sort()).toEqual(["T_ENV", "cell_pitch_m", "cell_volume_m3"]);
+    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params).sort()).toEqual(["T_ENV", "automation_factor", "cell_pitch_m", "cell_volume_m3", "kg_per_crew_day"].sort());
     // The one looked-up figure carries its citation and is not provisional.
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.source).toMatch(/Fixsen 2009/);
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.provisional).toBeFalsy();
-    // The two NEBULOUS-import conventions are rulings, not measurements: no source,
-    // provisional, so every volume derived from them keeps the marker.
-    for (const name of ["cell_pitch_m", "cell_volume_m3"]) {
+    // Everything else in the base set is a ruling or a delegated assumption,
+    // not a measurement: no source, provisional, and a note saying what it
+    // rests on — so every figure derived from one keeps the marker.
+    for (const name of ["cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day"]) {
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.source, name).toBeUndefined();
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.provisional, name).toBe(true);
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.note, name).toBeTruthy();
@@ -131,14 +132,16 @@ describe("sourcing discipline", () => {
   it("lists the engine parameters nothing has set yet", () => {
     const eff = composeConstraints([DEFAULT_CONSTRAINT_SET], {});
     const missing = missingParams(eff).map((p) => p.name);
-    // Set by the base set: one sourced figure and the two decided conventions.
-    for (const name of ["T_ENV", "cell_pitch_m", "cell_volume_m3"]) expect(missing).not.toContain(name);
-    // Everything else is a campaign assumption that has to be chosen, not looked up.
+    // Set by the base set: one sourced figure, the two cell conventions, and
+    // the two crew assumptions delegated on 2026-09-20.
+    for (const name of ["T_ENV", "cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day"]) expect(missing).not.toContain(name);
+    // Everything else is a campaign assumption that has to be chosen, not
+    // looked up — including `max_gimbal_deg`, which is why the thrust-line
+    // check reports the angle it needs and asserts nothing.
     expect(missing).toContain("target_accel_g");
     expect(missing).toContain("closing_speed_kps");
-    expect(missing).toContain("automation_factor");
-    expect(missing).toContain("kg_per_crew_day");
-    expect(missing).toHaveLength(ENGINE_PARAMS.length - 3);
+    expect(missing).toContain("max_gimbal_deg");
+    expect(missing).toHaveLength(ENGINE_PARAMS.length - 5);
   });
 
   it("marks exactly one declared engine parameter as physically citable", () => {

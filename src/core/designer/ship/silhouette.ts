@@ -133,6 +133,29 @@ export function shipSilhouette(hull: HullGeometry, ship: ShipLoadout, options: S
     fitted.push(inferred ? { ...slot, part: inferred } : { ...slot });
   }
 
+  /**
+   * Radiators drawn in proportion to what they reject.
+   *
+   * The scale is **relative to the largest array on this ship**, not to an
+   * absolute area: a true area needs a working temperature and an emissivity,
+   * and inventing either would put a made-up constant into a drawing. What can
+   * be said without inventing anything is that a 12 MW loop next to a 120 MW
+   * loop should look like a tenth of it — and since the part scales in both
+   * dimensions, that means √(1/10) on the span.
+   *
+   * The biggest array keeps its slot's size class, so a ship with one radiator
+   * draws exactly as it did before.
+   */
+  const scales: Record<string, number> = {};
+  let peak = 0;
+  for (const spec of bySlot.values()) if (spec?.category === "radiator") peak = Math.max(peak, spec.heat_reject_MW);
+  if (peak > 0) {
+    for (const [id, spec] of bySlot) {
+      if (spec?.category !== "radiator" || !(spec.heat_reject_MW > 0)) continue;
+      scales[id] = Math.sqrt(spec.heat_reject_MW / peak);
+    }
+  }
+
   const weapons: Record<string, FittedWeapon> = {};
   for (const [id, spec] of bySlot) {
     if (!spec) continue;
@@ -140,6 +163,6 @@ export function shipSilhouette(hull: HullGeometry, ship: ShipLoadout, options: S
     if (weapon) weapons[id] = weapon;
   }
 
-  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons });
+  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons, scales });
   return { parts, emptySlots };
 }

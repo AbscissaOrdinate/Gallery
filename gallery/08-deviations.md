@@ -61,12 +61,11 @@ capacity, and NEBULOUS has no berthing compartment anywhere (`docs/UNITS.md` §4
 supplies crew capacity, only consumes it. Inventing a bunks-per-module figure would make the
 check assert something untrue. It waits for editor 3.
 
-**Magazines carry rounds, not mass.** `_tables/munitions.yaml` has calibre, velocity,
-penetration and a damage index, and **no mass per round and no round volume**. §0 forbids
-inventing either. A magazine is therefore checked against the launcher's declared `magazine`
-capacity and contributes nothing to the mass budget. **This is an open question for the
-vault owner**: a mass per round would turn the munition mix into a real mass line without
-any other change.
+**Magazines carry mass, since the anchors were ruled.** `_tables/munitions.yaml` still has
+no mass per round, but three anchors were supplied on 2026-09-20 — 20 mm, 120 mm and 450 mm —
+and everything else interpolates from them in log-log space (`docs/UNITS.md` §8). The one
+thing still not done is charging the **stowage volume** to a section: which compartment holds
+the rounds is not in the record, so the volume is reported and not spent.
 
 **Spinal length is not checked.** `gallery/05` §2.5 makes a spinal mount's axial run an
 error-severity check, but a module record carries a volume and no length. Editor 3 adds it.
@@ -89,14 +88,25 @@ the other side cannot speak checks nothing. The built-in hull presets use catego
 hand-authored list in archetype vocabulary is reported as such, once per section, rather
 than failing every module in it.
 
-**Three engine parameters gate three checks rather than being given defaults.**
-`automation_factor`, `kg_per_crew_day` and `max_gimbal_deg` are campaign assumptions no
-constraint set supplies. Each leaves its term at zero, or its check unavailable, and says so
-in the budget's `assumptions` — the same discipline `DEFAULT_CONSTRAINT_SET` already
-follows. `max_gimbal_deg` is new in editor 2: the thrust-line balance check needs to know
-how far a drive can vector, and that is a design figure, not a physical constant. The
+**One engine parameter still gates a check rather than being given a default.**
+`automation_factor` and `kg_per_crew_day` were delegated and are now in the base set, both
+provisional and both carrying their reasoning. `max_gimbal_deg` is not: the thrust-line check
+needs to know how far a drive can vector, which is a design figure rather than a physical
+constant, so the budget reports the angle a design requires and asserts nothing. The
 geometric backstop — an arm longer than the hull's own half-height at the drive, which no
 gimbal *inside the hull* could reach — needs no figure and always runs.
+
+**Roll rate is not computed.** A thruster mounted radially fires radially, and a radial
+thrust line through the axis produces exactly zero roll torque. Rolling needs a canted or
+tangential nozzle, which the record has no way to describe, so reporting a roll rate would be
+reporting a number that is structurally zero. Pitch and yaw are computed.
+
+**Radiators are drawn in proportion to each other, not to a true area.** A real radiating
+area needs a working temperature *and* an emissivity, and inventing either would put a
+made-up constant into a drawing. What can be said without inventing anything is relative: a
+12 MW loop beside a 120 MW loop is drawn at a tenth of the area, and the largest array on the
+ship keeps its slot's own size class. When editor 3's radiator table gives true areas, the
+proxy can be replaced without changing anything else.
 
 **Two module fields were added ahead of editor 3 because the heat budget is wrong without
 them.** `cycle` (`open` | `closed`) and `reject_temp_k` both implement rules `docs/UNITS.md`
@@ -122,6 +132,13 @@ three of them on purpose, and each is asserted explicitly rather than excused:
 | `crew` | raw sum of module `crew` | watch model | `docs/UNITS.md` §4: `per_watch` figures are multiplied by the craft's watch factor. 23 on watch is a complement of 69; the old figure was the watch, mislabelled. |
 | `heatOut_MW` | every module's waste heat | rejectable heat only | An open-cycle drive's exhaust heat is not a radiator load. The ships did not get cooler. |
 | `warnings` | flat strings | `Violation[]` | One advisory currency. Both substantive warnings survive the move; the third counted v1 slot *kinds* and has no successor. |
+
+The crew change is worth reading twice, because it is the one that looks like a
+re-baseline and is not. The phase-1 engine's raw sum was the number of people **on
+station**; under the ruled three-section, two-manned bill the complement is 3/2 of that, and
+two thirds of the complement is on watch. The old figure comes back **exactly** as
+`crewOnWatch`. The model did not move the number — it worked out which number it was, and the
+gate asserts that identity rather than a new constant.
 
 ---
 

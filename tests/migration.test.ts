@@ -346,10 +346,12 @@ describe("regression gate (§9)", () => {
  * rather than re-capturing the fixture, keeps the gate comparing the code to a
  * record of what it used to do instead of to itself.
  *
- * - **`crew`** — the phase-1 engine summed module `crew` raw. `docs/UNITS.md`
- *   §4's model multiplies `crew_basis: per_watch` figures by the craft's watch
- *   factor, and the migration sets that to 3 for a warship. 23 people on watch
- *   is a complement of 69; the old figure was the watch, mislabelled.
+ * - **`crew`** — the phase-1 engine summed module `crew` raw, which is the
+ *   number of people **on station**, not the complement. Under the 2026-09-20
+ *   ruling a warship stands three sections with two manned, so the complement
+ *   is 3/2 of that and two thirds of the complement is on watch. The old figure
+ *   comes back exactly as `crewOnWatch`, which is the useful check: the model
+ *   did not move the number, it worked out which number it was.
  * - **`warnings`** — a flat string list became the `Violation` currency, and
  *   the slot-fit check moved from counting v1 slot *kinds* to named, positioned
  *   slots. The two substantive warnings must survive that move; the third was
@@ -381,10 +383,10 @@ const MUST_SURVIVE: Record<string, string[]> = {
   "Sword-of-Justice-class leader": ["exceeds tank capacity", "short by 45 MW"],
 };
 
-/** The complement each craft now reports, under the watch model. */
+/** The complement each craft now reports, under the watch bill. */
 const EXPECTED_CREW: Record<string, number> = {
-  "Sword-of-State-class": 69,
-  "Sword-of-Justice-class leader": 69,
+  "Sword-of-State-class": 35,
+  "Sword-of-Justice-class leader": 35,
 };
 
   it("every craft in the demo vault produces identical budget numbers", async () => {
@@ -413,7 +415,11 @@ const EXPECTED_CREW: Record<string, number> = {
       }
       // The deliberate changes, asserted rather than waved through.
       expect(budget.crew, `${craft.name} complement`).toBe(EXPECTED_CREW[craft.name]);
+      // The baselined figure was the watch all along.
       expect(budget.crewOnWatch, `${craft.name} on watch`).toBe(expected.crew);
+      // Both are whole people, so the ratio only lands on 2/3 exactly when the
+      // complement divides by three. Assert the rule, not the rounded quotient.
+      expect(budget.crewOnWatch, `${craft.name} manned fraction`).toBe(Math.round((budget.crew * 2) / 3));
       expect(budget.heatOut_MW, `${craft.name} rejectable heat`).toBe(EXPECTED_HEAT[craft.name]);
       const text = advisories.map((v) => v.message).join(" | ");
       for (const fragment of MUST_SURVIVE[craft.name] ?? []) {

@@ -31,6 +31,7 @@ import type { HullGeometry, MassItem } from "../hull/types";
 import { violation, type Violation } from "../violations";
 import { heatClassOf, readModule, rejectableHeat, rejectClassOf, type HeatClass, type ModuleSpec } from "./module";
 import { dutyDraw, dutyFor, modesOf } from "./modes";
+import { readRoundAnchors, roundSize } from "./munitions";
 import type { OperatingMode, ShipLoadout } from "./types";
 
 export const G0 = 9.80665;
@@ -38,6 +39,8 @@ export const G0 = 9.80665;
 /** The slice of `TableSet` the budget needs, so tests can stub it and there is no import cycle. */
 export interface TableLookupLike {
   lookup(file: string, ref: string, column: string): { lookup: { value: number | string | boolean; provisional: boolean } } | { error: string };
+  /** A table file's `meta` block, for conventions that belong to the file as a whole. */
+  metaOf?(file: string): Record<string, unknown> | undefined;
 }
 
 export interface ShipContext {
@@ -67,11 +70,15 @@ export interface BudgetLine {
    * on the ship, so the centre of gravity has to count it.
    */
   propellant_t?: number;
+  /** Ordnance in this mount's magazine. At the mount, so it counts for balance. */
+  magazine_t?: number;
   volume_m3: number;
   /** Station, where the item has one. Unplaced lines do not. */
   x?: number;
   /** Clock angle for an external fitting. */
   theta_deg?: number;
+  /** True for a fitting on a `thruster` slot: attitude control, not propulsion. */
+  attitude?: boolean;
 }
 
 export interface SectionBudget {
@@ -115,6 +122,51 @@ export interface ModeBudget {
   marginHigh_MW: number;
   /** Radiated RF power in this mode — what makes EMCON mean something. */
   radiated_kw: number;
+  /**
+   * Waste heat that leaves in the exhaust rather than through an array, from
+   * open-cycle drives (`docs/UNITS.md` §5).
+   *
+   * Reported because it is the whole reason to choose an open cycle, and
+   * because a designer comparing two drives should be able to see the radiator
+   * mass one of them is not making them carry. It is *not* part of
+   * `heatOut_MW`: nothing has to reject it.
+   */
+  heatCarriedAway_MW: number;
+}
+
+/**
+ * What the attitude thrusters can do.
+ *
+ * A hull slot typed `drive` is main propulsion and is axial; a slot typed
+ * `thruster` is attitude control, and sits out on the skin where its thrust has
+ * an arm. That distinction already exists in the hull schema, so nothing new
+ * has to be declared for a ship to say which is which.
+ *
+ * Pitch and yaw are computed rather than roll. A thruster mounted radially
+ * fires radially, and a radial thrust line through the axis produces no roll
+ * torque at all — rolling needs a canted or tangential nozzle, which the record
+ * has no way to describe. Reporting a roll rate from radial thrusters would be
+ * reporting a number that is structurally zero.
+ */
+export interface AttitudeControl {
+  /** Moment of inertia in pitch about the centre of gravity, t·m². */
+  inertia_t_m2: number;
+  /**
+   * Couple available, kN·m — limited by the weaker end.
+   *
+   * A pure rotation needs thrusters pushing one way forward of the centre of
+   * gravity and the other way aft of it. Thrusters all at one end translate the
+   * ship as much as they turn it, so the couple is `min(forward, aft)`: a bow
+   * thruster with nothing to answer it contributes nothing to a clean turn.
+   */
+  torque_kNm: number;
+  /** Angular acceleration at that torque, degrees per second squared. */
+  accel_deg_s2: number;
+  /** Seconds to turn 90° and stop again: accelerate half way, decelerate the rest. */
+  slew90_s: number;
+  /** Thrusters forward of the centre of gravity, and aft of it. */
+  forward: number;
+  aft: number;
 }
 
 export interface Stage {
@@ -133,6 +185,14 @@ export interface ShipBudget {
 
   structuralMass_t: number;
   moduleMass_t: number;
+  /**
+   * Ordnance aboard: every magazine's rounds, at the mount that holds them.
+   * Separate from `moduleMass_t` because it is the one line a designer trades
+   * against endurance without changing a single fitting.
+   */
+  magazineMass_t: number;
+  /** What that ordnance takes up. Reported, not yet charged to a section — see the deviations doc. */
+  magazineVolume_m3: number;
   armorMass_t: number;
   consumablesMass_t: number;
   dryMass_t: number;
@@ -158,7 +218,11 @@ export interface ShipBudget {
   cost: number;
   /** Complement, after the watch and automation factors (`docs/UNITS.md` §4). */
   crew: number;
-  /** People on station in one watch — the figure the old engine reported. */
+  /**
+   * People on station right now: the complement times the manned fraction of
+   * the watch bill. Two thirds of `crew` under the standard three-section,
+   * two-manned rotation.
+   */
   crewOnWatch: number;
   crewDays: number;
 
@@ -169,6 +233,9 @@ export interface ShipBudget {
   sections: SectionBudget[];
   volumeUsed_m3: number;
   volumeUsable_m3: number;
+
+  /** Attitude control, when the hull has thruster slots and something is in them. */
+  attitude?: AttitudeControl;
 
   cgStation_m?: number;
   /**
@@ -232,6 +299,10 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     if (slot) {
       line.x = slot.x;
       line.theta_deg = slot.theta_deg;
+      // A `thruster` slot is attitude control; a `drive` slot is the main
+      // engine. The hull already made that distinction, so a ship does not have
+      // to declare it again.
+      if (slot.type === "thruster") line.attitude = true;
     }
     lines.push(line);
   }
@@ -257,10 +328,11 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     const line: BudgetLine = {
       id: t.id,
       kind: "tank",
-      count: 1,
-      // A tank's mass line is its *dry* tankage. The propellant in it is a
-      // separate term, because it is what the rocket equation consumes.
-      mass_t: spec?.mass_t ?? 0,
+      count: t.count,
+      // A tank's mass line is its *dry* tankage, once per tank at the collar.
+      // The propellant in it is a separate term, because it is what the rocket
+      // equation consumes.
+      mass_t: (spec?.mass_t ?? 0) * t.count,
       // A drop tank hangs outside and spends no internal volume.
       volume_m3: t.slot ? 0 : t.volume_m3,
     };
@@ -268,7 +340,10 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     if (spec) line.spec = spec;
     if (slot) {
       line.x = slot.x;
-      line.theta_deg = slot.theta_deg;
+      // A collar of two or more is spaced evenly about the axis, so its mass
+      // is on the thrust line however the slot is clocked. Only a lone tank
+      // hangs off to one side and has to be ballasted against.
+      if (t.count < 2) line.theta_deg = slot.theta_deg;
     } else if (section) line.x = (section.x0 + section.x1) / 2;
     lines.push(line);
   }
@@ -310,6 +385,7 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
 
   const armor = armorMass(ctx, provisional);
   const propellant = propellantLoad(ship, ctx, provisional, advisories);
+  const magazine = magazineLoad(ship, ctx, lines, provisional, advisories);
   for (const line of lines) {
     if (line.kind !== "tank") continue;
     const load = propellant.byTank.get(line.id);
@@ -321,38 +397,52 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
   let ispWeighted = 0;
   let capacity = 0;
   let cost = n(ctx.hullFields?.structural_cost);
-  let crewOnWatch = 0;
+  /** Stations manned in one watch, from modules whose `crew` is a per-watch figure. */
+  let perWatchStations = 0;
+  /** Complements, from modules whose `crew` is already the whole complement. */
   let crewTotal = 0;
   for (const line of lines) {
     const s = line.spec;
     if (!s) continue;
     cost += s.cost * line.count;
     capacity += s.propellant_capacity_t * line.count;
-    const t = s.thrust_kN * line.count;
+    // An attitude thruster's thrust turns the ship; it is not what the rocket
+    // equation integrates, and folding it into the main-drive Isp average would
+    // drag the whole ship's Isp down towards the RCS's.
+    const t = line.attitude ? 0 : s.thrust_kN * line.count;
     thrust += t;
     ispWeighted += t * s.isp_s;
     if (s.crew_basis === "total") crewTotal += s.crew * line.count;
-    else crewOnWatch += s.crew * line.count;
+    else perWatchStations += s.crew * line.count;
   }
   const isp = thrust > 0 ? ispWeighted / thrust : 0;
 
   // ---- crew ----------------------------------------------------------------
-  // crew = Σ (basis == "total" ? crew : crew_per_watch × watch_factor) × automation_factor
-  // (docs/UNITS.md §4). No set supplies automation_factor, so it stays at 1 —
-  // the identity, not a guess — and the omission is stated.
+  // RULED 2026-09-20: the number on watch is two thirds of the complement —
+  // three sections, two of them manned.
+  //
+  //   complement   = Σ total-basis + Σ per-watch-basis × sections / manned
+  //   on watch now = complement × manned / sections
+  //
+  // The second line is the correction that matters: `crewOnWatch` used to be
+  // the per-watch *sum*, which ignored every module whose figure was already a
+  // complement — so a ship crewed entirely from the NEBULOUS catalogue reported
+  // nobody on watch at all.
+  const rotation = ship.watch_sections / ship.watches_manned;
   const automation = ctx.params?.automation_factor;
-  if (automation === undefined && crewOnWatch + crewTotal > 0) {
+  if (automation === undefined && perWatchStations + crewTotal > 0) {
     assumptions.push("Automation factor is 1: no constraint set in scope supplies `automation_factor`, so the complement is un-adjusted.");
   }
-  const rolledCrew = Math.round((crewTotal + crewOnWatch * ship.watch_factor) * (automation ?? 1));
+  const rolledCrew = Math.round((crewTotal + perWatchStations * rotation) * (automation ?? 1));
   const crew = ship.crew_override > 0 ? ship.crew_override : rolledCrew;
+  const crewOnWatch = Math.round((crew * ship.watches_manned) / ship.watch_sections);
 
   const kgPerCrewDay = ctx.params?.kg_per_crew_day;
   let consumables = 0;
   if (kgPerCrewDay !== undefined && ship.endurance_days > 0) consumables = (crew * ship.endurance_days * kgPerCrewDay) / 1000;
   else if (ship.endurance_days > 0) assumptions.push("Consumables mass is 0: no constraint set supplies `kg_per_crew_day`, so endurance carries no mass.");
 
-  const dry = structuralMass + moduleMass + armor.mass_t + consumables;
+  const dry = structuralMass + moduleMass + magazine.mass_t + armor.mass_t + consumables;
   const wet = dry + propellant.mass_t;
 
   // ---- modes ---------------------------------------------------------------
@@ -379,7 +469,7 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
   // dry-mass CG would not show it at all. The legacy bare `propellant_t` has no
   // tank and therefore no station, so it cannot be placed.
   const items: MassItem[] = lines
-    .map((l) => ({ x: l.x, mass: l.mass_t + (l.propellant_t ?? 0), id: l.id }))
+    .map((l) => ({ x: l.x, mass: l.mass_t + (l.propellant_t ?? 0) + (l.magazine_t ?? 0), id: l.id }))
     .filter((l): l is { x: number; mass: number; id: string } => l.x !== undefined && l.mass > 0)
     .map((l) => ({ x: l.x, mass_t: l.mass, id: l.id }));
   if (ctx.hull && structuralMass > 0) {
@@ -397,12 +487,15 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     );
   }
 
+  const attitude = attitudeControl(lines, ctx.hull, cg, wet);
   const staged = stageDeltaV(ship, dry, isp, thrust, propellant, specOf);
 
   const budget: ShipBudget = {
     lines,
     structuralMass_t: structuralMass,
     moduleMass_t: moduleMass,
+    magazineMass_t: magazine.mass_t,
+    magazineVolume_m3: magazine.volume_m3,
     armorMass_t: armor.mass_t,
     consumablesMass_t: consumables,
     dryMass_t: dry,
@@ -441,6 +534,7 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     advisories,
   };
   if (cg !== undefined) budget.cgStation_m = cg;
+  if (attitude) budget.attitude = attitude;
   return budget;
 }
 
@@ -512,6 +606,84 @@ function propellantLoad(ship: ShipLoadout, ctx: ShipContext, provisional: string
 }
 
 // ---------------------------------------------------------------------------
+// Magazines
+// ---------------------------------------------------------------------------
+
+/**
+ * What the magazines weigh.
+ *
+ * Each mix entry resolves its calibre from `_tables/munitions.yaml` and its
+ * mass from the calibre, through the three anchors ruled 2026-09-20 (see
+ * `munitions.ts`). A munition with no row, or a row with no `calibre_mm`,
+ * contributes nothing and says so — the same discipline as a propellant with
+ * no density.
+ *
+ * The mass is attributed to the **mount**, because that is where the ready
+ * rounds are: a full magazine under a dorsal turret pulls the centre of gravity
+ * the same way a full drop tank does.
+ */
+function magazineLoad(
+  ship: ShipLoadout,
+  ctx: ShipContext,
+  lines: BudgetLine[],
+  provisional: string[],
+  advisories: Violation[],
+): { mass_t: number; volume_m3: number } {
+  const anchors = readRoundAnchors(ctx.tables?.metaOf?.("munitions"));
+  const byId = new Map(lines.filter((l) => l.kind === "fitting").map((l) => [l.id, l]));
+  let mass = 0;
+  let volume = 0;
+  const unknown = new Set<string>();
+  let sawProvisional = false;
+  let sawExtrapolated = false;
+
+  for (const fitting of ship.fittings) {
+    if (!fitting.magazine?.length) continue;
+    let mountMass = 0;
+    for (const entry of fitting.magazine) {
+      if (entry.rounds <= 0) continue;
+      const found = ctx.tables?.lookup("munitions", entry.munition, "calibre_mm");
+      if (!found || "error" in found) {
+        unknown.add(entry.munition);
+        continue;
+      }
+      const calibre = typeof found.lookup.value === "number" ? found.lookup.value : 0;
+      const size = roundSize(calibre, anchors);
+      if (!size) {
+        unknown.add(entry.munition);
+        continue;
+      }
+      if (found.lookup.provisional) sawProvisional = true;
+      if (size.extrapolated) sawExtrapolated = true;
+      mountMass += (size.mass_kg * entry.rounds) / 1000;
+      volume += size.volume_m3 * entry.rounds;
+    }
+    if (mountMass > 0) {
+      mass += mountMass;
+      const line = byId.get(fitting.slot);
+      if (line) line.magazine_t = (line.magazine_t ?? 0) + mountMass;
+    }
+  }
+
+  if (unknown.size) {
+    advisories.push(
+      violation("warn", `No calibre for ${[...unknown].map((u) => `"${u}"`).join(", ")}, so ${unknown.size === 1 ? "that munition weighs" : "those munitions weigh"} nothing in the mass budget.`, {
+        field: "fittings",
+        domain: "mass",
+        source: "_tables/munitions.yaml",
+      }),
+    );
+  }
+  if (mass > 0) {
+    // Round mass is interpolated from three ruled anchors, not measured per
+    // round, so anything it reaches carries the marker.
+    provisional.push(sawExtrapolated ? "magazine mass, from calibres outside the ruled anchors" : "magazine mass, interpolated from the ruled calibre anchors");
+    if (sawProvisional) provisional.push("the munition rows the magazine draws on");
+  }
+  return { mass_t: mass, volume_m3: volume };
+}
+
+// ---------------------------------------------------------------------------
 // Armour
 // ---------------------------------------------------------------------------
 
@@ -548,6 +720,7 @@ function modeBudget(mode: OperatingMode, lines: BudgetLine[], advisories: Violat
   const heat: Record<HeatClass, number> = { low: 0, high: 0 };
   const reject: Record<HeatClass, number> = { low: 0, high: 0 };
   let rejectUnclassed = 0;
+  let carriedAway = 0;
   const standbyUnknown: string[] = [];
 
   for (const line of lines) {
@@ -561,6 +734,7 @@ function modeBudget(mode: OperatingMode, lines: BudgetLine[], advisories: Violat
     powerIn += draw.draw_MW * c;
     radiated += spec.radiated_power_kw * draw.fraction * c;
     heat[heatClassOf(spec)] += rejectableHeat(spec) * draw.fraction * c;
+    carriedAway += (spec.heat_out_MW - rejectableHeat(spec)) * draw.fraction * c;
     // Rejection scales with duty too: a radiator folded away in EMCON rejects
     // nothing.
     const rejected = spec.heat_reject_MW * draw.fraction * c;
@@ -613,6 +787,7 @@ function modeBudget(mode: OperatingMode, lines: BudgetLine[], advisories: Violat
     marginLow_MW: reject.low + toLow - heat.low,
     marginHigh_MW: reject.high + toHigh - heat.high,
     radiated_kw: radiated,
+    heatCarriedAway_MW: carriedAway,
   };
 }
 
@@ -680,6 +855,66 @@ function stageDeltaV(
 }
 
 // ---------------------------------------------------------------------------
+// Attitude control
+// ---------------------------------------------------------------------------
+
+/**
+ * Pitch inertia and what the attitude thrusters can do about it.
+ *
+ * Inertia is `Σ m·r²` about the centre of gravity, taking each item as a point
+ * mass at its own station and standoff. That understates a long tank's own
+ * spread about its centre, and the understatement is small next to the `r²`
+ * from being metres off the centre of gravity in the first place — which is
+ * where a warship's pitch inertia actually comes from.
+ *
+ * Slew time is the rest-to-rest turn: accelerate through half the angle,
+ * decelerate through the other half, so `t = 2·√(Φ/α)`.
+ */
+function attitudeControl(lines: BudgetLine[], hull: HullGeometry | undefined, cg: number | undefined, wetMass_t: number): AttitudeControl | undefined {
+  if (!hull || cg === undefined) return undefined;
+  const thrusters = lines.filter((l) => l.attitude && (l.spec?.thrust_kN ?? 0) > 0 && l.x !== undefined);
+  if (!thrusters.length) return undefined;
+
+  let inertia = 0;
+  for (const line of lines) {
+    if (line.x === undefined) continue;
+    const laden = line.mass_t + (line.propellant_t ?? 0) + (line.magazine_t ?? 0);
+    if (laden <= 0) continue;
+    const arm = line.x - cg;
+    const standoff = line.theta_deg === undefined ? 0 : halfHeightAt(hull.spine, line.x);
+    inertia += laden * (arm * arm + standoff * standoff);
+  }
+  // The hull itself, as a uniform rod about its own centre plus the shift to
+  // the centre of gravity. Without it a bare hull has almost no inertia and
+  // slews impossibly fast.
+  const length = hull.spine.length_m;
+  const structure = Math.max(0, wetMass_t - lines.reduce((sum, l) => sum + l.mass_t + (l.propellant_t ?? 0) + (l.magazine_t ?? 0), 0));
+  if (structure > 0 && length > 0) {
+    const centre = volumeCentroid(hull.spine) ?? length / 2;
+    inertia += structure * ((length * length) / 12 + (centre - cg) * (centre - cg));
+  }
+
+  let forward = 0;
+  let aft = 0;
+  for (const t of thrusters) {
+    const arm = Math.abs((t.x as number) - cg);
+    const couple = (t.spec?.thrust_kN ?? 0) * t.count * arm;
+    if ((t.x as number) < cg) forward += couple;
+    else aft += couple;
+  }
+  const torque = Math.min(forward, aft);
+  const accel = inertia > 0 ? (torque / inertia) * (180 / Math.PI) : 0;
+  return {
+    inertia_t_m2: inertia,
+    torque_kNm: torque,
+    accel_deg_s2: accel,
+    slew90_s: accel > 0 ? 2 * Math.sqrt(45 / accel) : 0,
+    forward: thrusters.filter((t) => (t.x as number) < cg).length,
+    aft: thrusters.filter((t) => (t.x as number) >= cg).length,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Balance
 // ---------------------------------------------------------------------------
 
@@ -705,18 +940,20 @@ function thrustOffset(lines: BudgetLine[], hull?: HullGeometry): number {
     // A drive is axial. Its slot carries a clock angle because every slot does,
     // but a stern bell pushes along the thrust line by definition — placing it
     // out on the skin would invent a torque and, worse, cancel a real one.
-    const axial = line.spec?.category === "drive";
+    const axial = line.spec?.category === "drive" && !line.attitude;
     const theta = ((line.theta_deg ?? 0) * Math.PI) / 180;
     const a = halfHeightAt(hull.spine, line.x);
     const b = beamAt(hull.spine, line.x) / 2;
     const offAxis = line.theta_deg !== undefined && !axial;
     const y = offAxis ? a * Math.cos(theta) : 0;
     const z = offAxis ? b * Math.sin(theta) : 0;
-    const laden = line.mass_t + (line.propellant_t ?? 0);
+    const laden = line.mass_t + (line.propellant_t ?? 0) + (line.magazine_t ?? 0);
     mass += laden;
     my += laden * y;
     mz += laden * z;
-    const t = (line.spec?.thrust_kN ?? 0) * line.count;
+    // Attitude thrusters are deliberately unbalanced — that is how they turn
+    // the ship — so they must not drag the main thrust line off centre.
+    const t = line.attitude ? 0 : (line.spec?.thrust_kN ?? 0) * line.count;
     if (t > 0) {
       thrust += t;
       ty += t * y;

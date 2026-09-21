@@ -198,21 +198,33 @@ const moduleV1toV2: Migration = (f, notes) => {
  * before and are reported as waiting to be placed. Moving them onto real slots
  * needs the hull open in front of someone, which is the ship editor's job.
  *
- * What does migrate is `watch_factor`, because the crew model needs it and the
- * default is not one number: `gallery/05` §3 gives 3 for warships and 1 for
- * stations and small craft, and only the record knows which it is.
+ * What does migrate is the **watch bill**, because the crew model needs it and
+ * the default is not one number: `gallery/05` §3 gives a rotating watch for
+ * warships and none for stations and small craft, and only the record knows
+ * which it is.
+ *
+ * RULED 2026-09-20: a warship stands **three sections with two manned** — one
+ * asleep, two up — which puts two thirds of the complement on watch. An earlier
+ * pass stored this as a single `watch_factor` of 3, which multiplied the
+ * complement by three instead of by 3/2; that field is converted here.
  */
-const CREWED_WATCHES: Record<string, number> = { ship: 3 };
+const CREWED_BILL: Record<string, { sections: number; manned: number }> = { ship: { sections: 3, manned: 2 } };
+const NO_ROTATION = { sections: 1, manned: 1 };
 
 const craftV1toV2: Migration = (f, notes) => {
-  if (f.watch_factor !== undefined) return false;
+  if (f.watch_sections !== undefined && f.watches_manned !== undefined) return false;
   const kind = typeof f.kind === "string" ? f.kind : "ship";
-  const watches = CREWED_WATCHES[kind] ?? 1;
-  f.watch_factor = watches;
+  const bill = CREWED_BILL[kind] ?? NO_ROTATION;
+  const hadFactor = f.watch_factor !== undefined;
+  f.watch_sections = bill.sections;
+  f.watches_manned = bill.manned;
+  delete f.watch_factor;
   notes.push(
-    watches > 1
-      ? `watch factor set to ${watches} for a crewed warship; module crew figures marked per_watch are now multiplied by it (docs/UNITS.md §4)`
-      : `watch factor set to 1: a ${kind} does not stand rotating watches`,
+    bill.sections > 1
+      ? hadFactor
+        ? `watch bill converted from a bare factor to ${bill.manned} of ${bill.sections} sections manned, so two thirds of the complement is on watch rather than one third (docs/UNITS.md §4)`
+        : `watch bill set to ${bill.manned} of ${bill.sections} sections manned for a crewed warship; module crew figures marked per_watch are scaled by the ratio (docs/UNITS.md §4)`
+      : `watch bill set to 1 of 1: a ${kind} stands no rotating watch`,
   );
   return true;
 };

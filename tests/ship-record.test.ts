@@ -19,7 +19,8 @@ describe("readShip", () => {
     expect(ship.unplaced).toEqual([]);
     expect(ship.modes).toEqual([]);
     expect(ship.hull).toBeUndefined();
-    expect(ship.watch_factor).toBe(1);
+    expect(ship.watch_sections).toBe(1);
+    expect(ship.watches_manned).toBe(1);
     expect(ship.propellant_t).toBe(0);
   });
 
@@ -28,13 +29,15 @@ describe("readShip", () => {
       tanks: [{ id: "t1", volume_m3: "400", jettison_order: "2" }],
       manifest: [{ id: "m1", count: "3" }],
       propellant_t: "120",
-      watch_factor: "2",
+      watch_sections: "3",
+      watches_manned: "2",
     });
     expect(ship.tanks[0]?.volume_m3).toBe(400);
     expect(ship.tanks[0]?.jettison_order).toBe(2);
     expect(ship.manifest[0]?.count).toBe(3);
     expect(ship.propellant_t).toBe(120);
-    expect(ship.watch_factor).toBe(2);
+    expect(ship.watch_sections).toBe(3);
+    expect(ship.watches_manned).toBe(2);
   });
 
   it("gives an unnamed entry a positional id so a view can key on it", () => {
@@ -50,9 +53,22 @@ describe("readShip", () => {
     expect(ship.fittings.map((f) => f.slot)).toEqual(["gun-a", "gun-a#2"]);
   });
 
-  it("clamps a watch factor outside the range the crew model is defined over", () => {
-    expect(readShip({ watch_factor: 9 }).watch_factor).toBe(3);
-    expect(readShip({ watch_factor: -1 }).watch_factor).toBe(1);
+  it("clamps a watch bill that cannot be stood, and keeps what was authored", () => {
+    // More sections manned than exist would make the complement smaller than
+    // the people standing in it.
+    const over = readShip({ watch_sections: 3, watches_manned: 5 });
+    expect(over.watches_manned).toBe(3);
+    expect(over.watch_authored).toEqual({ sections: 3, manned: 5 });
+    const none = readShip({ watch_sections: -1, watches_manned: 0 });
+    expect([none.watch_sections, none.watches_manned]).toEqual([1, 1]);
+  });
+
+  it("converts a pre-ruling `watch_factor` into the bill it was standing in for", () => {
+    // A bare factor of 3 meant "three watches"; under the 2026-09-20 ruling
+    // that is three sections with two of them manned.
+    const ship = readShip({ watch_factor: 3 });
+    expect([ship.watch_sections, ship.watches_manned]).toEqual([3, 2]);
+    expect(readShip({ watch_factor: 1 }).watch_sections).toBe(1);
   });
 
   it("drops a magazine entry that names no munition, and rounds the count", () => {

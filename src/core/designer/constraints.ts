@@ -105,7 +105,6 @@ export const ENGINE_PARAMS: EngineParamSpec[] = [
   { name: "target_accel_g", dim: [0, 1, -2, 0], unit: "g", usedBy: "weapon effective range (§3), missile reach (§5)", physical: false },
   { name: "closing_speed_kps", dim: [0, 1, -1, 0], unit: "km/s", usedBy: "missile reach, warning-receiver warning time", physical: false },
   { name: "automation_factor", dim: DIMENSIONLESS, unit: "×", usedBy: "crew total (§3)", physical: false },
-  { name: "watch_factor_default", dim: DIMENSIONLESS, unit: "watches", usedBy: "crew total (§3)", physical: false },
   { name: "kg_per_crew_day", dim: [1, 0, 0, 0], unit: "kg/crew-day", usedBy: "consumables mass, endurance (§3)", physical: false },
   { name: "max_topoff_count", dim: DIMENSIONLESS, unit: "transfers", usedBy: "fleet tender solver (§6)", physical: false },
   { name: "ref_ir_min_flux_w_m2", dim: [1, 0, -3, 0], unit: "W/m²", usedBy: "EO/IR detection range (§3)", physical: false },
@@ -152,6 +151,21 @@ export const DEFAULT_CONSTRAINT_SET: ConstraintSet = {
     // The two NEBULOUS-import conventions, decided 2026-09-19. Provisional because they
     // are inferences about an abstract game grid, not cited figures — so every volume
     // derived from them carries the provisional marker. Reasoning in docs/UNITS.md §4.
+    // Delegated 2026-09-20. Neither is a physical constant; both are campaign
+    // assumptions, so both are provisional and both are stated rather than
+    // buried in the engine.
+    automation_factor: {
+      value: 1.0,
+      unit: "×",
+      provisional: true,
+      note: "No adjustment. Module crew figures are authored for their own era — the NEBULOUS and Terra Invicta catalogues already reflect the automation their settings assume — so a global multiplier on top of them would count the same automation twice. An era or faction set that wants a deliberately leaner or heavier bill should override this; the base set does not guess one.",
+    },
+    kg_per_crew_day: {
+      value: 3.0,
+      unit: "kg/crew-day",
+      provisional: true,
+      note: "A design assumption sitting between open-loop resupply and a closed water/air loop, not a measured figure. Verify against NASA's Baseline Values and Assumptions Document (BVAD) before trusting a consumables mass or an endurance figure that depends on it.",
+    },
     cell_pitch_m: {
       value: 3.0,
       unit: "m",

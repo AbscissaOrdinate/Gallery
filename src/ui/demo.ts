@@ -182,6 +182,36 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
     ].join(NL),
   );
 
+  // The calibres the Halberds load, plus the three round-mass anchors ruled
+  // 2026-09-20. Without these a magazine is a list of counts that weighs
+  // nothing, which was the largest hole left in the mass budget.
+  await fs.writeText(
+    "_tables/munitions.yaml",
+    [
+      "# Gun munitions — a slice of the working vault's table.",
+      "meta:",
+      '  source: "NEBULOUS: Fleet Command Official Wiki, Munitions & Missiles (retrieved 2026-09-14)"',
+      "  round_scale:",
+      "    note: >",
+      "      RULED 2026-09-20. Mass and volume per round are interpolated from these three",
+      "      anchors along straight lines in log-log space. The implied stowage density",
+      "      climbs from 100 to 1644 kg/m3 with calibre, which is why one scaling law will",
+      "      not cover the range.",
+      "    anchors:",
+      "      - { calibre_mm: 20,  mass_kg: 0.25, volume_m3: 0.0025 }",
+      "      - { calibre_mm: 120, mass_kg: 22,   volume_m3: 0.05 }",
+      "      - { calibre_mm: 450, mass_kg: 1315, volume_m3: 0.8 }",
+      "ballistic:",
+      '  - { id: 120mm-he,  name: "120mm HE Shell",  calibre_mm: 120, type: "ballistic/chemical", role: offensive }',
+      '  - { id: 250mm-he,  name: "250mm HE Shell",  calibre_mm: 250, type: "ballistic/chemical", role: offensive }',
+      '  - { id: 450mm-ap,  name: "450mm AP Shell",  calibre_mm: 450, type: "ballistic/chemical", role: offensive }',
+      '  - { id: 450mm-he,  name: "450mm HE Shell",  calibre_mm: 450, type: "ballistic/chemical", role: offensive }',
+      "point_defense:",
+      '  - { id: 20mm-slug, name: "20mm Slug",       calibre_mm: 20,  type: "ballistic/chemical" }',
+      "",
+    ].join(NL),
+  );
+
   const mk66 = repo.create("module", "Mk66 450 mm twin", P("module", "mk66-twin"));
   const mk81 = repo.create("module", "Mk81 300 mm single", P("module", "mk81-single"));
   const vls = repo.create("module", "Mk41 32-cell VLS", P("module", "vls-32"));
@@ -191,7 +221,8 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
   const coldLoop = repo.create("module", "Cold-loop radiator", P("module", "cold-loop-radiator"));
   const flak = repo.create("module", "PD flak mount", P("module", "pd-flak"));
   const berthing = repo.create("module", "Berthing and messing", P("module", "berthing"));
-  for (const m of [mk66, mk81, vls, beam, radar, hotLoop, coldLoop, flak, berthing]) {
+  const rcs = repo.create("module", "RCS quad", P("module", "rcs-cluster"));
+  for (const m of [mk66, mk81, vls, beam, radar, hotLoop, coldLoop, flak, berthing, rcs]) {
     m.fields.maker = uesc.id;
     await save(m);
   }
@@ -201,7 +232,8 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
     hull: pattern.id,
     operator: ujcn.id,
     builder: uesc.id,
-    watch_factor: 3,
+    watch_sections: 3,
+    watches_manned: 2,
     endurance_days: 90,
     fittings: [
       { slot: "radar", module: radar.id },
@@ -213,6 +245,12 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
       { slot: "rad-1", module: hotLoop.id },
       { slot: "rad-2", module: coldLoop.id },
       { slot: "drive", module: nswr.id },
+      // Fore and aft, dorsal and ventral: four clusters that can make a couple
+      // in pitch rather than just shoving the bow around.
+      { slot: "rcs-fwd-d", module: rcs.id },
+      { slot: "rcs-fwd-v", module: rcs.id },
+      { slot: "rcs-aft-d", module: rcs.id },
+      { slot: "rcs-aft-v", module: rcs.id },
     ],
     manifest: [
       // One plant, not two: the hull has a single high-temperature radiator
@@ -222,9 +260,15 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
     ],
     tanks: [
       { id: "main", section: "engineering", module: tank.id, propellant: "water", volume_m3: 500, jettison_order: 0 },
+      // The attitude thrusters burn their own propellant, so the ship carries a
+      // little of it separately — which is what stops the drive-versus-tank
+      // check from being a formality.
+      { id: "rcs-tank", section: "engineering", module: tank.id, propellant: "methane-liquid", volume_m3: 40, jettison_order: 0 },
       // A drop tank on the ventral hardpoint: external, so it spends no
       // internal volume, and it takes its own dry mass with it when it goes.
-      { id: "drop", slot: "tank", module: tank.id, propellant: "water", volume_m3: 500, jettison_order: 1 },
+      // A collar of four rather than one barrel bolted to the spine: spaced
+      // about the axis it balances itself, so no ballast is needed against it.
+      { id: "drop", slot: "tank", module: tank.id, propellant: "water", count: 4, volume_m3: 500, jettison_order: 1 },
     ],
     modes: [
       { id: "cruise", name: "Cruise", duties: [{ component: "gun-a", duty: "off" }, { component: "gun-b", duty: "off" }, { component: "cells", duty: "off" }, { component: "pd-p", duty: "standby" }] },

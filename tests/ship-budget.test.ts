@@ -270,9 +270,15 @@ describe("heat is two arrays, never one total (UNITS.md §5)", () => {
   });
 });
 
-describe("crew", () => {
-  it("multiplies per-watch figures by the watch factor and leaves totals alone", () => {
-    // docs/UNITS.md §4: crew = Σ (total ? crew : per_watch × watches).
+describe("crew — on watch is two thirds of the complement", () => {
+  const BILL = { watch_sections: 3, watches_manned: 2 };
+
+  it("scales a per-watch figure by the rotation and leaves a complement alone", () => {
+    // docs/UNITS.md §4, as ruled 2026-09-20:
+    //   complement = Σ total-basis + Σ per-watch-basis × sections / manned
+    // The reactor's 4 are the people on station in one watch, so the ship needs
+    // 4 × 3/2 = 6 of them to keep that station manned. The CIC's 40 is already
+    // a complement and is not scaled.
     const withTotals: Record<string, Record<string, unknown>> = {
       ...MODULES,
       cic: { category: "other", slot: "internal", mass_t: 5, crew: 40, crew_basis: "total" },
@@ -280,7 +286,7 @@ describe("crew", () => {
     const b = shipBudget(
       readShip({
         hull: "h",
-        watch_factor: 3,
+        ...BILL,
         manifest: [
           { id: "r1", section: "aft", module: "reactor", count: 1 }, // 4 per watch
           { id: "c1", section: "forward", module: "cic", count: 1 }, // 40 total
@@ -288,24 +294,34 @@ describe("crew", () => {
       }),
       { ...ctx(), module: (id) => withTotals[id] },
     );
+    expect(b.crew).toBe(4 * 1.5 + 40);
+    // Two thirds of the whole complement is on station, not just the per-watch
+    // half of it. The old engine reported 4 here and ignored the CIC entirely.
+    expect(b.crewOnWatch).toBe(Math.round(46 * (2 / 3)));
+  });
+
+  it("puts exactly two thirds on watch, whatever the complement is made of", () => {
+    const b = budgetOf({ ...BILL, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 3 }] });
+    expect(b.crewOnWatch / b.crew).toBeCloseTo(2 / 3, 2);
+  });
+
+  it("stands no rotation at all on a craft with one section", () => {
+    const b = budgetOf({ watch_sections: 1, watches_manned: 1, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] });
+    expect(b.crew).toBe(4);
     expect(b.crewOnWatch).toBe(4);
-    expect(b.crew).toBe(4 * 3 + 40);
   });
 
-  it("leaves automation at 1 and says so, rather than guessing a figure", () => {
-    const b = budgetOf({ watch_factor: 3, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] });
-    expect(b.crew).toBe(12);
-    expect(b.assumptions.join(" ")).toContain("Automation factor is 1");
-  });
-
-  it("applies an automation factor a constraint set does supply", () => {
-    const b = budgetOf({ watch_factor: 3, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] }, { params: { automation_factor: 0.5 } });
-    expect(b.crew).toBe(6);
-    expect(b.assumptions.join(" ")).not.toContain("Automation factor");
+  it("applies an automation factor a constraint set supplies, and says so when none does", () => {
+    const bare = budgetOf({ ...BILL, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] });
+    expect(bare.crew).toBe(6);
+    expect(bare.assumptions.join(" ")).toContain("Automation factor is 1");
+    const leaner = budgetOf({ ...BILL, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] }, { params: { automation_factor: 0.5 } });
+    expect(leaner.crew).toBe(3);
+    expect(leaner.assumptions.join(" ")).not.toContain("Automation factor");
   });
 
   it("carries no consumables mass without kg_per_crew_day, and does once it has one", () => {
-    const fields = { watch_factor: 1, endurance_days: 60, manifest: [{ id: "h1", section: "forward", module: "habitat", count: 1 }] };
+    const fields = { watch_sections: 1, watches_manned: 1, endurance_days: 60, manifest: [{ id: "h1", section: "forward", module: "habitat", count: 1 }] };
     const without = budgetOf(fields);
     expect(without.consumablesMass_t).toBe(0);
     expect(without.assumptions.join(" ")).toContain("kg_per_crew_day");
@@ -315,10 +331,11 @@ describe("crew", () => {
     expect(with_.dryMass_t).toBe(1000 + 40 + 6);
   });
 
-  it("honours an explicit complement over the roll-up", () => {
-    const b = budgetOf({ watch_factor: 3, crew_override: 200, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] });
+  it("honours an explicit complement over the roll-up, and still rotates it", () => {
+    const b = budgetOf({ ...BILL, crew_override: 200, manifest: [{ id: "r1", section: "aft", module: "reactor", count: 1 }] });
     expect(b.crew).toBe(200);
-    expect(b.crewOnWatch).toBe(4);
+    // The override replaces the roll-up, not the watch bill.
+    expect(b.crewOnWatch).toBe(133);
   });
 });
 
@@ -466,5 +483,107 @@ describe("drop tanks hang outside the hull", () => {
     const both = readShip({ hull: "h", tanks: [{ id: "t", slot: "rad-1", section: "aft", module: "tank", propellant: "water", volume_m3: 300 }] });
     expect(both.tanks[0]?.section).toBeUndefined();
     expect(both.tanks[0]?.slot).toBe("rad-1");
+  });
+});
+
+describe("tank collars", () => {
+  it("counts a collar's tankage once per tank and its load as the whole collar", () => {
+    const one = budgetOf({ tanks: [{ id: "t", section: "aft", module: "tank", propellant: "water", volume_m3: 400 }] });
+    const four = budgetOf({ tanks: [{ id: "t", section: "aft", module: "tank", propellant: "water", count: 4, volume_m3: 400 }] });
+    expect(four.moduleMass_t).toBe(one.moduleMass_t * 4);
+    // `volume_m3` is the collar, not each barrel, so the load does not multiply.
+    expect(four.propellant_t).toBe(one.propellant_t);
+  });
+
+  it("puts a collar on the thrust line, and a lone tank off it", () => {
+    const lone = budgetOf({ fittings: [{ slot: "drive", module: "drive" }], tanks: [{ id: "t", slot: "rad-1", module: "tank", propellant: "water", volume_m3: 400 }] });
+    const collar = budgetOf({ fittings: [{ slot: "drive", module: "drive" }], tanks: [{ id: "t", slot: "rad-1", module: "tank", propellant: "water", count: 6, volume_m3: 400 }] });
+    // One heavy barrel on the ventral centreline has to be ballasted against;
+    // six spaced about the axis balance each other.
+    expect(lone.thrustOffset_m).toBeGreaterThan(0);
+    expect(collar.thrustOffset_m).toBeCloseTo(0, 9);
+  });
+
+  it("holds a collar to eight, and keeps what was asked for", () => {
+    const ship = readShip({ hull: "h", tanks: [{ id: "t", count: 12, volume_m3: 10 }] });
+    expect(ship.tanks[0]?.count).toBe(8);
+    expect(ship.tanks[0]?.count_authored).toBe(12);
+  });
+});
+
+describe("attitude control", () => {
+  const rcsHull = {
+    ...hullFields,
+    external_slots: [
+      ...hullFields.external_slots,
+      { id: "rcs-f", x: 10, theta_deg: 0, type: "thruster", size: "S" },
+      { id: "rcs-a", x: 90, theta_deg: 0, type: "thruster", size: "S" },
+    ],
+  };
+  const RCS: Record<string, Record<string, unknown>> = {
+    ...MODULES,
+    quad: { category: "drive", slot: "thruster", mass_t: 2, thrust_kN: 40, isp_s: 320, propellant: "water" },
+  };
+  const withRcs = (fields: Record<string, unknown>) =>
+    shipBudget(readShip({ hull: "h", kind: "ship", ...fields }), { ...ctx(), hull: readHull(rcsHull), hullFields: rcsHull, module: (id) => RCS[id] });
+
+  it("is absent until something is in a thruster slot", () => {
+    expect(withRcs({ fittings: [{ slot: "drive", module: "drive" }] }).attitude).toBeUndefined();
+  });
+
+  it("keeps attitude thrust out of the Δv sum, where it does not belong", () => {
+    const b = withRcs({ fittings: [{ slot: "rcs-f", module: "quad" }, { slot: "rcs-a", module: "quad" }], propellant_t: 500 });
+    // 80 kN of RCS is not 80 kN of main drive: no drive, so no thrust and no Δv.
+    expect(b.thrust_kN).toBe(0);
+    expect(b.deltaV_kms).toBe(0);
+    expect(b.attitude?.torque_kNm).toBeGreaterThan(0);
+  });
+
+  it("needs thrusters at both ends to make a couple", () => {
+    const both = withRcs({ fittings: [{ slot: "rcs-f", module: "quad" }, { slot: "rcs-a", module: "quad" }] });
+    const bowOnly = withRcs({ fittings: [{ slot: "rcs-f", module: "quad" }] });
+    expect(both.attitude?.torque_kNm).toBeGreaterThan(0);
+    expect(both.attitude?.forward).toBe(1);
+    expect(both.attitude?.aft).toBe(1);
+    // Thrusters at one end shove the ship as much as they turn it.
+    expect(bowOnly.attitude?.torque_kNm).toBe(0);
+    expect(bowOnly.attitude?.slew90_s).toBe(0);
+  });
+
+  it("turns a heavier ship more slowly, for the same thrusters", () => {
+    const light = withRcs({ fittings: [{ slot: "rcs-f", module: "quad" }, { slot: "rcs-a", module: "quad" }] });
+    const laden = withRcs({
+      fittings: [{ slot: "rcs-f", module: "quad" }, { slot: "rcs-a", module: "quad" }],
+      tanks: [{ id: "t", section: "aft", module: "tank", propellant: "water", volume_m3: 900 }],
+    });
+    expect(laden.attitude?.inertia_t_m2).toBeGreaterThan(light.attitude?.inertia_t_m2 as number);
+    expect(laden.attitude?.slew90_s).toBeGreaterThan(light.attitude?.slew90_s as number);
+  });
+
+  it("relates slew time to angular acceleration the way a rest-to-rest turn does", () => {
+    const b = withRcs({ fittings: [{ slot: "rcs-f", module: "quad" }, { slot: "rcs-a", module: "quad" }] });
+    const a = b.attitude as { accel_deg_s2: number; slew90_s: number };
+    // Accelerate through 45°, decelerate through the other 45°.
+    expect(a.slew90_s).toBeCloseTo(2 * Math.sqrt(45 / a.accel_deg_s2), 9);
+  });
+});
+
+describe("what an open cycle saves", () => {
+  it("reports the heat that leaves in the exhaust, separately from what an array must take", () => {
+    const OPEN: Record<string, Record<string, unknown>> = {
+      ...MODULES,
+      torch: { category: "drive", slot: "drive", mass_t: 100, thrust_kN: 9000, isp_s: 5000, propellant: "water", cycle: "open", heat_out_MW: 250 },
+    };
+    const b = shipBudget(readShip({ hull: "h", fittings: [{ slot: "drive", module: "torch" }] }), { ...ctx(), module: (m) => OPEN[m] });
+    const mode = b.modes[0];
+    expect(mode?.heatCarriedAway_MW).toBe(250);
+    // And none of it in the rejection budget, which is the whole point.
+    expect(mode?.heatOut_MW).toBe(0);
+  });
+
+  it("carries nothing away on a closed cycle", () => {
+    const b = budgetOf({ fittings: [{ slot: "drive", module: "drive" }] });
+    expect(b.modes[0]?.heatCarriedAway_MW).toBe(0);
+    expect(b.modes[0]?.heatOut_MW).toBe(200);
   });
 });

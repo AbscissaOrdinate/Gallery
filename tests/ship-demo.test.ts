@@ -122,16 +122,29 @@ describe("the advisories the acceptance criteria name", () => {
     };
     const after = analyse(overloaded);
     expect(after.advisories.map((v) => v.message).join(" | ")).toContain("over by");
-    // The propellant is at the tank, so the thrust line moves with it. Without
-    // that the CG would not budge: the tankage itself is 25 t against 10,000 t
-    // of water in it.
-    expect(before.budget.thrustOffset_m).toBeGreaterThan(0);
-    expect(after.budget.thrustOffset_m).toBeGreaterThan(before.budget.thrustOffset_m);
-    expect(after.budget.gimbalRequired_deg).toBeGreaterThan(5);
-    // Whether 6° of gimbal is available is a design figure the vault does not
-    // supply, so the budget states the requirement and asserts nothing.
-    expect(after.budget.assumptions.join(" ")).toContain("max_gimbal_deg");
-    expect(after.advisories.filter((v) => v.domain === "mass")).toEqual([]);
+
+    // The drop tank is a **collar** of four, spaced about the axis, so filling
+    // it twenty times over does not pull the ship off its thrust line — it
+    // actually pulls the line straighter, because balanced mass dilutes the
+    // dorsal guns and ventral radiators that were skewing it. That is the
+    // 2026-09-20 ruling working: only one heavy tank on top needs ballast.
+    expect(after.budget.thrustOffset_m).toBeLessThan(before.budget.thrustOffset_m);
+
+    // Put the same propellant in a single barrel on the same hardpoint and it
+    // does move, by a lot.
+    const lopsided = analyse({
+      ...craft,
+      fields: writeShip(craft.fields, {
+        ...before.ship,
+        tanks: before.ship.tanks.map((t) => (t.slot ? { ...t, count: 1, volume_m3: t.volume_m3 * 20 } : t)),
+      }),
+    } as TypedRecord);
+    expect(lopsided.budget.thrustOffset_m).toBeGreaterThan(after.budget.thrustOffset_m * 5);
+    expect(lopsided.budget.gimbalRequired_deg).toBeGreaterThan(5);
+    // Whether that much gimbal is available is a design figure the vault does
+    // not supply, so the budget states the requirement and asserts nothing.
+    expect(lopsided.budget.assumptions.join(" ")).toContain("max_gimbal_deg");
+    expect(lopsided.advisories.filter((v) => v.domain === "mass")).toEqual([]);
   });
 
   it("does assert it once a constraint set says how far the drive can vector", async () => {

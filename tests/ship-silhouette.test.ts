@@ -141,3 +141,55 @@ describe("shipSilhouette", () => {
     expect(s.emptySlots).not.toContain("gun-a");
   });
 });
+
+describe("radiators drawn to what they reject", () => {
+  const RADS: Record<string, Record<string, unknown>> = {
+    big: { category: "radiator", slot: "radiator", mass_t: 18, heat_reject_MW: 120 },
+    small: { category: "radiator", slot: "radiator", mass_t: 11, heat_reject_MW: 12 },
+    same: { category: "radiator", slot: "radiator", mass_t: 18, heat_reject_MW: 120 },
+    mute: { category: "radiator", slot: "radiator", mass_t: 5 },
+  };
+  const twoSlot = readHull({
+    spine: { length_m: 100, beam_m: 10, datum: "bow", stations: [{ x: 0, half_height_m: 5 }, { x: 100, half_height_m: 5 }] },
+    external_slots: [
+      { id: "r1", x: 40, theta_deg: 180, type: "radiator", size: "L" },
+      { id: "r2", x: 60, theta_deg: 180, type: "radiator", size: "L" },
+    ],
+  });
+  const draw = (a: string, b: string) =>
+    shipSilhouette(twoSlot, readShip({ hull: "h", fittings: [{ slot: "r1", module: a }, { slot: "r2", module: b }] }), { module: (id) => RADS[id] });
+
+  /** Bounding-box area of every piece belonging to one slot. */
+  const extent = (s: ReturnType<typeof shipSilhouette>, slot: string) => {
+    const pts = s.parts.filter((p) => slotIdOf(p.id) === slot).flatMap((p) => p.outline);
+    const xs = pts.map(([x]) => x);
+    const ys = pts.map(([, y]) => y);
+    return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+  };
+
+  it("draws a tenth of the rejection at roughly a tenth of the area", () => {
+    const s = draw("big", "small");
+    // Area goes as the square of the span, so 12 MW against 120 MW is √(1/10)
+    // on each dimension and a tenth of the area.
+    expect(extent(s, "r2") / extent(s, "r1")).toBeCloseTo(0.1, 2);
+  });
+
+  it("leaves two equal arrays equal", () => {
+    const s = draw("big", "same");
+    expect(extent(s, "r2") / extent(s, "r1")).toBeCloseTo(1, 6);
+  });
+
+  it("keeps the largest array at its slot's own size class", () => {
+    // A ship with one radiator has to draw exactly as it did before scaling
+    // existed, or every hull in the vault would silently change size.
+    const scaled = draw("big", "small");
+    const alone = shipSilhouette(twoSlot, readShip({ hull: "h", fittings: [{ slot: "r1", module: "big" }] }), { module: (id) => RADS[id] });
+    expect(extent(scaled, "r1")).toBeCloseTo(extent(alone, "r1"), 9);
+  });
+
+  it("falls back to the size class for a radiator that declares no rejection", () => {
+    const s = draw("big", "mute");
+    expect(s.parts.some((p) => slotIdOf(p.id) === "r2")).toBe(true);
+    expect(extent(s, "r2")).toBeGreaterThan(0);
+  });
+});

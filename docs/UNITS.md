@@ -176,6 +176,43 @@ A module's `slot` uses the same vocabulary as a hull's `external_slots[].type`, 
 `internal`. They were two different lists until editor 2, which meant a point-defence mount
 could only call itself a turret.
 
-Three figures the budget still needs and no set supplies — `automation_factor`,
-`kg_per_crew_day` and `max_gimbal_deg`. Each leaves its term at zero (or its check
-unavailable) and says so in the budget's `assumptions`. See `missingParams()`.
+`automation_factor` and `kg_per_crew_day` were delegated on 2026-09-20 and are now in the
+base constraint set — 1.0 and 3.0 kg/crew-day, both provisional, both carrying a note saying
+what they rest on. `max_gimbal_deg` is still unsupplied, so the thrust-line check reports the
+angle a design needs and asserts nothing. See `missingParams()`.
+
+## 7. Crew: the number on watch is two thirds of the complement (ruled 2026-09-20)
+
+A warship's crew divides into **three sections with two of them manned** — one asleep, the
+other two on station. Both numbers live on the craft record (`watch_sections`,
+`watches_manned`) because that is how a watch bill is written, and because 3-and-2 says
+something that 1.5 does not. A station or a small craft stands no rotation: 1 and 1.
+
+```
+complement   = Σ (basis == "total" ? crew : crew_per_watch × sections / manned) × automation_factor
+on watch now = complement × manned / sections
+```
+
+This supersedes the single `watch_factor` an earlier pass used, which multiplied the
+complement by three instead of by 3/2. It does **not** change §4's ruling that the NEBULOUS
+and Terra Invicta crew columns are complements rather than watch stations; that still holds,
+and those rows are still exempt from the rotation multiplier. The port-and-starboard example
+in `_tables/radiators.yaml` is an illustration of one possible bill, not the ruled one.
+
+## 8. Rounds have mass (ruled 2026-09-20)
+
+`_tables/munitions.yaml` carries no mass or volume per round, so a magazine used to be a list
+of counts that weighed nothing. Three anchors fix that:
+
+| calibre | mass | volume | implied stowage density |
+|---|---|---|---|
+| 20 mm | 0.25 kg | 0.0025 m³ | 100 kg/m³ |
+| 120 mm | 22 kg | 0.05 m³ | 440 kg/m³ |
+| 450 mm | 1,315 kg | 0.8 m³ | 1,644 kg/m³ |
+
+Everything else is interpolated along straight lines in **log-log** space — the simplest
+curve through all three that stays positive and monotonic. The density climbing with calibre
+is why one scaling law will not do. The anchors live in that file's `meta.round_scale`; a row
+may override the result with its own `mass_kg` / `volume_m3`. Magazine mass is attributed to
+the **mount**, because that is where the ready rounds are and a full magazine under a dorsal
+turret pulls the centre of gravity like anything else.

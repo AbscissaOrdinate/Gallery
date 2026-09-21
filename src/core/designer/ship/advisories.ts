@@ -15,9 +15,10 @@
  *   but no module field supplies capacity and NEBULOUS has no berthing
  *   compartment at all (`docs/UNITS.md` §4). Inventing a bunks-per-module
  *   figure would make the check say something untrue, so it waits for editor 3.
- * - **Magazine mass.** `_tables/munitions.yaml` carries no mass per round.
- *   Rounds are checked against the launcher's capacity and contribute nothing
- *   to mass. See `types.ts`.
+ * - **Magazine stowage volume.** Round mass reached the budget on 2026-09-20
+ *   (see `munitions.ts`), and the volume is computed alongside it — but which
+ *   *section* holds the rounds is not in the record, so the volume is reported
+ *   rather than charged against a section's budget.
  * - **Spinal length.** A spinal weapon's axial run has to fit the hull, but a
  *   module record carries no length, only a volume. Editor 3 adds it.
  */
@@ -243,6 +244,16 @@ function fitAdvisories(ship: ShipLoadout, ctx: ShipAdvisoryContext, specOf: (id?
   }
 
   for (const t of ship.tanks) {
+    if (t.count_authored !== undefined) {
+      out.push(
+        violation("warn", `Tank "${t.id}" asks for ${fmt(t.count_authored, 0)} tanks at one collar; eight is as many as will go round, so the rest need a collar of their own at another station.`, {
+          field: "tanks",
+          domain: "fit",
+          source: "ship.tanks",
+          anchor: { componentId: t.id },
+        }),
+      );
+    }
     if (t.slot && !slots.has(t.slot)) {
       out.push(
         violation("error", `Drop tank "${t.id}" hangs on slot "${t.slot}", which this hull does not have.`, {
@@ -264,9 +275,9 @@ function fitAdvisories(ship: ShipLoadout, ctx: ShipAdvisoryContext, specOf: (id?
       );
     }
     const spec = specOf(t.module);
-    if (spec && spec.volume_m3 > 0 && t.volume_m3 > spec.volume_m3 + EPS) {
+    if (spec && spec.volume_m3 > 0 && t.volume_m3 > spec.volume_m3 * t.count + EPS) {
       out.push(
-        violation("error", `Tank "${t.id}" is loaded with ${fmt(t.volume_m3)} m³ but its tankage holds ${fmt(spec.volume_m3)} m³.`, {
+        violation("error", `Tank "${t.id}" is loaded with ${fmt(t.volume_m3)} m³ but its tankage holds ${fmt(spec.volume_m3 * t.count)} m³${t.count > 1 ? ` across ${fmt(t.count, 0)} tanks` : ""}.`, {
           field: "tanks",
           domain: "fit",
           source: "ship.tanks",
@@ -435,6 +446,21 @@ function propulsionAdvisories(ship: ShipLoadout, budget: ShipBudget, specOf: (id
   if (budget.thrust_kN === 0 && ship.kind !== "station" && budget.lines.length) {
     out.push(violation("warn", "No drive module, so this craft has no thrust and no Δv.", { field: "manifest", domain: "deltav", source: src }));
   }
+
+  // Attitude thrusters at one end of the centre of gravity and none at the
+  // other cannot make a couple: they shove the ship sideways as much as they
+  // turn it.
+  const rcs = budget.attitude;
+  if (rcs && rcs.torque_kNm <= 0 && rcs.forward + rcs.aft > 0) {
+    const end = rcs.forward > 0 ? "forward of" : "aft of";
+    out.push(
+      violation("warn", `Every attitude thruster is ${end} the centre of gravity, so firing them translates the ship as much as it turns it. A couple needs thrusters at both ends.`, {
+        field: "fittings",
+        domain: "structure",
+        source: src,
+      }),
+    );
+  }
   if (budget.propellantCapacity_t > 0 && budget.propellant_t > budget.propellantCapacity_t) {
     out.push(
       violation("warn", `Propellant ${fmt(budget.propellant_t, 0)} t exceeds tank capacity ${fmt(budget.propellantCapacity_t, 0)} t.`, { field: "propellant_t", domain: "deltav", source: src }),
@@ -515,7 +541,7 @@ function propulsionAdvisories(ship: ShipLoadout, budget: ShipBudget, specOf: (id
  */
 function balanceAdvisories(budget: ShipBudget, ctx: ShipAdvisoryContext): Violation[] {
   if (!ctx.hull || budget.thrustOffset_m <= 0 || budget.thrust_kN <= 0) return [];
-  const drive = budget.lines.find((l) => (l.spec?.thrust_kN ?? 0) > 0 && l.x !== undefined);
+  const drive = budget.lines.find((l) => !l.attitude && (l.spec?.thrust_kN ?? 0) > 0 && l.x !== undefined);
   const station = drive?.x ?? ctx.hull.spine.length_m;
   const limit = halfHeightAt(ctx.hull.spine, station);
   const anchor = { station };
@@ -550,10 +576,26 @@ function balanceAdvisories(budget: ShipBudget, ctx: ShipAdvisoryContext): Violat
 
 function crewAdvisories(ship: ShipLoadout): Violation[] {
   const out: Violation[] = [];
-  const authored = ship.watch_factor_authored ?? ship.watch_factor;
-  if (!(authored >= 1 && authored <= 3)) {
+  const authored = ship.watch_authored;
+  if (authored) {
     out.push(
-      violation("warn", `Watch factor ${fmt(authored)} is outside the 1–3 the crew model is defined over, and has been clamped.`, { field: "watch_factor", domain: "doctrine", source: "ship.crew" }),
+      violation("warn", `A watch bill of ${fmt(authored.manned)} manned out of ${fmt(authored.sections)} sections is not a rotation that can be stood; it has been read as ${fmt(ship.watches_manned)} of ${fmt(ship.watch_sections)}.`, {
+        field: "watch_sections",
+        domain: "doctrine",
+        source: "ship.crew",
+      }),
+    );
+  }
+  // Every section manned at once is a statement about the ship rather than a
+  // mistake — a drone or a fully-automated station stands no rotating watch —
+  // but it is worth saying out loud, because it means nobody is ever asleep.
+  if (ship.watch_sections > 1 && ship.watch_sections === ship.watches_manned) {
+    out.push(
+      violation("info", `All ${fmt(ship.watch_sections)} watch sections are manned at once, so the whole complement is on station and none of it is off watch.`, {
+        field: "watches_manned",
+        domain: "doctrine",
+        source: "ship.crew",
+      }),
     );
   }
   if (ship.crew_override > 0) {

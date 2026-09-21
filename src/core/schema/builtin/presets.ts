@@ -231,6 +231,14 @@ export const BUILTIN_PRESETS: Preset[] = [
     fields: { category: "weapon-laser", slot: "turret", mass_t: 70, volume_m3: 180, power_in_MW: 40, power_standby_MW: 1.5, heat_out_MW: 36, crew: 5, bus_iface: "UJCN-L", cost: 160 },
   },
   {
+    id: "rcs-cluster",
+    type: "module",
+    title: "Attitude thruster cluster",
+    description: "A quad of bipropellant nozzles on a hardpoint. Fitted to a `thruster` slot, where its thrust turns the ship rather than pushing it, so it stays out of the Δv sum.",
+    tags: ["propulsion", "attitude"],
+    fields: { category: "drive", slot: "thruster", mass_t: 1.6, thrust_kN: 40, isp_s: 320, propellant: "methane-liquid", cycle: "open", heat_out_MW: 0.4, power_in_MW: 0.05, cost: 6 },
+  },
+  {
     id: "search-radar",
     type: "module",
     title: "Search radar",
@@ -421,6 +429,12 @@ export const BUILTIN_PRESETS: Preset[] = [
         { id: "rad-2", x: 114, theta_deg: 180, type: "radiator", size: "L" },
         { id: "tank", x: 108, theta_deg: 0, type: "tank", size: "L" },
         { id: "ring", x: 12, theta_deg: 180, type: "dock", size: "S" },
+        // Attitude control fore and aft: a couple needs both ends, and the
+        // arms are what set the slew rate.
+        { id: "rcs-fwd-d", x: 15, theta_deg: 0, type: "thruster", size: "S" },
+        { id: "rcs-fwd-v", x: 15, theta_deg: 180, type: "thruster", size: "S" },
+        { id: "rcs-aft-d", x: 126, theta_deg: 0, type: "thruster", size: "S" },
+        { id: "rcs-aft-v", x: 126, theta_deg: 180, type: "thruster", size: "S" },
         { id: "drive", x: 138, theta_deg: 0, type: "drive", size: "L" },
       ],
       design_notes:
@@ -503,49 +517,49 @@ export const BUILTIN_PRESETS: Preset[] = [
     id: "destroyer",
     type: "craft",
     title: "Destroyer",
-    fields: { kind: "ship", hull_class: "DD", role: "screen / escort", status: "concept", propellant_t: 3000, watch_factor: 3 },
+    fields: { kind: "ship", hull_class: "DD", role: "screen / escort", status: "concept", propellant_t: 3000, watch_sections: 3, watches_manned: 2 },
   },
   {
     id: "cruiser",
     type: "craft",
     title: "Cruiser",
-    fields: { kind: "ship", hull_class: "CC", role: "independent operations / flag", status: "concept", propellant_t: 9000, watch_factor: 3 },
+    fields: { kind: "ship", hull_class: "CC", role: "independent operations / flag", status: "concept", propellant_t: 9000, watch_sections: 3, watches_manned: 2 },
   },
   {
     id: "frigate",
     type: "craft",
     title: "Frigate",
-    fields: { kind: "ship", hull_class: "FF", role: "patrol / convoy escort", status: "concept", propellant_t: 1200, watch_factor: 3 },
+    fields: { kind: "ship", hull_class: "FF", role: "patrol / convoy escort", status: "concept", propellant_t: 1200, watch_sections: 3, watches_manned: 2 },
   },
   {
     id: "monitor",
     type: "craft",
     title: "Monitor",
-    fields: { kind: "ship", hull_class: "BM", role: "orbital fire support / static defense", status: "concept", propellant_t: 400, watch_factor: 3 },
+    fields: { kind: "ship", hull_class: "BM", role: "orbital fire support / static defense", status: "concept", propellant_t: 400, watch_sections: 3, watches_manned: 2 },
   },
   {
     id: "carrier",
     type: "craft",
     title: "Carrier",
-    fields: { kind: "ship", hull_class: "CV", role: "strike-craft carrier", status: "concept", propellant_t: 8000, watch_factor: 3 },
+    fields: { kind: "ship", hull_class: "CV", role: "strike-craft carrier", status: "concept", propellant_t: 8000, watch_sections: 3, watches_manned: 2 },
   },
   {
     id: "station",
     type: "craft",
     title: "Station",
-    fields: { kind: "station", hull_class: "ST", role: "orbital station", status: "concept", propellant_t: 0, watch_factor: 1 },
+    fields: { kind: "station", hull_class: "ST", role: "orbital station", status: "concept", propellant_t: 0, watch_sections: 1, watches_manned: 1 },
   },
   {
     id: "strikecraft",
     type: "craft",
     title: "Strike craft",
-    fields: { kind: "strikecraft", hull_class: "SC", role: "silocraft / interceptor", status: "concept", propellant_t: 40, watch_factor: 1 },
+    fields: { kind: "strikecraft", hull_class: "SC", role: "silocraft / interceptor", status: "concept", propellant_t: 40, watch_sections: 1, watches_manned: 1 },
   },
   {
     id: "missile",
     type: "craft",
     title: "Missile",
-    fields: { kind: "missile", hull_class: "MSL", role: "anti-ship missile", status: "concept", propellant_t: 1.2, watch_factor: 1 },
+    fields: { kind: "missile", hull_class: "MSL", role: "anti-ship missile", status: "concept", propellant_t: 1.2, watch_sections: 1, watches_manned: 1 },
   },
 
   // ---- character ---------------------------------------------------------

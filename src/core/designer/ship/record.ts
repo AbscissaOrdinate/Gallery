@@ -98,7 +98,14 @@ export function readShip(fields: Record<string, unknown>): ShipLoadout {
 
   const tanks: TankEntry[] = list(fields.tanks).map((raw, i) => {
     const t = obj(raw);
-    const tank: TankEntry = { id: id(t.id, "tank", i), volume_m3: Math.max(0, num(t.volume_m3)), jettison_order: Math.max(0, Math.floor(num(t.jettison_order))) };
+    const tank: TankEntry = {
+      id: id(t.id, "tank", i),
+      // Clamped to what a collar can hold; the advisory kernel reports an
+      // authored count that had to be cut down.
+      count: Math.min(8, Math.max(1, Math.floor(num(t.count, 1)) || 1)),
+      volume_m3: Math.max(0, num(t.volume_m3)),
+      jettison_order: Math.max(0, Math.floor(num(t.jettison_order))),
+    };
     const slot = ref(t.slot);
     if (slot) tank.slot = slot;
     // A tank is in a section or on a slot. A record naming both is taking the
@@ -110,6 +117,8 @@ export function readShip(fields: Record<string, unknown>): ShipLoadout {
     if (module) tank.module = module;
     const propellant = ref(t.propellant);
     if (propellant) tank.propellant = propellant;
+    const authored = num(t.count, 1);
+    if (authored > tank.count) tank.count_authored = authored;
     return tank;
   });
 
@@ -135,10 +144,20 @@ export function readShip(fields: Record<string, unknown>): ShipLoadout {
     return mode;
   });
 
-  // A watch factor outside 1–3 is out of the range the model is defined over
-  // (`gallery/05` §3). Clamping keeps the complement finite; the advisory
-  // kernel reports the authored value.
-  const watch = num(fields.watch_factor, 0);
+  // Watch sections and how many of them are manned. Out-of-range values are
+  // clamped so the complement stays finite — more sections manned than exist
+  // would make the complement smaller than the people standing in it — and the
+  // authored pair is kept for the advisory kernel to report.
+  //
+  // A record written before this pair existed carries `watch_factor`. 3 meant
+  // "three watches", which under the 2026-09-20 ruling is three sections with
+  // two manned; 1 meant no rotation at all.
+  const legacy = num(fields.watch_factor, 0);
+  const rawSections = fields.watch_sections !== undefined ? num(fields.watch_sections, 0) : legacy;
+  const rawManned = fields.watches_manned !== undefined ? num(fields.watches_manned, 0) : legacy > 1 ? legacy - 1 : legacy;
+  const sections = rawSections > 0 ? Math.min(6, Math.round(rawSections)) : 1;
+  const manned = rawManned > 0 ? Math.min(sections, Math.round(rawManned)) : 1;
+
   const ship: ShipLoadout = {
     kind: str(fields.kind, "ship"),
     fittings,
@@ -146,14 +165,15 @@ export function readShip(fields: Record<string, unknown>): ShipLoadout {
     unplaced,
     tanks,
     modes,
-    watch_factor: watch > 0 ? Math.min(3, watch) : 1,
+    watch_sections: sections,
+    watches_manned: manned,
     endurance_days: Math.max(0, num(fields.endurance_days)),
     crew_override: Math.max(0, num(fields.crew_override)),
     propellant_t: Math.max(0, num(fields.propellant_t)),
   };
   const hull = ref(fields.hull);
   if (hull) ship.hull = hull;
-  if (fields.watch_factor !== undefined && watch !== ship.watch_factor) ship.watch_factor_authored = watch;
+  if (rawSections !== sections || rawManned !== manned) ship.watch_authored = { sections: rawSections, manned: rawManned };
   return ship;
 }
 
@@ -188,6 +208,7 @@ export function writeShip(fields: Record<string, unknown>, ship: ShipLoadout): R
       ...(t.section ? { section: t.section } : {}),
       ...(t.module ? { module: t.module } : {}),
       ...(t.propellant ? { propellant: t.propellant } : {}),
+      ...(t.count > 1 ? { count: t.count } : {}),
       volume_m3: t.volume_m3,
       jettison_order: t.jettison_order,
     })),
@@ -201,7 +222,10 @@ export function writeShip(fields: Record<string, unknown>, ship: ShipLoadout): R
       ...(m.note ? { note: m.note } : {}),
     })),
   );
-  out.watch_factor = ship.watch_factor;
+  out.watch_sections = ship.watch_sections;
+  out.watches_manned = ship.watches_manned;
+  // The pair replaces it; leaving both would let them drift apart.
+  delete out.watch_factor;
   if (ship.endurance_days > 0) out.endurance_days = ship.endurance_days;
   if (ship.hull) out.hull = ship.hull;
   return out;

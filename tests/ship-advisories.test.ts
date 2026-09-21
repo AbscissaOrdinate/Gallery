@@ -321,7 +321,15 @@ describe("degenerate records", () => {
     expect(vs[0]?.message).toContain("not in the vault");
   });
 
-  it("reports an out-of-range watch factor against the authored value", () => {
-    expect(find(advise({ watch_factor: 12 }), "outside the 1–3")).toBeDefined();
+  it("reports a watch bill that cannot be stood, against what was authored", () => {
+    const v = find(advise({ watch_sections: 2, watches_manned: 9 }), "is not a rotation that can be stood");
+    expect(v?.severity).toBe("warn");
+    expect(v?.message).toContain("9 manned out of 2 sections");
+  });
+
+  it("says when nobody is ever off watch", () => {
+    expect(find(advise({ watch_sections: 2, watches_manned: 2 }), "none of it is off watch")?.severity).toBe("info");
+    // The standard bill leaves a section asleep, so there is nothing to report.
+    expect(find(advise({ watch_sections: 3, watches_manned: 2 }), "off watch")).toBeUndefined();
   });
 });

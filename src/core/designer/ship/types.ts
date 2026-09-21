@@ -85,7 +85,20 @@ export interface TankEntry {
   module?: string;
   /** `_tables/propellants.yaml` row id. */
   propellant?: string;
-  /** Propellant volume carried. */
+  /**
+   * Tanks at this collar, 1–8.
+   *
+   * A single heavy tank bolted to the dorsal centreline has to be ballasted
+   * against; a **collar** of them spaced evenly about the axis balances itself.
+   * So a count above one is treated as radially symmetric: its mass sits on the
+   * thrust line, and the silhouette draws the ring rather than one barrel. Eight
+   * is the practical limit at one collar — past that the next lot go on another
+   * station.
+   */
+  count: number;
+  /** The count as authored, when it was above what one collar takes and had to be cut down. */
+  count_authored?: number;
+  /** Propellant volume carried, for the collar as a whole rather than per tank. */
   volume_m3: number;
   /**
    * Drop order. 0 is integral and never jettisoned; 1 is dropped first, then 2,
@@ -138,17 +151,28 @@ export interface ShipLoadout {
   tanks: TankEntry[];
   modes: OperatingMode[];
   /**
-   * Watches the crew is organised into: 1–3 (`gallery/05` §3, `docs/UNITS.md`
-   * §4). Only `crew_basis: per_watch` modules are multiplied by it.
+   * Watch sections the crew divides into, and how many are on station at once.
+   *
+   * RULED 2026-09-20: **the number on watch is two thirds of the complement.**
+   * Three sections with two manned — one section asleep, the other two up —
+   * which is what "only one of the watches is off for sleep" means. The two
+   * numbers are stored rather than the ratio because that is how a watch bill
+   * is actually written, and because 3-and-2 says something 1.5 does not.
+   *
+   * A station or a small craft stands no rotating watch: 1 and 1.
+   *
+   *   complement   = Σ total-basis + Σ per-watch-basis × sections / manned
+   *   on watch now = complement × manned / sections
    */
-  watch_factor: number;
+  watch_sections: number;
+  watches_manned: number;
   /**
-   * The watch factor as authored, when it was outside 1–3 and had to be
+   * The watch figures as authored, when they were out of range and had to be
    * clamped. The reader clamps so the complement stays finite; it keeps the
-   * original here so the advisory kernel can report what was actually written,
-   * rather than silently correcting it.
+   * originals here so the advisory kernel can report what was actually
+   * written, rather than silently correcting it.
    */
-  watch_factor_authored?: number;
+  watch_authored?: { sections: number; manned: number };
   /** Days of consumables carried. Needs `kg_per_crew_day` to become a mass. */
   endurance_days: number;
   /** Explicit complement, overriding the roll-up. */
