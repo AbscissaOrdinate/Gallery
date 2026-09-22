@@ -204,15 +204,26 @@ in `_tables/radiators.yaml` is an illustration of one possible bill, not the rul
 `_tables/munitions.yaml` carries no mass or volume per round, so a magazine used to be a list
 of counts that weighed nothing. Three anchors fix that:
 
-| calibre | mass | volume | implied stowage density |
-|---|---|---|---|
-| 20 mm | 0.25 kg | 0.0025 m³ | 100 kg/m³ |
-| 120 mm | 22 kg | 0.05 m³ | 440 kg/m³ |
-| 450 mm | 1,315 kg | 0.8 m³ | 1,644 kg/m³ |
+| calibre | mass | volume | stowage density | taken from |
+|---|---|---|---|---|
+| 20 mm | 0.25 kg | 0.0025 m³ | 100 kg/m³ | autocannon round, complete |
+| 120 mm | 22 kg | 0.05 m³ | 440 kg/m³ | tank round, complete |
+| 450 mm | 1,315 kg | 0.8 m³ | 1,644 kg/m³ | naval AP shell |
+| 600 mm | 2,170 kg | 1.46 m³ | 1,486 kg/m³ | siege mortar shell |
 
-Everything else is interpolated along straight lines in **log-log** space — the simplest
-curve through all three that stays positive and monotonic. The density climbing with calibre
-is why one scaling law will not do. The anchors live in that file's `meta.round_scale`; a row
-may override the result with its own `mass_kg` / `volume_m3`. Magazine mass is attributed to
-the **mount**, because that is where the ready rounds are and a full magazine under a dorsal
-turret pulls the centre of gravity like anything else.
+All four are historical naval-gun or artillery figures. Everything else is interpolated along
+straight lines in **log-log** space — the simplest curve through all four that stays positive
+and monotonic.
+
+**The density knee is the point.** Stowage density climbs 100 → 440 → 1,644 and then *falls*
+to 1,486. A belt of 20 mm is mostly links and air; a 450 mm AP shell is very nearly solid
+steel; a 600 mm siege round is short, thin-walled and mostly filler, so it comes in at
+2,170 kg where a cube-law scale from 450 mm would give 3,117. The mass exponent accordingly
+runs 2.50 → 3.09 → **1.74**, and above 600 mm it extrapolates along that gentle slope: past
+roughly 500 mm you are building siege ordnance, not naval rifles. Volume stays on effectively
+one exponent from 120 mm up — it is mass that bends, not bulk.
+
+The anchors live in that file's `meta.round_scale`; a row may override the result with its own
+`mass_kg` / `volume_m3`. Magazine mass is attributed to the **mount**, because that is where
+the ready rounds are and a full magazine under a dorsal turret pulls the centre of gravity
+like anything else.

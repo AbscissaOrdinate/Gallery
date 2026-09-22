@@ -7,33 +7,47 @@
  * budget. A 240-round 450 mm magazine is not weightless, and that was the
  * largest known hole in the ship budget.
  *
- * ## Three anchors, ruled 2026-09-20
+ * ## Four anchors, ruled 2026-09-20 and 2026-09-21
  *
- * | calibre | mass | volume | implied stowage density |
- * |---|---|---|---|
- * | 20 mm | 0.25 kg | 0.0025 m³ | 100 kg/m³ |
- * | 120 mm | 22 kg | 0.05 m³ | 440 kg/m³ |
- * | 450 mm | 1,315 kg | 0.8 m³ | 1,644 kg/m³ |
+ * | calibre | mass | volume | implied stowage density | taken from |
+ * |---|---|---|---|---|
+ * | 20 mm | 0.25 kg | 0.0025 m³ | 100 kg/m³ | autocannon round, complete |
+ * | 120 mm | 22 kg | 0.05 m³ | 440 kg/m³ | tank round, complete |
+ * | 450 mm | 1,315 kg | 0.8 m³ | 1,644 kg/m³ | naval AP shell |
+ * | 600 mm | 2,170 kg | 1.46 m³ | 1,486 kg/m³ | siege mortar shell |
  *
- * Everything else is interpolated from those three. The density climbing with
- * calibre is the interesting part and is why a single scaling law will not do:
- * a belt of 20 mm is mostly links and air, a 450 mm shell in its rack is mostly
- * metal.
+ * Everything else is interpolated from those four, all of which are historical
+ * naval-gun or artillery figures.
+ *
+ * ## The density knee at 450 mm is the whole point
+ *
+ * Density climbs 100 → 440 → 1,644 kg/m³ and then **falls** to 1,486. A belt of
+ * 20 mm is mostly links and air; a 450 mm AP shell in its rack is very nearly
+ * solid steel; a 600 mm siege round is short, thin-walled and mostly filler, so
+ * it is lighter than a cube-law scale from 450 mm would make it — 2,170 kg
+ * against 3,117 kg.
+ *
+ * That knee is why a single scaling law cannot work here. The mass exponent
+ * runs d^2.50, then d^3.09, then **d^1.74**: past roughly 500 mm you have
+ * stopped building naval rifles and started building siege ordnance, and the
+ * two scale differently. Volume, by contrast, stays on effectively one exponent
+ * from 120 mm up (2.098 then 2.091) — it is mass that bends, not bulk.
  *
  * ## Why a piecewise power law and not a cubic
  *
- * Three points, and the exponent genuinely changes between them — mass goes as
- * d^2.50 from 20 to 120 mm and as d^3.09 from 120 to 450. A single power law
- * cannot pass through all three; a cubic through three points in linear space
- * overshoots into negative mass below the smallest anchor. Straight lines
- * between the points **in log-log space** are the simplest curve that passes
- * through every anchor exactly, stays positive everywhere, and stays monotonic
- * — which is what "a spline from those three" has to mean for a quantity that
- * is a mass.
+ * The exponent genuinely changes between the anchors — 2.50, then 3.09, then
+ * 1.74 — so no single power law passes through all four, and a polynomial fit
+ * through four points dives negative below the smallest anchor and oscillates
+ * between them. Straight lines between the points **in log-log space** are the
+ * simplest curve that hits every anchor exactly, stays positive everywhere and
+ * stays monotonic, which is what "a spline from those" has to mean for a
+ * quantity that is a mass.
  *
- * Outside the anchors it extrapolates along the nearest segment's exponent, so
- * a 15 mm round and a 600 mm round both get an answer, and both are marked as
- * resting on an extrapolation.
+ * Outside the anchors it extrapolates along the nearest segment's exponent, and
+ * says that it did. Above 600 mm that is deliberately the *gentle* slope: an
+ * 800 mm round comes out at ~3.6 t rather than the ~7.6 t a cube law gives,
+ * which is the right neighbourhood for a Schwerer-Gustav-class shell and the
+ * wrong one for a scaled naval rifle.
  */
 
 export interface RoundAnchor {
@@ -54,6 +68,10 @@ export const DEFAULT_ROUND_ANCHORS: RoundAnchor[] = [
   { calibre_mm: 20, mass_kg: 0.25, volume_m3: 0.0025 },
   { calibre_mm: 120, mass_kg: 22, volume_m3: 0.05 },
   { calibre_mm: 450, mass_kg: 1315, volume_m3: 0.8 },
+  // Ruled 2026-09-21. The mass is a siege-mortar figure; the volume continues
+  // the 120–450 exponent, which is what makes the density fall rather than the
+  // volume jump.
+  { calibre_mm: 600, mass_kg: 2170, volume_m3: 1.46 },
 ];
 
 /** One segment's exponent: `y = y0 · (d/d0)^k` through both ends. */

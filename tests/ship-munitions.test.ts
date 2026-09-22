@@ -1,10 +1,10 @@
 /**
  * Round mass and volume from calibre.
  *
- * The three anchors were ruled by the vault owner on 2026-09-20 and are the
- * only figures here that are not derived; everything else has to pass through
- * them exactly. That is what these tests pin — not that the curve is *right*,
- * which is a judgement, but that it is the curve the ruling describes.
+ * The four anchors were ruled by the vault owner on 2026-09-20 and 2026-09-21,
+ * and are the only figures here that are not derived; everything else has to
+ * pass through them exactly. That is what these tests pin — not that the curve
+ * is *right*, which is a judgement, but that it is the curve the ruling states.
  */
 import { describe, it, expect } from "vitest";
 import { roundSize, readRoundAnchors, DEFAULT_ROUND_ANCHORS, type RoundAnchor } from "../src/core/designer/ship/munitions";
@@ -24,6 +24,7 @@ describe("the ruled anchors", () => {
       { calibre_mm: 20, mass_kg: 0.25, volume_m3: 0.0025 },
       { calibre_mm: 120, mass_kg: 22, volume_m3: 0.05 },
       { calibre_mm: 450, mass_kg: 1315, volume_m3: 0.8 },
+      { calibre_mm: 600, mass_kg: 2170, volume_m3: 1.46 },
     ]);
   });
 });
@@ -42,18 +43,29 @@ describe("between the anchors", () => {
     }
   });
 
-  it("makes stowage denser as the calibre grows, which is the point of three anchors", () => {
+  const density = (d: number) => {
+    const s = roundSize(d) as { mass_kg: number; volume_m3: number };
+    return s.mass_kg / s.volume_m3;
+  };
+
+  it("makes stowage denser up to 450 mm, which is the point of more than one anchor", () => {
     // One power law would hold the density flat. A belt of 20 mm is mostly
-    // links and air; a 450 mm shell in its rack is mostly metal.
-    const density = (d: number) => {
-      const s = roundSize(d) as { mass_kg: number; volume_m3: number };
-      return s.mass_kg / s.volume_m3;
-    };
+    // links and air; a 450 mm AP shell in its rack is very nearly solid steel.
     expect(density(20)).toBeCloseTo(100, 0);
     expect(density(120)).toBeCloseTo(440, 0);
     expect(density(450)).toBeCloseTo(1644, 0);
     expect(density(250)).toBeGreaterThan(density(120));
     expect(density(250)).toBeLessThan(density(450));
+  });
+
+  it("turns the density over above 450 mm, where the ordnance stops being naval", () => {
+    // A 600 mm siege round is short, thin-walled and mostly filler: 2,170 kg
+    // where a cube-law scale from 450 mm would give 3,117. The knee is real and
+    // is why a fourth anchor was needed rather than an extrapolation.
+    expect(density(600)).toBeCloseTo(1486, 0);
+    expect(density(600)).toBeLessThan(density(450));
+    expect(roundSize(600)?.mass_kg).toBeCloseTo(2170, 6);
+    expect(roundSize(450)?.mass_kg as number * Math.pow(600 / 450, 3)).toBeGreaterThan(3000);
   });
 
   it("puts a 250 mm shell between its neighbours where a designer would expect it", () => {
@@ -67,14 +79,26 @@ describe("between the anchors", () => {
 describe("outside the anchors", () => {
   it("extends the nearest segment and says that it did", () => {
     const small = roundSize(15);
-    const large = roundSize(600);
+    const large = roundSize(800);
     expect(small?.extrapolated).toBe(true);
     expect(large?.extrapolated).toBe(true);
     // Still positive and still ordered — the reason for a log-log fit rather
-    // than a cubic, which would dive negative below the smallest anchor.
+    // than a polynomial, which would dive negative below the smallest anchor.
     expect(small?.mass_kg).toBeGreaterThan(0);
     expect(small?.mass_kg).toBeLessThan(0.25);
-    expect(large?.mass_kg).toBeGreaterThan(1315);
+    expect(large?.mass_kg).toBeGreaterThan(2170);
+  });
+
+  it("extrapolates above 600 mm along the gentle siege slope, not the naval one", () => {
+    // Ruled 2026-09-21. An 800 mm round lands near 3.6 t — Schwerer-Gustav
+    // territory — rather than the ~7.6 t a cube law from 450 mm would give.
+    const eight = roundSize(800) as { mass_kg: number };
+    expect(eight.mass_kg).toBeGreaterThan(3000);
+    expect(eight.mass_kg).toBeLessThan(4500);
+  });
+
+  it("an anchor is never treated as an extrapolation", () => {
+    for (const a of DEFAULT_ROUND_ANCHORS) expect(roundSize(a.calibre_mm)?.extrapolated, `${a.calibre_mm} mm`).toBe(false);
   });
 });
 
