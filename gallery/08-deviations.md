@@ -142,6 +142,55 @@ gate asserts that identity rather than a new constant.
 
 ---
 
+---
+
+## Editor 2b and the UI pass — planned, not yet built
+
+The plan is `gallery/09-ui-and-editor-2b.md`. Four departures it commits to, recorded here
+because each is a deliberate reading of a spec rather than a straightforward implementation
+of it.
+
+**Doc 07 §2's "one frame" becomes a shell with per-editor slots, not one configured
+component.** §2 asks that all five editors use one frame so the suite reads as one tool. The
+literal reading — a single component that renders every editor — would need a discriminator
+and would branch five ways by editor 5. Instead `DesignShell` takes named slots and each
+editor supplies its own panes, while the *shared* parts (advisory list, budget rail, fleet
+strip, canvas viewport) are shared code rather than shared markup. The constraint that keeps
+this honest is written into the file: `DesignShell` may not import from
+`src/core/designer/` beyond `Violation` and `HullScene`, so it cannot learn which editor it
+is hosting.
+
+**Selection is a per-editor union, not one shared type.** The same external-slot id denotes a
+*mount* to the hull editor and a *fitting* to the ship editor; those are different objects
+with different inspectors. A shared `{kind: string}` would blur exactly the distinction doc
+07 §3 draws when it says the ship editor cannot change what the hull editor owns — and it
+would turn four compiler-checked inspector branches into four string comparisons. Only the
+cross-editor deep link is stringly typed, one field wide, because `src/ui/state.ts` must not
+import its own leaves.
+
+**Beam-mounted parts are drawn from a plan view, at reduced emphasis.** `gallery/05` §2.4 and
+`docs/CLAUDE.md` both describe external modules as *silhouette-plane parts mirrored
+vertically*, which is true of dorsal and ventral mounts and silent about the beam —
+`partsForHull` consequently skipped port and starboard slots entirely, so a side battery drew
+nothing. A part on the port beam, viewed from port, is seen down its own outward axis: that
+is its plan view. It draws at the hull's mid-height under a distinct role so it reads as a
+fitting on the far side rather than as hull structure. A `plan` render mode follows from the
+same outlines, and half of it already exists — `outlinePath(hull, samples, useBeam = true)`
+draws the plan hull outline from `beamAt()/2`.
+
+**Part size grows a principal axis, with per-family exceptions.** Uniform scaling made an XL
+gun as fat as it was long. Ruled 2026-09-20: a bigger gun lengthens its barrel *and* expands
+its gunhouse; a bigger VLS gets more tubes at a fixed tube size; a laser and a spherical tank
+are spheres and stay spheres; a radiator extends further outward and never wider. Radiators
+additionally carry a `radiator_aspect` in the style kit, clamped at or above 1.0 so the
+taller-than-wide rule cannot be violated from the UI. `membrane` is the one family that
+changes shape as a result — it was the only one already wider than tall, at 0.75.
+
+**Spinal mounts reuse the side profile.** `SLOT_PART` maps `spinal` to no part, so a spinal
+weapon draws nothing. It will map to the fitted weapon's own family, so a spinal railgun
+reads as a long gun along the axis. Purpose-built spinal shapes — a weapon that *is* the
+hull's length rather than a mounting on it — are deferred.
+
 ## Still deferred
 
 - **Variants** — the hull schema's `parent` ref and the ghost overlay exist; the four legal
@@ -154,3 +203,29 @@ gate asserts that identity rather than a new constant.
 - **Thermal shadow** — panel-to-panel view-factor blocking and drive-plume impingement
   (`gallery/07` §1). The *radiation* shadow is built; the thermal one is not.
 - **Sizing helpers** — "Solve for Δv" and "Fit hull" (§3).
+- **Purpose-built spinal glyphs** — distinct from the side-mount profile a spinal weapon will
+  borrow. See above.
+- **Magazine stowage volume charged to a section.** Round mass and volume both compute
+  (`docs/UNITS.md` §8); which compartment holds the rounds is not in the record, so the
+  volume is reported and not spent.
+- **Roll rate.** A radial thruster firing radially produces exactly zero roll torque, so the
+  figure would be structurally zero. Needs a canted or tangential nozzle the record cannot
+  describe.
+
+## Known bugs this plan fixes
+
+Both were found by reading the code for `gallery/09`, and neither is caught by any existing
+check — the 446 vitest tests are core-only (`environment: node`), and the headless smoke
+scripts do not touch either path.
+
+- **Hull-canvas labels render at 2.2–3 CSS pixels at every zoom level.**
+  `HullCanvas.tsx:325` is `fontSize={scale(el.size ?? 11)}`, where `scale()` converts screen
+  pixels to scene metres — but `render.ts` authors `el.size` in metres. The round trip
+  cancels, so `perMetre` grows on zoom-in and the font shrinks by the identical factor. The
+  same scene through `toSvg()` renders at 12–18 px and is legible: the export path and the
+  on-screen path disagree about the unit, and the `?? 11` default versus `toSvg`'s `?? 3` is
+  the tell.
+- **Clicking an armour belt blanks the hull inspector.** `HullCanvas` makes zones pickable as
+  `kind: "zone"`, `Inspector` has no `zone` branch, and the flow falls through to the
+  appendage lookup and returns `null`. Armour is the one thing doc 07 §3 lists as owned by
+  editor 1 that has no editor at all.
