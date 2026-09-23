@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { renderHull, toSvg } from "../src/core/designer/hull/render";
+import { LABEL_PX, renderHull, toSvg } from "../src/core/designer/hull/render";
 import type { HullGeometry } from "../src/core/designer/hull/types";
 
 const hull: HullGeometry = {
@@ -175,6 +175,87 @@ describe("scene construction", () => {
     const scene = renderHull({ spine: { length_m: 0, beam_m: 0, stations: [] } });
     expect(JSON.stringify(scene)).not.toContain("null");
     expect(Number.isFinite(scene.bounds.x1)).toBe(true);
+  });
+});
+
+/**
+ * Label sizes are in **screen pixels**, and both consumers have to agree about
+ * that. They did not: `render.ts` authored metres, `HullCanvas` read pixels,
+ * and the round trip cancelled so every on-screen label came out at 2.2-3 CSS
+ * pixels at every zoom while the export stayed legible (`gallery/09` §3.1).
+ * Nothing asserted which was right, so nothing caught it. These do.
+ */
+describe("label sizing", () => {
+  const scene = renderHull(hull, { mode: "schematic", cgStation: 90 });
+  const labels = scene.elements.filter((e) => e.kind === "text");
+
+  it("draws some labels at all", () => {
+    expect(labels.length).toBeGreaterThan(0);
+  });
+
+  it("authors every label in screen pixels, never in scene metres", () => {
+    // The tell for the old bug: a size small enough to be a plausible metre
+    // count is too small to be a legible pixel count. Anything under 10 is a
+    // label authored in the wrong unit.
+    for (const el of labels) {
+      if (el.kind !== "text") continue;
+      expect(el.size, `label ${el.id} is sized ${el.size} — metres, not pixels?`).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("puts a label on the glass at the size the renderer asked for", () => {
+    // The invariant both consumers share. `toSvg` emits user units against a
+    // viewBox in metres, so font-size x pxPerMetre is the rendered pixel size;
+    // `HullCanvas` divides by its own px/metre inside a metre-space group, for
+    // exactly the same result. If these two ever disagree again, this fails.
+    const fontSizes = (svg: string) => [...svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => Number(m[1]));
+    for (const k of [2, 4, 8, 16]) {
+      const svg = toSvg(scene, { pxPerMetre: k });
+      const rendered = fontSizes(svg).map((f) => f * k);
+      expect(rendered.length).toBe(labels.length);
+      for (const px of rendered) expect(px).toBeGreaterThanOrEqual(9.5); // rounding slack
+      // Every rendered size is one of the sizes the scene actually asked for.
+      const asked = new Set(labels.map((e) => (e.kind === "text" ? (e.size ?? LABEL_PX.fallback) : 0)));
+      for (const px of rendered) expect([...asked].some((a) => Math.abs(a - px) < 0.5)).toBe(true);
+    }
+  });
+
+  it("writes strokes in screen pixels too, so an export's outlines stay hairlines", () => {
+    // Same bug, strokes instead of type: widths were written raw into a
+    // metre viewBox, so a 1 px outline came out k pixels thick.
+    for (const k of [2, 7]) {
+      const svg = toSvg(renderHull(hull, { mode: "schematic" }), { pxPerMetre: k });
+      const widths = [...svg.matchAll(/stroke-width="([\d.]+)"/g)].map((m) => Number(m[1]) * k);
+      expect(widths.length).toBeGreaterThan(0);
+      for (const px of widths) expect(px).toBeLessThanOrEqual(2.5); // the thickest stroke the scene asks for is 2 px
+    }
+  });
+
+  it("keeps a label the same size on screen however the export is scaled", () => {
+    const fontOf = (svg: string) => Number(/font-size="([\d.]+)"/.exec(svg)?.[1]);
+    // Twice the px/metre, half the user units — the glyph does not grow.
+    expect(fontOf(toSvg(scene, { pxPerMetre: 8 }))).toBeCloseTo(fontOf(toSvg(scene, { pxPerMetre: 4 })) / 2, 2);
+  });
+
+  it("points every label's hover owner at an element that exists", () => {
+    // `owner` is how a label borrows the hover state of the thing it annotates
+    // (HullCanvas). A stale id would silently never enlarge.
+    const present = new Set(ids(scene));
+    for (const el of labels) {
+      if (el.kind !== "text" || el.owner === undefined) continue;
+      expect(present, `label ${el.id} owned by missing ${el.owner}`).toContain(el.owner);
+    }
+  });
+
+  it("gives the section, slot, CG and ruler labels their named sizes", () => {
+    const sizeOf = (id: string) => {
+      const el = scene.elements.find((e) => e.id === id);
+      return el?.kind === "text" ? el.size : undefined;
+    };
+    expect(sizeOf("section-label-fore")).toBe(LABEL_PX.section);
+    expect(sizeOf("slot-label-t1")).toBe(LABEL_PX.slot);
+    expect(sizeOf("cg-label")).toBe(LABEL_PX.cg);
+    expect(sizeOf("tick-label-0")).toBe(LABEL_PX.rulerTick);
   });
 });
 

@@ -379,7 +379,8 @@ export interface PlacedAppendage {
  * is two panels, never a swept disc.
  */
 export function placeAppendage(spine: Spine, appendage: Appendage): PlacedAppendage[] {
-  const attach = Number.isFinite(appendage.attach_r as number) ? (appendage.attach_r as number) : halfHeightAt(spine, appendage.station);
+  const skin = appendage.plane === "plan" ? beamAt(spine, appendage.station) / 2 : halfHeightAt(spine, appendage.station);
+  const attach = Number.isFinite(appendage.attach_r as number) ? (appendage.attach_r as number) : skin;
   const outline = (appendage.outline ?? []).map(([dx, dy]) => [appendage.station + dx, attach + dy] as [number, number]);
   const area = polygonArea(outline);
   const placed: PlacedAppendage[] = [{ id: appendage.id, kind: appendage.kind, outline, mirrored: false, area_m2: area }];

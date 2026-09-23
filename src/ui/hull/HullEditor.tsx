@@ -18,12 +18,14 @@ import type { TypedRecord } from "../../core/types";
 import { HullCanvas, type CanvasEdit, type Selection } from "./HullCanvas";
 import { readHull, stationPitch, writeHull } from "../../core/designer/hull/record";
 import { hullAdvisories, type AdvisoryContext, type BusStandard, type StyleKit } from "../../core/designer/hull/advisories";
-import { hullMetrics } from "../../core/designer/hull/geometry";
+import { hullMetrics, wettedArea } from "../../core/designer/hull/geometry";
 import { renderHull, toSvg } from "../../core/designer/hull/render";
-import { familiesOf, partsForHull, slotIdOf } from "../../core/designer/hull/parts";
+import { familiesOf, partsForHull, radiatorRatio, slotIdOf, DEFAULT_RADIATOR_ASPECT, type View } from "../../core/designer/hull/parts";
 import { byDomain, sortViolations, type Violation } from "../../core/designer/violations";
 import type { HullGeometry, ShadowCone } from "../../core/designer/hull/types";
 import type { RenderMode } from "../../core/designer/hull/render";
+import { CLASS_CODES } from "../../core/designer/hull/classes";
+import type { Preset } from "../../core/types";
 
 const fmt = (n: number, d = 0) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "—");
 
@@ -38,6 +40,7 @@ export function HullEditor({ id }: { id: string }) {
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<RenderMode>("schematic");
+  const [view, setView] = useState<View>("profile");
   const [overlays, setOverlays] = useState({ beam: true, slots: true, sections: true, figures: true, cone: false, ghost: true, parts: true });
   const timer = useRef<number | null>(null);
 
@@ -94,7 +97,7 @@ export function HullEditor({ id }: { id: string }) {
   // else. Editor 2 replaces `weapons` with what is actually loaded.
   const styleRecord = refRecord(repo, draft, "style");
   const families = useMemo(() => familiesOf(styleRecord?.fields), [styleRecord?.fields]);
-  const fitted = useMemo(() => (overlays.parts ? partsForHull(hull, { families }) : undefined), [hull, families, overlays.parts]);
+  const fitted = useMemo(() => (overlays.parts ? partsForHull(hull, { families, view }) : undefined), [hull, families, overlays.parts, view]);
 
   if (!repo || !draft || !loaded) return <div className="muted">Hull not found.</div>;
 
@@ -140,12 +143,18 @@ export function HullEditor({ id }: { id: string }) {
         <span className="tag">{String(draft.fields.hull_class ?? "—")}</span>
         <span className="grow" />
         <Toggle on={mode === "schematic"} onClick={() => setMode((m) => (m === "schematic" ? "silhouette" : "schematic"))} label="Schematic" />
+        <Toggle
+          on={view === "plan"}
+          onClick={() => setView((v) => (v === "plan" ? "profile" : "plan"))}
+          label="Plan"
+          title="From above: the beam outline, with beam mounts side-on and dorsal mounts seen from the top"
+        />
         {(["parts", "beam", "slots", "sections", "figures", "cone", "ghost"] as const).map((k) => (
           <Toggle
             key={k}
             on={overlays[k]}
             onClick={() => setOverlays((o) => ({ ...o, [k]: !o[k] }))}
-            label={k === "figures" ? "Scale" : k[0]!.toUpperCase() + k.slice(1)}
+            label={k === "figures" ? "Scale" : k === "beam" && view === "plan" ? "Height" : k[0]!.toUpperCase() + k.slice(1)}
             disabled={k === "ghost" && !parent}
             title={k === "parts" ? (styleRecord ? `Fittings from ${styleRecord.name}` : "Fittings — no style kit linked, so defaults are used") : undefined}
           />
@@ -170,6 +179,7 @@ export function HullEditor({ id }: { id: string }) {
           hull={hull}
           options={{
             mode,
+            view,
             showBeam: overlays.beam,
             slots: overlays.slots,
             sections: overlays.sections,
@@ -190,6 +200,16 @@ export function HullEditor({ id }: { id: string }) {
         />
 
         <div className="hullside">
+          {!(hull.spine.length_m && hull.spine.length_m > 0 && hull.spine.stations.length >= 2) && (
+            <ClassPicker
+              presets={repo.registry.presetsFor("hull")}
+              onPick={(preset) => {
+                setDraft({ ...draft, fields: fromClass(draft.fields, preset) });
+                setDirty(true);
+                setSelection(null);
+              }}
+            />
+          )}
           <Inspector hull={hull} selection={selection} commit={commit} pitch={pitch} />
           <Conformance hull={hull} style={styleRecord} commit={commit} />
           <Advisories
@@ -291,6 +311,12 @@ function Outline({ hull, selection, onSelect, advisories }: { hull: HullGeometry
       ))}
       {!(hull.external_slots ?? []).length && <div className="muted">none</div>}
 
+      <h4>Armour zones</h4>
+      {(hull.armor_zones ?? []).map((z) => (
+        <Row key={z.id} kind="zone" id={z.id} label={`${z.id}${z.material ? ` · ${z.material}` : ""}`} note={`${fmt(z.x0, 1)}–${fmt(z.x1, 1)} m`} />
+      ))}
+      {!(hull.armor_zones ?? []).length && <div className="muted">none</div>}
+
       <h4>Appendages</h4>
       {(hull.appendages ?? []).map((a) => (
         <Row key={a.id} kind="appendage" id={a.id} label={`${a.id} · ${a.kind}`} note={`${fmt(a.station, 1)} m`} />
@@ -374,6 +400,7 @@ function Inspector({ hull, selection, commit, pitch }: { hull: HullGeometry; sel
       </div>
     );
   }
+  if (selection.kind === "zone") return <ZoneInspector hull={hull} id={selection.id} commit={commit} />;
   const a = (hull.appendages ?? []).find((a) => a.id === selection.id);
   if (!a) return null;
   const set = (patch: Partial<typeof a>) => commit({ ...hull, appendages: (hull.appendages ?? []).map((t) => (t.id === a.id ? { ...t, ...patch } : t)) });
@@ -390,6 +417,139 @@ function Inspector({ hull, selection, commit, pitch }: { hull: HullGeometry; sel
           <option value="none">none</option>
         </select>
       </div>
+    </div>
+  );
+}
+
+/** The hull-geometry fields a class supplies. Everything else on the record is the author's. */
+const CLASS_GEOMETRY = ["spine", "sections", "armor_zones", "external_slots", "appendages", "packing_efficiency", "structure_mass_fraction"];
+
+/**
+ * A record's fields started from a class: the class's geometry, and its code
+ * and notes where the record has none of its own. Links, style, bus, operator
+ * — anything the author set — survive.
+ */
+function fromClass(fields: Record<string, unknown>, preset: Preset): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...fields };
+  for (const k of CLASS_GEOMETRY) if (preset.fields[k] !== undefined) next[k] = structuredClone(preset.fields[k]);
+  for (const k of ["hull_class", "design_notes", "environment"]) if (!next[k] && preset.fields[k] !== undefined) next[k] = preset.fields[k];
+  return next;
+}
+
+/**
+ * Shown while the spine is empty, so a new design never has to start from
+ * nothing (`gallery/09` §2). A class is a starting point: every number in it
+ * is editable afterwards, and choosing one only ever fills an empty hull.
+ */
+function ClassPicker({ presets, onPick }: { presets: Preset[]; onPick: (p: Preset) => void }) {
+  const classes = presets
+    .filter((p) => p.tags?.includes("class"))
+    .sort((a, b) => CLASS_CODES.indexOf(String(a.fields.hull_class) as never) - CLASS_CODES.indexOf(String(b.fields.hull_class) as never));
+  if (!classes.length) return null;
+  const length = (p: Preset) => (p.fields.spine as { length_m?: number } | undefined)?.length_m;
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Start from a class</h3>
+      <p className="muted" style={{ fontSize: 11, marginTop: 0 }}>
+        This hull has no spine yet. A class fills in its profile, sections, slots and armour — all editable afterwards.
+      </p>
+      <div className="stack" style={{ gap: 4 }}>
+        {classes.map((p) => (
+          <button key={p.id} className="ghost classpick" title={p.description} onClick={() => onPick(p)}>
+            <span className="tag">{String(p.fields.hull_class)}</span>
+            <span className="grow">{p.title.replace(/^[A-Z]+ — /, "")}</span>
+            <span className="muted mono">{length(p) ?? "—"} m</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Armour zones — the one thing `gallery/07` §3 lists as owned by editor 1 that
+ * had no editor at all. Clicking a belt selected `kind: "zone"`, the inspector
+ * had no branch for it, and the flow fell through to the appendage lookup and
+ * returned null, blanking the card (`gallery/09` §3.2).
+ *
+ * The derived figures repeat `armorMass()` in `ship/budget.ts` rather than
+ * calling it, because that function is private to the ship budget and takes a
+ * whole `ShipContext`. Both read `density_kg_m3` from `_tables/armor.yaml` over
+ * `wettedArea` of the zone's run, so the two agree by construction; if that
+ * stops being true the shared formula belongs in the kernel, not here.
+ */
+function ZoneInspector({ hull, id, commit }: { hull: HullGeometry; id: string; commit: (h: HullGeometry) => void }) {
+  const { repo } = useApp();
+  const z = (hull.armor_zones ?? []).find((t) => t.id === id);
+  if (!z) return null;
+  const set = (patch: Partial<typeof z>) => commit({ ...hull, armor_zones: (hull.armor_zones ?? []).map((t) => (t.id === z.id ? { ...t, ...patch } : t)) });
+
+  // Every armour row in the table, plus whatever this zone already names. A
+  // hand-authored or captured material is never dropped from the list — it is
+  // reported as unknown and still saves.
+  const rows = repo?.tables.rows("armor") ?? [];
+  const materials = rows.map((r) => r.id);
+  const options = z.material && !materials.includes(z.material) ? [z.material, ...materials] : materials;
+
+  const found = z.material && repo ? repo.tables.lookup("armor", z.material, "density_kg_m3") : undefined;
+  const density = found && !("error" in found) && typeof found.lookup.value === "number" ? found.lookup.value : undefined;
+  const provisional = found && !("error" in found) ? found.lookup.provisional : false;
+  const lookupError = found && "error" in found ? found.error : undefined;
+
+  const x0 = Math.min(z.x0, z.x1);
+  const x1 = Math.max(z.x0, z.x1);
+  const thickness_cm = z.thickness_cm ?? 0;
+  const area_m2 = x1 > x0 ? wettedArea(hull.spine, x0, x1) : 0;
+  const areal_kg_m2 = density !== undefined ? (thickness_cm / 100) * density : undefined;
+  const mass_t = areal_kg_m2 !== undefined ? (area_m2 * areal_kg_m2) / 1000 : undefined;
+  // `docs/UNITS.md` §5: a provisional figure carries its marker into anything
+  // derived from it, not just onto the row it came from.
+  const mark = provisional ? <span className="provisional inline" title="Rests on a provisional table row" /> : null;
+
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Armour {z.id}</h3>
+      <Num label="From" unit="m" value={z.x0} onChange={(x0) => set({ x0 })} />
+      <Num label="To" unit="m" value={z.x1} onChange={(x1) => set({ x1 })} />
+      <div className="field">
+        <label>Material</label>
+        <select value={z.material ?? ""} onChange={(e) => set({ material: e.target.value || undefined })} style={{ maxWidth: 160 }}>
+          <option value="">—</option>
+          {options.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Num label="Thickness" unit="cm" value={thickness_cm} onChange={(thickness_cm) => set({ thickness_cm })} />
+
+      <div className="field">
+        <label>Areal density</label>
+        <span className="mono">
+          {mark}
+          {areal_kg_m2 !== undefined ? `${fmt(areal_kg_m2, 1)} kg/m²` : "—"}
+        </span>
+      </div>
+      <div className="field">
+        <label>Belt area</label>
+        <span className="mono">{fmt(area_m2)} m²</span>
+      </div>
+      <div className="field">
+        <label>Zone mass</label>
+        <span className="mono">
+          {mark}
+          {mass_t !== undefined ? `${fmt(mass_t, 1)} t` : "—"}
+        </span>
+      </div>
+
+      {provisional && <div className="muted provisional">Armour mass rests on a provisional figure in `_tables/armor.yaml`.</div>}
+      {lookupError && <div className="muted" style={{ fontSize: 11 }}>No density for this material — {lookupError}. It still saves; the budget contributes no armour mass for this zone.</div>}
+      {!z.material && <div className="muted" style={{ fontSize: 11 }}>No material set, so this zone contributes no mass to the budget.</div>}
+
+      <button className="ghost danger" onClick={() => commit({ ...hull, armor_zones: (hull.armor_zones ?? []).filter((t) => t.id !== z.id) })}>
+        Remove zone
+      </button>
     </div>
   );
 }
@@ -446,6 +606,14 @@ function Conformance({ hull, style, commit }: { hull: HullGeometry; style: Typed
             {k} <span className="muted">{String(v)}</span>
           </span>
         ))}
+        {families.radiator_aspect === undefined && (
+          <span className="chip" title="The kit sets no radiator_aspect, so the generator's default applies">
+            radiator_aspect <span className="muted">{DEFAULT_RADIATOR_ASPECT} (default)</span>
+          </span>
+        )}
+        <span className="chip" title="Height over length for this kit's radiator family at size M, after its own character is applied. Never below 1.">
+          drawn <span className="muted">{radiatorRatio(families.radiator, families.radiator_aspect).toFixed(2)} : 1</span>
+        </span>
         {Object.keys(families).length === 0 && <span className="muted">kit declares no part families</span>}
       </div>
       {off.length > 0 && (

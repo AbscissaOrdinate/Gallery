@@ -22,7 +22,7 @@
  * Nothing here is stored. `docs/CLAUDE.md`: the hull SVG is generated from the
  * record at render time, never kept as an asset.
  */
-import { familiesOf, partKindFor, partsForHull, type FittedWeapon, type PartFamilies, type WeaponFamily } from "../hull/parts";
+import { familiesOf, partKindFor, partsForHull, WEAPON_FAMILIES, type FittedWeapon, type PartFamilies, type View, type WeaponFamily } from "../hull/parts";
 import type { Appendage, ExternalSlot, HullGeometry } from "../hull/types";
 import { readModule, type ModuleSpec } from "./module";
 import type { ShipLoadout } from "./types";
@@ -62,8 +62,6 @@ const CATEGORY_WEAPON: Record<string, WeaponFamily | undefined> = {
   "point-defense": "ciws",
 };
 
-const WEAPON_FAMILIES: WeaponFamily[] = ["gun", "cell", "rocket", "arm", "laser", "plasma", "particle", "ciws"];
-
 /** What the silhouette generator needs to know about the weapon in a slot. */
 export function fittedWeapon(spec: ModuleSpec): FittedWeapon | undefined {
   const declared = spec.weapon_family && WEAPON_FAMILIES.includes(spec.weapon_family as WeaponFamily) ? (spec.weapon_family as WeaponFamily) : undefined;
@@ -90,6 +88,8 @@ export interface SilhouetteOptions {
   module?: (id: string) => Record<string, unknown> | undefined;
   /** Override the families the style kit gives, for a preview. */
   families?: PartFamilies;
+  /** Side elevation (default) or from above. */
+  view?: View;
 }
 
 /**
@@ -163,6 +163,6 @@ export function shipSilhouette(hull: HullGeometry, ship: ShipLoadout, options: S
     if (weapon) weapons[id] = weapon;
   }
 
-  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons, scales });
+  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons, scales, view: options.view });
   return { parts, emptySlots };
 }

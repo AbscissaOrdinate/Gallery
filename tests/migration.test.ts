@@ -261,7 +261,9 @@ describe("schema versions", () => {
     // Fittings, manifest, tanks, modes, watch factor and endurance.
     expect(byId.craft?.version).toBe(2);
     expect(byId.bus?.version).toBe(1);
-    expect(byId.style?.version).toBe(1);
+    // radiator_aspect, ruled 2026-09-20: radiators stay taller than wide, and
+    // how much taller is the kit's to set (`gallery/09` §1.3).
+    expect(byId.style?.version).toBe(2);
   });
 
   it("upgrades an on-disk schema and keeps the old copy, per the existing mechanism", async () => {

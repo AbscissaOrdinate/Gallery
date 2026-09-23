@@ -6,9 +6,11 @@
  * baseline (fission/NSWR era); tune them per setting via the files.
  */
 import type { Preset } from "../../types";
+import type { ArmorZone, Spine } from "../../designer/hull/types";
+import { ANCHOR_PRESET_ID, hullClassPresets } from "../../designer/hull/classes";
 import { BODY_PRESETS } from "./bodyPresets";
 
-export const BUILTIN_PRESETS: Preset[] = [
+const BASE_PRESETS: Preset[] = [
   ...BODY_PRESETS,
   // ---- polity ------------------------------------------------------------
   {
@@ -368,9 +370,12 @@ export const BUILTIN_PRESETS: Preset[] = [
     // slot inventory on the station grid, and sections that cover the hull.
     // This is what a hull authored in editor 1 looks like, as against the v1
     // presets below which exist to exercise the migrator.
+    // It is also the anchor of the eleven hull classes (`hull/classes.ts`):
+    // the DD entry, and the ship every other class is scaled from.
     id: "ujcn-destroyer-hull",
     type: "hull",
-    title: "Destroyer hull (UJCN pattern)",
+    title: "DD — destroyer hull (UJCN pattern, the class anchor)",
+    tags: ["class", "DD"],
     fields: {
       hull_class: "DD",
       environment: "orbital",
@@ -565,4 +570,17 @@ export const BUILTIN_PRESETS: Preset[] = [
   // ---- character ---------------------------------------------------------
   { id: "officer", type: "character", title: "Naval officer", fields: { role: "Commander", species: "human" } },
   { id: "executive", type: "character", title: "Company executive", fields: { role: "Director", species: "human" } },
+];
+
+/** The anchor every hull class is built against. */
+const anchor = BASE_PRESETS.find((p) => p.id === ANCHOR_PRESET_ID);
+
+/**
+ * Every built-in preset. The hull classes are generated from the anchor
+ * rather than typed out, so their derivation stays inspectable in
+ * `designer/hull/classes.ts` — the measured figures there, the metres here.
+ */
+export const BUILTIN_PRESETS: Preset[] = [
+  ...BASE_PRESETS,
+  ...(anchor ? hullClassPresets({ spine: anchor.fields.spine as Spine, armor_zones: anchor.fields.armor_zones as ArmorZone[] }) : []),
 ];

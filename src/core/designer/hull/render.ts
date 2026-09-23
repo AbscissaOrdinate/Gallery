@@ -12,6 +12,12 @@
  *  - **schematic** — sections tinted by kind, stations and slots labelled,
  *    advisory anchors marked
  *
+ * and, independently of the mode, two **views**: the side elevation
+ * (`profile`, the default) and the view from above (`plan`), where the hull's
+ * outline is its half-beam rather than its half-height. A plan schematic and
+ * a plan silhouette are both meaningful, which is why the view is its own axis
+ * rather than a third mode.
+ *
  * ## Colour
  *
  * Nothing here names a colour. Every element carries a `token` naming a CSS
@@ -26,7 +32,8 @@
  * flips y and applies the scale, so callers never do arithmetic on screen
  * pixels to know where a station is.
  */
-import type { Appendage, HullGeometry, ShadowCone } from "./types";
+import type { Appendage, ExternalSlot, HullGeometry, ShadowCone } from "./types";
+import type { View } from "./parts";
 import { breakpoints, halfHeightAt, beamAt, placeAppendage, placeAppendages, sectionVolumes, shadowRadiusAt } from "./geometry";
 
 export type RenderMode = "silhouette" | "schematic";
@@ -46,7 +53,12 @@ export type Token =
   | "line"
   | "line-faded"
   | "line-strong"
-  | "ok";
+  | "ok"
+  // Type, not structure. Labels were drawn in navy-200/300, which are surface
+  // tints and sit at too low a contrast to read as annotation over a tinted
+  // section (`gallery/09` §3.1).
+  | "text"
+  | "text-muted";
 
 export interface SceneStyle {
   fill?: Token;
@@ -61,7 +73,40 @@ export type SceneElement =
   | ({ kind: "polygon"; id: string; points: [number, number][]; role: string } & SceneStyle)
   | ({ kind: "line"; id: string; x1: number; y1: number; x2: number; y2: number; role: string } & SceneStyle)
   | ({ kind: "circle"; id: string; cx: number; cy: number; r: number; role: string } & SceneStyle)
-  | ({ kind: "text"; id: string; x: number; y: number; text: string; anchor?: "start" | "middle" | "end"; size?: number; role: string } & SceneStyle);
+  /**
+   * `size` is in **screen pixels**, not scene metres — see `LABEL_PX`.
+   *
+   * `owner` names the element whose hover should enlarge this label, the way
+   * `SystemMap` enlarges a body's label when the body is hovered. A label is
+   * never itself a pointer target, so without it a label has no hover state.
+   */
+  | ({ kind: "text"; id: string; x: number; y: number; text: string; anchor?: "start" | "middle" | "end"; size?: number; owner?: string; role: string } & SceneStyle);
+
+/**
+ * Label sizes, in **screen pixels**.
+ *
+ * Not metres. A label is type, and type is measured in pixels: it stays the
+ * same size as the view zooms, which is what a technical drawing's annotation
+ * wants and what `SystemMap` already does. Every consumer converts — the canvas
+ * divides by its px/metre, `toSvg` divides by `pxPerMetre` — so the glyph lands
+ * at this size however the scene is scaled.
+ *
+ * These were authored in metres until 2026-09-22, while `HullCanvas` read them
+ * as pixels. The round trip cancelled, so every on-screen label rendered at
+ * 2.2-3 CSS pixels at every zoom level while the same scene exported legibly:
+ * the two consumers disagreed about the unit and nothing asserted which was
+ * right. `gallery/09` §3.1. The values follow theme.css's `--fs-*` ramp
+ * (11/12/13/15/20); a ruler tick sits just under it, being the quietest thing
+ * on the canvas.
+ */
+export const LABEL_PX = {
+  section: 13,
+  slot: 11,
+  cg: 12,
+  rulerTick: 10,
+  /** What a text element that carries no size of its own is drawn at. */
+  fallback: 11,
+} as const;
 
 /**
  * Which way the ship points on screen.
@@ -78,6 +123,8 @@ export type BowSide = "left" | "right";
 
 export interface HullScene {
   mode: RenderMode;
+  /** Side elevation or from above. */
+  view: View;
   /** Hull-frame bounds in metres: everything drawn fits inside these. */
   bounds: { x0: number; y0: number; x1: number; y1: number };
   /** How a consumer should orient the scene. The coordinates are unaffected. */
@@ -87,6 +134,12 @@ export interface HullScene {
 
 export interface RenderOptions {
   mode?: RenderMode;
+  /**
+   * Side elevation (`profile`, the default) or from above (`plan`). In plan
+   * the outline is the beam, `showBeam` draws the height as the secondary
+   * outline, and only appendages authored in that plane are drawn.
+   */
+  view?: View;
   /** Draw the station ruler and its ticks. */
   stations?: boolean;
   /** Draw the beam as a second, lighter outline — the hull is elliptical, not a slab. */
@@ -158,33 +211,57 @@ function outlinePath(hull: HullGeometry, samples: number, useBeam = false): stri
   return parts.join(" ");
 }
 
+/**
+ * Where a slot sits in a view, in scene metres: on the ellipse at its clock
+ * angle, projected. Side-on that is `a·cos θ` — dorsal at the top of the
+ * profile, beam on the axis, 15° very nearly at the top. From above it is
+ * `−b·sin θ`, starboard (θ = 90) below the centreline with the bow to the
+ * right.
+ *
+ * One function, because the renderer's slot markers and the canvas's drag
+ * handles each used to work this out for themselves and disagreed: a slot at
+ * 15° drew its marker on the axis and its handle on the skin.
+ */
+export function slotAnchor(hull: HullGeometry, slot: Pick<ExternalSlot, "x" | "theta_deg">, view: View = "profile"): { x: number; y: number } {
+  const rad = (((slot.theta_deg % 360) + 360) % 360) * (Math.PI / 180);
+  if (view === "plan") return { x: slot.x, y: round(-(beamAt(hull.spine, slot.x) / 2) * Math.sin(rad)) };
+  return { x: slot.x, y: round(halfHeightAt(hull.spine, slot.x) * Math.cos(rad)) };
+}
+
 /** Build the drawable scene for a hull. */
 export function renderHull(hull: HullGeometry, options: RenderOptions = {}): HullScene {
   const mode = options.mode ?? "silhouette";
   const schematic = mode === "schematic";
+  const view: View = options.view ?? "profile";
+  const plan = view === "plan";
   const samples = options.samples ?? 120;
   const spine = hull.spine;
   const length = Math.max(0, spine.length_m ?? 0);
   const elements: SceneElement[] = [];
+  /** The hull's extent across the drawing at a station: half-height side-on, half-beam from above. */
+  const extent = (x: number): number => (plan ? beamAt(spine, x) / 2 : halfHeightAt(spine, x));
 
   let maxY = 0;
   for (const x of breakpoints(spine)) maxY = Math.max(maxY, halfHeightAt(spine, x), beamAt(spine, x) / 2);
 
   // --- parent ghost, behind everything -------------------------------------
   if (options.ghost) {
-    const d = outlinePath(options.ghost, samples);
+    const d = outlinePath(options.ghost, samples, plan);
     if (d) elements.push({ kind: "path", id: "ghost", role: "ghost", d, fill: undefined, stroke: "line-faded", strokeWidth: 1, dashed: true, opacity: 0.6 });
-    for (const x of breakpoints(options.ghost.spine)) maxY = Math.max(maxY, halfHeightAt(options.ghost.spine, x));
+    for (const x of breakpoints(options.ghost.spine)) maxY = Math.max(maxY, halfHeightAt(options.ghost.spine, x), beamAt(options.ghost.spine, x) / 2);
   }
 
-  // --- beam outline, drawn first so the profile sits over it ---------------
+  // --- the other extent, drawn first so the outline sits over it -----------
+  // Side-on that is the beam; from above it is the height. Either way it is
+  // the reminder that the section is an ellipse, not a slab.
   if (options.showBeam ?? schematic) {
-    const d = outlinePath(hull, samples, true);
-    if (d) elements.push({ kind: "path", id: "beam", role: "beam", d, fill: "navy-700", stroke: "line-faded", strokeWidth: 1, opacity: 0.45, dashed: true });
+    const d = outlinePath(hull, samples, !plan);
+    const id = plan ? "height" : "beam";
+    if (d) elements.push({ kind: "path", id, role: id, d, fill: "navy-700", stroke: "line-faded", strokeWidth: 1, opacity: 0.45, dashed: true });
   }
 
   // --- the hull itself ------------------------------------------------------
-  const hullPath = outlinePath(hull, samples);
+  const hullPath = outlinePath(hull, samples, plan);
   if (hullPath) {
     elements.push({
       kind: "path",
@@ -208,7 +285,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
     for (const section of hull.sections) {
       const x0 = Math.min(section.x0, section.x1);
       const x1 = Math.max(section.x0, section.x1);
-      const yTop = Math.max(halfHeightAt(spine, x0), halfHeightAt(spine, x1));
+      const yTop = Math.max(extent(x0), extent(x1));
       elements.push({
         kind: "polygon",
         id: `section-${section.id}`,
@@ -233,8 +310,9 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
         y: 0,
         text: volume ? `${section.id} · ${Math.round(volume.usable_m3).toLocaleString()} m³` : section.id,
         anchor: "middle",
-        size: 3,
-        fill: "navy-200",
+        size: LABEL_PX.section,
+        owner: `section-${section.id}`,
+        fill: "text-muted",
       });
     }
   }
@@ -247,14 +325,17 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
       const xs = profileXs(hull, samples).filter((x) => x >= x0 && x <= x1);
       if (xs.length < 2) continue;
       for (const sign of [1, -1]) {
-        const d = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${round(x)} ${round(sign * halfHeightAt(spine, x))}`).join(" ");
+        const d = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${round(x)} ${round(sign * extent(x))}`).join(" ");
         elements.push({ kind: "path", id: `armor-${zone.id}-${sign > 0 ? "top" : "bottom"}`, role: "armor", d, stroke: "rust-500", strokeWidth: 2, fill: undefined });
       }
     }
   }
 
   // --- appendages: flat parts, mirrored, never swept ------------------------
-  for (const placed of placeAppendages(hull)) {
+  // Only those authored in this view: a hand-drawn outline says nothing about
+  // what the part looks like from anywhere else.
+  const inView = (a: Appendage) => (a.plane ?? "profile") === view;
+  for (const placed of placeAppendages({ ...hull, appendages: (hull.appendages ?? []).filter(inView) })) {
     elements.push({
       kind: "polygon",
       id: `appendage-${placed.id}${placed.mirrored ? "-m" : ""}`,
@@ -271,16 +352,21 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   // Editor 2's modules. Same geometry as an appendage so they mirror, measure
   // and bound identically; a distinct id prefix and role so an editor can tint
   // or hide them, and so they never look like hull structure to a click.
+  //
+  // A `far` part — behind or inside the hull from here — is outline-only and
+  // dashed, the drawing convention for a hidden line, so it reads as a fitting
+  // and never as structure (`fitted:far:<kind>`).
   for (const part of options.fitted ?? []) {
     for (const placed of placeAppendage(spine, part)) {
+      const style: SceneStyle = part.far
+        ? { fill: undefined, stroke: "line-strong", strokeWidth: 1, dashed: true, opacity: 0.9 }
+        : { fill: schematic ? "navy-700" : "navy-200", stroke: "line-strong", strokeWidth: 1 };
       elements.push({
         kind: "polygon",
         id: `fitted-${placed.id}${placed.mirrored ? "-m" : ""}`,
-        role: `fitted:${placed.kind}`,
+        role: part.far ? `fitted:far:${placed.kind}` : `fitted:${placed.kind}`,
         points: placed.outline,
-        fill: schematic ? "navy-700" : "navy-200",
-        stroke: "line-strong",
-        strokeWidth: 1,
+        ...style,
       });
       for (const [, y] of placed.outline) maxY = Math.max(maxY, Math.abs(y));
     }
@@ -289,11 +375,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   // --- external slots -------------------------------------------------------
   if (options.slots ?? schematic) {
     for (const slot of hull.external_slots ?? []) {
-      // θ 0 is dorsal and 180 ventral; a beam slot (90/270) sits on the centreline
-      // in a side view, so it is drawn at the profile edge with a flat marker.
-      const theta = ((slot.theta_deg % 360) + 360) % 360;
-      const half = halfHeightAt(spine, slot.x);
-      const y = theta === 0 ? half : theta === 180 ? -half : 0;
+      const { y } = slotAnchor(hull, slot, view);
       elements.push({ kind: "circle", id: `slot-${slot.id}`, role: `slot:${slot.type}`, cx: slot.x, cy: y, r: 1.2, fill: "rust-300", stroke: "line-strong", strokeWidth: 0.5 });
       if (schematic) {
         elements.push({
@@ -304,8 +386,9 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
           y: y + (y >= 0 ? 3 : -3),
           text: `${slot.type} ${slot.size}`,
           anchor: "middle",
-          size: 2.2,
-          fill: "navy-200",
+          size: LABEL_PX.slot,
+          owner: `slot-${slot.id}`,
+          fill: "text-muted",
         });
       }
     }
@@ -337,7 +420,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   if (typeof options.cgStation === "number" && Number.isFinite(options.cgStation)) {
     const x = options.cgStation;
     elements.push({ kind: "circle", id: "cg", role: "overlay:cg", cx: x, cy: 0, r: 1.6, fill: "accent", stroke: "line-strong", strokeWidth: 0.6 });
-    elements.push({ kind: "text", id: "cg-label", role: "overlay:cg", x, y: -4, text: "CG", anchor: "middle", size: 2.5, fill: "accent" });
+    elements.push({ kind: "text", id: "cg-label", role: "overlay:cg", x, y: -4, text: "CG", anchor: "middle", size: LABEL_PX.cg, owner: "cg", fill: "accent" });
   }
 
   // --- station ruler --------------------------------------------------------
@@ -349,7 +432,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
     for (let x = 0, n = 0; x <= length + 1e-9; x += step, n++) {
       const major = n % 5 === 0;
       elements.push({ kind: "line", id: `tick-${n}`, role: "ruler-tick", x1: x, y1: rulerY, x2: x, y2: rulerY - (major ? 2 : 1), stroke: "line", strokeWidth: 0.4 });
-      if (major) elements.push({ kind: "text", id: `tick-label-${n}`, role: "ruler-label", x, y: rulerY - 3.5, text: `${Math.round(x)}`, anchor: "middle", size: 2.2, fill: "navy-300" });
+      if (major) elements.push({ kind: "text", id: `tick-label-${n}`, role: "ruler-label", x, y: rulerY - 3.5, text: `${Math.round(x)}`, anchor: "middle", size: LABEL_PX.rulerTick, fill: "text-muted" });
     }
     maxY = Math.max(maxY, Math.abs(rulerY) + 6);
   }
@@ -368,19 +451,31 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   const pad = Math.max(2, maxY * 0.08);
   return {
     mode,
+    view,
     bounds: { x0: -pad, y0: -(maxY + pad), x1: length + pad, y1: maxY + pad },
     bowSide: options.bowSide ?? "right",
     elements,
   };
 }
 
-const attr = (style: SceneStyle): string => {
+/**
+ * A scene element's style as SVG attributes, at `k` pixels per metre.
+ *
+ * Stroke widths and dashes are **screen pixels**, like label sizes: the canvas
+ * converts them with its px/metre so a line stays a line at any zoom. This
+ * divides by `k` for the same reason. It used to write them out raw, into a
+ * viewBox in metres, so every outline in an export was `k` pixels thick — 7 px
+ * at the style probe's scale, which drowned the part detail the way the labels
+ * once vanished (`gallery/08`, "Known bugs").
+ */
+const attr = (style: SceneStyle, k: number): string => {
   const parts: string[] = [];
   parts.push(`fill="${style.fill ? `var(--${style.fill})` : "none"}"`);
   if (style.stroke) parts.push(`stroke="var(--${style.stroke})"`);
-  if (style.strokeWidth !== undefined) parts.push(`stroke-width="${style.strokeWidth}"`);
+  if (style.strokeWidth !== undefined) parts.push(`stroke-width="${round(style.strokeWidth / k)}"`);
   if (style.opacity !== undefined) parts.push(`opacity="${style.opacity}"`);
-  if (style.dashed) parts.push(`stroke-dasharray="3 2"`);
+  // The canvas's dash, 5 px on and 4 off, in the same units.
+  if (style.dashed) parts.push(`stroke-dasharray="${round(5 / k)} ${round(4 / k)}"`);
   return parts.join(" ");
 };
 
@@ -392,9 +487,17 @@ const escapeText = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g,
  * The y axis is flipped by the group transform so that scene coordinates stay
  * "metres above the axis" everywhere else. Text is counter-flipped so it reads
  * the right way up.
+ *
+ * The viewBox is in metres and the width/height in pixels, so one user unit is
+ * `pxPerMetre` pixels — which is why `fontPx` below divides by it. `LABEL_PX`
+ * is in screen pixels and this is the conversion that honours it. The canvas
+ * does the same division against its own px/metre, so both consumers put a
+ * label on the glass at the size the renderer asked for.
  */
 export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: string } = {}): string {
   const k = opts.pxPerMetre ?? 4;
+  /** A label's size in user units (metres), so it lands at `size` pixels once scaled. */
+  const fontPx = (size: number | undefined): number => round((size ?? LABEL_PX.fallback) / k);
   const { x0, y0, x1, y1 } = scene.bounds;
   const w = Math.max(1, (x1 - x0) * k);
   const h = Math.max(1, (y1 - y0) * k);
@@ -402,7 +505,7 @@ export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: str
   const body: string[] = [];
 
   for (const el of scene.elements) {
-    const style = attr(el);
+    const style = attr(el, k);
     switch (el.kind) {
       case "path":
         body.push(`<path d="${el.d}" ${style} />`);
@@ -422,8 +525,8 @@ export function toSvg(scene: HullScene, opts: { pxPerMetre?: number; title?: str
         // linear part, and the anchor is negated on each flipped axis.
         body.push(
           mirrored
-            ? `<text x="${round(-el.x)}" y="${round(-el.y)}" transform="scale(-1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${el.size ?? 3}" ${style}>${escapeText(el.text)}</text>`
-            : `<text x="${round(el.x)}" y="${round(-el.y)}" transform="scale(1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${el.size ?? 3}" ${style}>${escapeText(el.text)}</text>`,
+            ? `<text x="${round(-el.x)}" y="${round(-el.y)}" transform="scale(-1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${fontPx(el.size)}" ${style}>${escapeText(el.text)}</text>`
+            : `<text x="${round(el.x)}" y="${round(-el.y)}" transform="scale(1,-1)" text-anchor="${el.anchor ?? "middle"}" font-size="${fontPx(el.size)}" ${style}>${escapeText(el.text)}</text>`,
         );
         break;
     }

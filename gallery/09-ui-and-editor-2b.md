@@ -364,12 +364,5 @@ Per `docs/CLAUDE.md`, `npm run typecheck` and `npm test` must be clean before an
 
 ## Open questions
 
-- **Hull ladder.** The table in §2 is a starting point anchored on the 138 m DD, not a
-  measurement. Confirm or correct once the reference has been measured.
-- **MN.** Read as "monitor". The existing monitor preset uses the code `BM`; say which code
-  the hull class should carry.
-- **Round mass above 450 mm.** The three ruled anchors stop there; a 600 mm shell
-  extrapolates to 3.2 t and is flagged as extrapolated. A fourth anchor would remove the
-  guesswork.
 - **`max_gimbal_deg`** is still unsupplied, so the thrust-line check reports the angle a
   design needs and asserts nothing.

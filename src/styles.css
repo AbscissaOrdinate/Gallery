@@ -100,6 +100,12 @@ table.modes td.warn { color: var(--warn); }
 .advisories li.info { color: var(--text-muted); }
 .provisional { margin-top: var(--sp-2); }
 .provisional::before { content: "⚠"; margin-right: 4px; color: var(--warn); }
+/* The same marker riding on a single value rather than on a note under the
+   card. `docs/UNITS.md` §5 wants it on every figure a provisional row reaches,
+   including derived ones, so it has to sit inline without the block margin. */
+.provisional.inline { margin-top: 0; display: inline; }
+/* A class in the hull editor's "start from a class" list: code, name, length. */
+button.classpick { display: flex; align-items: center; gap: var(--sp-2); width: 100%; text-align: left; height: auto; padding: 4px 8px; }
 .budget { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-2); }
 .stat { background: var(--surface-muted); border: 1px solid var(--line-faded); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); }
 .stat .k { color: var(--text-faint); font-size: var(--fs-xs); }

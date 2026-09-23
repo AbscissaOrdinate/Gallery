@@ -15,10 +15,14 @@
  * the fleet plates; the record is bow-at-zero either way. Text counter-flips so
  * the glyphs stay upright, and the pointer mapping inverts the same transform
  * so a drag lands where it is aimed.
+ *
+ * Labels are the one exception to "everything inside is in metres": `LABEL_PX`
+ * is in screen pixels, so `px()` converts it down into scene metres and the
+ * glyph comes out screen-constant at any zoom. That is the same convention
+ * `SystemMap` uses and the same one `toSvg` honours against its `pxPerMetre`.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { renderHull, type RenderOptions, type SceneElement } from "../../core/designer/hull/render";
-import { halfHeightAt } from "../../core/designer/hull/geometry";
+import { LABEL_PX, renderHull, slotAnchor, type RenderOptions, type SceneElement } from "../../core/designer/hull/render";
 import { snapStation } from "../../core/designer/hull/record";
 import type { HullGeometry } from "../../core/designer/hull/types";
 
@@ -139,6 +143,9 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
   const px = (n: number) => n / perMetre;
 
   const stations = hull.spine.stations;
+  // The spine's handles shape the half-height, so they belong to the side
+  // view. From above they would drag the height while showing the beam.
+  const plan = options.view === "plan";
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
@@ -227,6 +234,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
           )}
 
           {!readOnly &&
+            !plan &&
             stations.map((s, i) => {
               const on = selection?.kind === "station" && selection.id === String(i);
               return (
@@ -240,11 +248,8 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
 
           {!readOnly &&
             (hull.external_slots ?? []).map((s) => {
-              // Dorsal slots sit above the axis, ventral below; the beam slots
-              // are drawn on the axis because a side view cannot show them.
-              const r = halfHeightAt(hull.spine, s.x);
-              const t = ((s.theta_deg % 360) + 360) % 360;
-              const y = t < 90 || t > 270 ? r : t > 90 && t < 270 ? -r : 0;
+              // Exactly where the renderer puts the slot's marker, in either view.
+              const { y } = slotAnchor(hull, s, options.view);
               const on = selection?.kind === "slot" && selection.id === s.id;
               return (
                 <g key={"s" + s.id} data-handle="slot" data-id={s.id} style={{ cursor: "ew-resize" }}>
@@ -292,7 +297,10 @@ function SceneNode({
 }) {
   const pickKey = pickable(el);
   const on = pickKey !== undefined && pickKey === selectedKey;
-  const hot = hover === el.id;
+  // A label is never a pointer target itself, so it borrows the hover state of
+  // the thing it annotates — `SystemMap`'s convention, and what makes a label
+  // legible on demand without making every label large all the time.
+  const hot = hover === el.id || (el.kind === "text" && el.owner !== undefined && hover === el.owner);
   const common = {
     fill: el.fill ? `var(--${el.fill})` : "none",
     stroke: on ? "var(--accent)" : el.stroke ? `var(--${el.stroke})` : "none",
@@ -322,8 +330,12 @@ function SceneNode({
           y={-el.y}
           transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}
           textAnchor={el.anchor ?? "start"}
-          fontSize={scale(el.size ?? 11)}
+          // `el.size` is screen pixels (`LABEL_PX`); `scale` puts it into the
+          // scene metres this group is drawn in, so it stays that many pixels
+          // on the glass however far the view is zoomed.
+          fontSize={scale((el.size ?? LABEL_PX.fallback) * (hot ? 1.35 : 1))}
           fill={el.fill ? `var(--${el.fill})` : "var(--text-muted)"}
+          fontWeight={hot ? 600 : undefined}
           stroke="none"
           pointerEvents="none"
         >

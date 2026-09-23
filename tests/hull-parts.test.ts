@@ -8,9 +8,26 @@
  * only — a magazine is section volume and must not appear.
  */
 import { describe, it, expect } from "vitest";
-import { makePart, partsForHull, partKindFor, slotIdOf, PART_KINDS, type PartFamilies, type PartsOptions, type WeaponFamily } from "../src/core/designer/hull/parts";
-import { polygonArea } from "../src/core/designer/hull/geometry";
-import { renderHull } from "../src/core/designer/hull/render";
+import {
+  bundle,
+  familiesOf,
+  makePart,
+  partsForHull,
+  partKindFor,
+  radiatorRatio,
+  slotIdOf,
+  DEFAULT_RADIATOR_ASPECT,
+  PART_KINDS,
+  WEAPON_FAMILIES,
+  type PartFamilies,
+  type PartSpec,
+  type PartsOptions,
+  type RadiatorFamily,
+  type View,
+  type WeaponFamily,
+} from "../src/core/designer/hull/parts";
+import { beamAt, halfHeightAt, polygonArea } from "../src/core/designer/hull/geometry";
+import { renderHull, slotAnchor } from "../src/core/designer/hull/render";
 import type { HullGeometry } from "../src/core/designer/hull/types";
 
 const hull: HullGeometry = {
@@ -54,7 +71,9 @@ describe("generating a part", () => {
     expect(makePart({ kind: "thruster", size: "M", families: { thruster: "cluster" } })).toHaveLength(2);
     expect(makePart({ kind: "turret", size: "M", weapon: "gun" })).toHaveLength(2); // mounting + barrel
     expect(makePart({ kind: "turret", size: "M", weapon: "cell", cells: 4 })).toHaveLength(5); // deck + 4 hatches
-    expect(makePart({ kind: "pd", size: "M" })).toHaveLength(3);
+    // A point-defence mount is a CIWS (`CIWS_side.png`): body, mast, dish,
+    // shroud, barrels. It was three stacked boxes before the reference existed.
+    expect(makePart({ kind: "pd", size: "M" })).toHaveLength(5);
     expect(makePart({ kind: "radiator", size: "M", families: { radiator: "fin" } })).toHaveLength(1);
   });
 
@@ -120,9 +139,13 @@ describe("generating a part", () => {
   });
 
   it("scales a launcher by how many cells it has", () => {
-    const cells = (n: number) => makePart({ kind: "turret", size: "M", weapon: "cell", cells: n });
-    expect(cells(4)).toHaveLength(5);
-    expect(cells(8)).toHaveLength(9);
+    // Cells are laid out as a block, so side-on only the row along the hull
+    // shows and from above every cell does. Eight cells used to draw as eight
+    // hatches in a line, which is a launcher twice as long as it is.
+    const cells = (n: number, view?: View) => makePart({ kind: "turret", size: "M", weapon: "cell", cells: n }, view);
+    expect(cells(4)).toHaveLength(5); // deck + a row of 4
+    expect(cells(8)).toHaveLength(5); // deck + a row of 4; the other row is behind it
+    expect(cells(8, "plan")).toHaveLength(9); // deck + all 8
   });
 
   it("does not confuse point defence with a main turret", () => {
@@ -160,14 +183,40 @@ describe("placing parts on a hull", () => {
     expect(Math.max(...ys)).toBeGreaterThan(0);
   });
 
-  it("draws nothing for a beam-on slot rather than inventing a projection", () => {
-    // At 90° the fitting points at the viewer; in a side profile it is behind
-    // or in front of the hull. The slot marker is the honest drawing.
-    expect(partsForHull(hull).map((p) => p.id)).not.toContain("s1");
+  it("draws a beam-on slot as seen down its own axis, and as a far fitting", () => {
+    // At 90° the fitting points at the viewer, so side-on it is its plan view
+    // — not an invented projection, the part's own top view. It used to draw
+    // nothing at all, which is why side batteries were invisible. Port and
+    // starboard project onto the same place, so it is drawn as a hidden line.
+    const s1 = partsForHull(hull).filter((p) => slotIdOf(p.id) === "s1");
+    expect(s1.length).toBeGreaterThan(0);
+    expect(s1.every((p) => p.far === true && p.plane === "profile")).toBe(true);
+    expect(s1[0]?.attach_r).toBeCloseTo(0, 9); // a·cos 90°: on the axis
+    expect(JSON.stringify(s1.map((p) => p.outline))).toBe(JSON.stringify(makePart({ kind: "radar", size: "S" }, "plan")));
+  });
+
+  it("reads a mount at 345° as dorsal, like one at 15°", () => {
+    // Everything from 135° round to 360° used to count as ventral, so a mount
+    // 15° off the dorsal line to port hung upside down under the hull.
+    const tilted = { ...hull, external_slots: [{ id: "t", x: 30, theta_deg: 345, type: "turret", size: "M" }] };
+    const t = partsForHull(tilted).find((p) => p.id === "t");
+    expect(t?.attach_r).toBeGreaterThan(0);
+    expect(t?.outline.every(([, y]) => y >= 0)).toBe(true);
   });
 
   it("draws nothing for a slot type with no external appearance", () => {
-    expect(partsForHull(hull).map((p) => p.id)).not.toContain("sp"); // spinal is buried
+    // An empty spinal slot is buried in the hull with nothing to show.
+    expect(partsForHull(hull).map((p) => p.id)).not.toContain("sp");
+  });
+
+  it("draws a fitted spinal mount as its weapon's profile, along the axis", () => {
+    // Ruled 2026-09-21: borrow the side profile until purpose-built spinal
+    // glyphs exist. It is inside the hull, so it is a hidden line.
+    const sp = partsForHull(hull, { weapons: { sp: { weapon: "gun", bore_mm: 600 } } }).filter((p) => slotIdOf(p.id) === "sp");
+    expect(sp.length).toBeGreaterThan(1); // gunhouse and barrel
+    expect(sp.every((p) => p.far === true && p.attach_r === 0)).toBe(true);
+    const ys = sp.flatMap((p) => p.outline.map(([, y]) => y));
+    expect(Math.min(...ys)).toBeCloseTo(-Math.max(...ys), 9); // straddles the axis
   });
 
   it("turns a drive slot into a thruster", () => {
@@ -205,6 +254,256 @@ describe("placing parts on a hull", () => {
 
   it("survives a hull with no slots at all", () => {
     expect(partsForHull({ spine: { length_m: 10, beam_m: 2, stations: [] } })).toEqual([]);
+  });
+});
+
+/** Width along the hull and height outward of a set of pieces. */
+const extent = (pieces: [number, number][][]) => {
+  const pts = pieces.flat();
+  const xs = pts.map(([x]) => x);
+  const ys = pts.map(([, y]) => y);
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+};
+const SIZES = ["S", "M", "L", "XL"] as const;
+const RADIATOR_FAMILIES: RadiatorFamily[] = ["fin", "panel", "droplet-boom", "spine-array", "hoop", "membrane"];
+
+describe("growth is per family, not uniform (gallery/09 §1.2)", () => {
+  it("lengthens a gun's barrel faster than it grows the gunhouse", () => {
+    const gun = (size: (typeof SIZES)[number]) => makePart({ kind: "turret", size, weapon: "gun", bore_mm: 300 });
+    const house = (size: (typeof SIZES)[number]) => extent([gun(size)[0]!]);
+    const reach = (size: (typeof SIZES)[number]) => -Math.min(...gun(size).flat().map(([x]) => x));
+    // Both grow...
+    expect(house("XL").w).toBeGreaterThan(house("M").w);
+    expect(house("XL").h).toBeGreaterThan(house("M").h);
+    expect(reach("XL")).toBeGreaterThan(reach("M"));
+    // ...the barrel faster. An XL gun used to be exactly as fat as it was long.
+    expect(reach("XL") / house("XL").h).toBeGreaterThan(reach("M") / house("M").h);
+  });
+
+  it("gives a bigger launcher more cells at the same pitch", () => {
+    const hatches = (size: (typeof SIZES)[number]) => makePart({ kind: "turret", size, weapon: "cell" }, "plan").slice(1);
+    expect(SIZES.map((s) => hatches(s).length)).toEqual([2, 4, 8, 14]);
+    const widths = SIZES.map((s) => extent([hatches(s)[0]!]).w);
+    for (const w of widths) expect(w).toBeCloseTo(widths[0]!, 9); // never a wider cell
+  });
+
+  it("gives a bigger rocket launcher more tubes, never fatter ones", () => {
+    const tubes = (size: (typeof SIZES)[number]) => makePart({ kind: "turret", size, weapon: "rocket" }, "plan").slice(1);
+    const counts = SIZES.map((s) => tubes(s).length);
+    expect(counts[3]).toBeGreaterThan(counts[0]!);
+    const across = SIZES.map((s) => extent([tubes(s)[0]!]).h);
+    for (const d of across) expect(d).toBeCloseTo(across[0]!, 9);
+  });
+
+  it("lays 18 rocket tubes out the way the reference shows them", () => {
+    // rocket_side.png: three rows. rocket_top.png: six abreast.
+    expect(bundle(18)).toEqual({ rows: 3, cols: 6 });
+    expect(makePart({ kind: "turret", weapon: "rocket", cells: 18 })).toHaveLength(2 + 3);
+    expect(makePart({ kind: "turret", weapon: "rocket", cells: 18 }, "plan")).toHaveLength(1 + 6);
+  });
+
+  it("keeps a laser and a spherical tank spherical at every size", () => {
+    for (const spec of [{ kind: "turret", weapon: "laser" }, { kind: "tank", families: { tank: "spherical" } }] as PartSpec[]) {
+      const ratio = (size: (typeof SIZES)[number]) => {
+        const e = extent(makePart({ ...spec, size }));
+        return e.h / e.w;
+      };
+      for (const s of SIZES) expect(ratio(s), `${spec.kind} ${s}`).toBeCloseTo(ratio("M"), 9);
+    }
+  });
+
+  it("lengthens a barrel tank far more than it thickens it", () => {
+    const e = (size: (typeof SIZES)[number]) => extent(makePart({ kind: "tank", size, families: { tank: "barrel" } }));
+    expect(e("XL").w / e("M").w).toBeGreaterThan(2 * (e("XL").h / e("M").h));
+  });
+
+  it("grows a radiator outward and never along the hull", () => {
+    for (const radiator of RADIATOR_FAMILIES) {
+      const e = SIZES.map((size) => extent(makePart({ kind: "radiator", size, families: { radiator } })));
+      for (const x of e) expect(x.w, radiator).toBeCloseTo(e[1]!.w, 9);
+      expect(e[3]!.h, radiator).toBeGreaterThan(e[1]!.h);
+    }
+  });
+});
+
+describe("radiators stay taller than wide (ruled 2026-09-20)", () => {
+  it("holds for every family, size and aspect — membrane included", () => {
+    for (const radiator of RADIATOR_FAMILIES) {
+      for (const size of SIZES) {
+        for (const radiator_aspect of [0.4, 1, DEFAULT_RADIATOR_ASPECT, 2.5]) {
+          const e = extent(makePart({ kind: "radiator", size, families: { radiator, radiator_aspect } }));
+          expect(e.h, `${radiator} ${size} @${radiator_aspect}`).toBeGreaterThanOrEqual(e.w - 1e-9);
+        }
+      }
+    }
+  });
+
+  it("draws the default family at exactly the kit's aspect and keeps the others' character", () => {
+    expect(radiatorRatio("panel", 1.8)).toBeCloseTo(1.8, 12);
+    expect(radiatorRatio("fin", 1.35)).toBeGreaterThan(radiatorRatio("panel", 1.35));
+    expect(radiatorRatio("panel", 1.35)).toBeGreaterThan(radiatorRatio("membrane", 1.35));
+    // Membrane was 0.75 — wider than tall. The floor is what changes it.
+    expect(radiatorRatio("membrane", 1.35)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reads the aspect from the style kit and will not let it go below 1", () => {
+    expect(familiesOf({ radiator_aspect: 2 }).radiator_aspect).toBe(2);
+    expect(familiesOf({ radiator_aspect: 0.6 }).radiator_aspect).toBe(1);
+    expect(familiesOf({}).radiator_aspect).toBeUndefined(); // the default is the generator's, not the kit's
+    const tall = extent(makePart({ kind: "radiator", families: { radiator: "fin", radiator_aspect: 2 } }));
+    const plain = extent(makePart({ kind: "radiator", families: { radiator: "fin" } }));
+    expect(tall.h).toBeGreaterThan(plain.h);
+    expect(tall.w).toBeCloseTo(plain.w, 9);
+  });
+});
+
+describe("two views from one generator (gallery/09 §1.4)", () => {
+  const every: PartSpec[] = [...PART_KINDS.map((kind) => ({ kind }) as PartSpec), ...WEAPON_FAMILIES.map((weapon) => ({ kind: "turret", weapon }) as PartSpec)];
+
+  it("gives every kind and weapon a closed plan view with area", () => {
+    for (const spec of every) {
+      const pieces = makePart({ ...spec, size: "M" }, "plan");
+      expect(pieces.length, JSON.stringify(spec)).toBeGreaterThanOrEqual(1);
+      for (const o of pieces) {
+        expect(o.length).toBeGreaterThanOrEqual(3);
+        expect(polygonArea(o), JSON.stringify(spec)).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("draws every weapon family differently from above, too", () => {
+    const shapes = WEAPON_FAMILIES.map((weapon) => JSON.stringify(makePart({ kind: "turret", size: "M", weapon }, "plan")));
+    expect(new Set(shapes).size).toBe(WEAPON_FAMILIES.length);
+  });
+
+  it("gives every weapon a plan that is not just its profile again", () => {
+    for (const weapon of WEAPON_FAMILIES) {
+      const spec: PartSpec = { kind: "turret", size: "M", weapon };
+      expect(JSON.stringify(makePart(spec, "plan")), weapon).not.toBe(JSON.stringify(makePart(spec)));
+    }
+  });
+
+  it("centres a plan view across the part's own axis", () => {
+    for (const spec of every) {
+      const ys = makePart({ ...spec, size: "M" }, "plan").flat().map(([, y]) => y);
+      expect(Math.max(...ys) + Math.min(...ys), JSON.stringify(spec)).toBeCloseTo(0, 6);
+    }
+  });
+
+  it("draws a thruster the same both ways, because a nozzle is round", () => {
+    expect(makePart({ kind: "thruster" }, "plan")).toEqual(makePart({ kind: "thruster" }));
+  });
+
+  it("shows a radiator edge-on from above", () => {
+    const side = extent(makePart({ kind: "radiator", size: "L" }));
+    const top = extent(makePart({ kind: "radiator", size: "L" }, "plan"));
+    expect(top.w).toBeCloseTo(side.w, 9);
+    expect(top.h).toBeLessThan(side.h / 10);
+  });
+});
+
+describe("placing parts in the plan view", () => {
+  const plan = (options: PartsOptions = {}) => partsForHull(hull, { ...options, view: "plan" });
+
+  it("shows a dorsal mount from above, over the centreline", () => {
+    const t1 = plan().filter((p) => slotIdOf(p.id) === "t1");
+    expect(t1[0]?.attach_r).toBeCloseTo(0, 9);
+    expect(t1.every((p) => !p.far && p.plane === "plan")).toBe(true);
+    expect(JSON.stringify(t1.map((p) => p.outline))).toBe(JSON.stringify(makePart({ kind: "turret", size: "M" }, "plan")));
+  });
+
+  it("shows a ventral mount as hidden under the hull", () => {
+    expect(plan().filter((p) => slotIdOf(p.id) === "r1").every((p) => p.far === true)).toBe(true);
+  });
+
+  it("stands a starboard mount off the beam edge, side-on, pointing outboard", () => {
+    const s1 = plan().filter((p) => slotIdOf(p.id) === "s1");
+    expect(s1[0]?.attach_r).toBeCloseTo(-beamAt(hull.spine, 90) / 2, 9); // starboard is −y, bow to the right
+    expect(s1.every((p) => !p.far)).toBe(true);
+    expect(s1.flatMap((p) => p.outline).every(([, y]) => y <= 1e-9)).toBe(true);
+  });
+
+  it("mirrors a beam radiator to the other beam, and only a radiator", () => {
+    const beamy: HullGeometry = {
+      ...hull,
+      external_slots: [
+        { id: "r", x: 60, theta_deg: 270, type: "radiator", size: "L" },
+        { id: "g", x: 30, theta_deg: 270, type: "turret", size: "M" },
+      ],
+    };
+    const parts = partsForHull(beamy, { view: "plan" });
+    expect(parts.find((p) => p.id === "r")?.mirror).toBe("vertical");
+    expect(parts.find((p) => p.id === "g")?.mirror).toBe("none");
+  });
+
+  it("agrees with the renderer about where every slot is", () => {
+    // The dorsal and beam cases of partsForHull and slotAnchor are the same
+    // projection, computed twice; they must not drift apart.
+    for (const view of ["profile", "plan"] as View[]) {
+      for (const slot of hull.external_slots ?? []) {
+        if (slot.type === "spinal" || slot.type === "drive") continue;
+        const part = partsForHull(hull, { view }).find((p) => p.id === slot.id);
+        if (!part) continue;
+        const beamOn = Math.abs(Math.sin((slot.theta_deg * Math.PI) / 180)) > Math.SQRT1_2;
+        if ((view === "profile") === beamOn) expect(part.attach_r, `${slot.id} ${view}`).toBeCloseTo(slotAnchor(hull, slot, view).y, 3);
+      }
+    }
+  });
+});
+
+describe("rendering the plan view", () => {
+  it("outlines the hull by its beam from above", () => {
+    const side = renderHull(hull);
+    const top = renderHull(hull, { view: "plan" });
+    expect(top.view).toBe("plan");
+    const d = (s: ReturnType<typeof renderHull>) => (s.elements.find((e) => e.id === "hull") as { d: string }).d;
+    expect(d(top)).not.toBe(d(side));
+    expect(d(top)).toContain(` ${beamAt(hull.spine, 60) / 2} `); // half-beam 6 m
+  });
+
+  it("draws the height as the secondary outline from above", () => {
+    const ids = renderHull(hull, { view: "plan", mode: "schematic" }).elements.map((e) => e.id);
+    expect(ids).toContain("height");
+    expect(ids).not.toContain("beam");
+  });
+
+  it("draws a far part outline-only and dashed, under its own role", () => {
+    const scene = renderHull(hull, { fitted: partsForHull(hull) });
+    const s1 = scene.elements.find((e) => e.id === "fitted-s1");
+    expect(s1?.role).toBe("fitted:far:radar");
+    expect(s1?.fill).toBeUndefined();
+    expect(s1?.dashed).toBe(true);
+    expect(scene.elements.find((e) => e.id === "fitted-t1")?.role).toBe("fitted:turret");
+  });
+
+  it("draws an appendage only in the view it was authored for", () => {
+    const withBoth: HullGeometry = {
+      ...hull,
+      appendages: [
+        { id: "side", kind: "greeble", station: 40, outline: [[0, 0], [2, 0], [2, 1], [0, 1]] },
+        { id: "top", kind: "greeble", station: 50, plane: "plan", outline: [[0, 0], [2, 0], [2, 1], [0, 1]] },
+      ],
+    };
+    const ids = (view: View) => renderHull(withBoth, { view }).elements.map((e) => e.id);
+    expect(ids("profile")).toContain("appendage-side");
+    expect(ids("profile")).not.toContain("appendage-top");
+    expect(ids("plan")).toContain("appendage-top");
+    expect(ids("plan")).not.toContain("appendage-side");
+  });
+
+  it("puts a plan appendage on the beam edge by default", () => {
+    const withTop: HullGeometry = { ...hull, spine: { ...hull.spine, beam_m: 20 }, appendages: [{ id: "top", kind: "greeble", station: 50, plane: "plan", outline: [[0, 0], [2, 0], [2, 1], [0, 1]] }] };
+    const poly = renderHull(withTop, { view: "plan" }).elements.find((e) => e.id === "appendage-top");
+    const ys = poly?.kind === "polygon" ? poly.points.map(([, y]) => y) : [];
+    expect(Math.min(...ys)).toBeCloseTo(beamAt(withTop.spine, 50) / 2, 9); // 10 m, where the half-height is 6
+    expect(Math.min(...ys)).not.toBeCloseTo(halfHeightAt(hull.spine, 50), 3);
+  });
+
+  it("marks a slot at 15° near the top of the profile, not on the axis", () => {
+    // The renderer used to put anything that was not exactly 0° or 180° on
+    // the centreline, while the canvas put the same slot's handle on the skin.
+    const a = slotAnchor(hull, { x: 30, theta_deg: 15 });
+    expect(a.y).toBeCloseTo(halfHeightAt(hull.spine, 30) * Math.cos((15 * Math.PI) / 180), 3);
   });
 });
 

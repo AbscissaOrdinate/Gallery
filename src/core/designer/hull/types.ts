@@ -98,6 +98,20 @@ export interface Appendage {
   outline: [number, number][];
   /** Style-kit part reference. */
   part?: string;
+  /**
+   * Which view the outline is drawn in: the side elevation (`profile`, the
+   * default) or from above (`plan`). The attachment height defaults to the
+   * matching half-extent — half-height for a profile, half-beam for a plan —
+   * and the renderer draws an appendage only in its own view, since a
+   * hand-drawn outline says nothing about what it looks like from elsewhere.
+   */
+  plane?: "profile" | "plan";
+  /**
+   * Behind or inside the hull from where it is seen — a beam mount in the side
+   * view, a ventral one from above, a spinal mount in either. Drawn
+   * outline-only so it reads as a fitting and never as hull structure.
+   */
+  far?: boolean;
 }
 
 export interface HullGeometry {

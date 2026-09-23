@@ -24,6 +24,12 @@ npm run build && npx vite preview     # then, in another shell:
 node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}, -hull, -ship
 ```
 
+Two more checks by eye: `npx tsx scripts/hull-style-probe.mts [out.html]` draws every part
+glyph beside its reference in `docs/refs/Weapons/` (no browser needed), and
+`node scripts/measure-fleet-reference.mjs` reproduces the hull-class ladder in
+`designer/hull/classes.ts` from the fleet reference (needs a browser, like the smoke
+scripts; set `SMOKE_CHROME` to use an installed one).
+
 ## Layout
 
 ```

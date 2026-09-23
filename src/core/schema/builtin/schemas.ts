@@ -422,7 +422,7 @@ export const BUS_SCHEMA: TypeSchema = {
 
 export const STYLE_SCHEMA: TypeSchema = {
   id: "style",
-  version: 1,
+  version: 2, // 2: radiator_aspect
   title: "Style kit",
   description:
     "A polity's kit of parts and proportions. New hulls for that polity start from it; anything off-kit is listed as a deviation and never blocked, since a captured or export hull should be able to violate it.",
@@ -451,6 +451,13 @@ export const STYLE_SCHEMA: TypeSchema = {
         default: 0,
         "x-group": "Parts",
         description: "Rake of the array. Positive leans forward, negative aft.",
+      }),
+      radiator_aspect: num("Radiator aspect", undefined, {
+        minimum: 1,
+        default: 1.35,
+        "x-group": "Parts",
+        description:
+          "Height over length along the hull, at size M. Never below 1: radiators stay taller than wide. Each family keeps its own character around this — fins run taller, membranes squatter.",
       }),
       part_turret: str("Turrets", { enum: ["box", "barbette", "cupola"], default: "box", "x-group": "Parts" }),
       part_tank: str("Tanks", { enum: ["barrel", "spherical", "conformal"], default: "barrel", "x-group": "Parts" }),

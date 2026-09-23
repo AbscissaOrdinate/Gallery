@@ -191,6 +191,162 @@ weapon draws nothing. It will map to the fitted weapon's own family, so a spinal
 reads as a long gun along the axis. Purpose-built spinal shapes — a weapon that *is* the
 hull's length rather than a mounting on it — are deferred.
 
+### Step 2 — part glyphs, built 2026-09-22
+
+What `gallery/09` §1 asked for is in `hull/parts.ts`, with the readings below. Each is a
+place where the plan could be read two ways, or where building it turned something up.
+
+**The view is its own axis, not a third `RenderMode`.** §1.4(b) adds `"plan"` beside
+`silhouette` and `schematic`. But a plan *schematic* (sections, slots, labels, from above)
+and a plan *silhouette* are both meaningful, and a third mode would forbid one of them. So
+`RenderOptions.view` is `"profile" | "plan"`, the same vocabulary as the `plane` field the
+plan specifies for `Appendage`, and it combines with either mode.
+
+**§1.4(b)'s sentence is implemented as §1.4's geometry, which reads the other way.** §1.4
+argues that a mount seen from directly outboard is seen down its own axis, i.e. its plan.
+Applied to the view from above, that makes a **dorsal** mount the one seen down its axis
+(plan glyph, over the centreline) and a **beam** mount the one seen side-on (profile glyph,
+standing off the beam edge). §1.4(b) says the reverse — beam mounts draw their plan glyph,
+dorsal ones edge-on — which contradicts the argument it follows from. The geometry won.
+
+**`fitted:far:<kind>`, not `fitted:beam:<kind>`.** The outline-only, dashed treatment §1.4(a)
+asks for a beam mount in the side view turned out to be needed three times: a beam mount
+side-on (port and starboard project onto the same place, and which is nearer is not
+something the drawing can know), a ventral mount from above (under the hull), and a spinal
+mount in either view (inside it). It is one idea — a hidden line — so it is one role.
+
+**A beam mount sits at `a·cos θ`, not at mid-height.** Equal at exactly 90°. At 75° it is
+a quarter of the way up the side, which is where it is. The same projection now places the
+renderer's slot markers and the canvas's drag handles, through one `slotAnchor()`; before,
+a slot at 15° drew its marker on the axis and its handle on the skin.
+
+**A mount at 345° was drawn upside down.** `partsForHull` took everything from 135° round to
+360° as ventral, so the Sword hull's turrets at 315° and 345° hung under the keel. Dorsal
+and ventral now go by the sign of `cos θ`.
+
+**Radiator growth is read literally, and the result is slender.** §1.2: a radiator "extends
+further outward and never wider". So the along-hull length is fixed at 4 m for every size,
+the height grows with the size class, and an S radiator — which would otherwise come out
+wider than tall — is floored to square. An XL fin array is therefore 4 m long and about
+19 m tall, and a UJCN-style three-panel array fits three 1.3 m fins into those 4 m. That is
+what the ruling says; it may not be what was meant, if "wider" meant *each panel* rather
+than the array. It is one entry in `GROWTH` (`radiator: { along: 0, out: 1 }`) — **the
+vault owner's call**.
+
+**`radiator_aspect` keeps each family's character by meeting it halfway.** §1.3 asks each
+family to scale "toward" the kit's aspect rather than be replaced by it. Implemented as: the
+default family (`panel`) draws at exactly the kit's aspect, and every other family sits at
+the kit's aspect times the square root of its old ratio relative to `panel` — halfway in log
+terms — floored at 1. At the default 1.35 that gives fin 1.45, panel 1.35, hoop 1.32,
+spine-array 1.29, droplet-boom 1.27, membrane 1.05. Membrane is now taller than wide, as
+ruled, but only just; it is the squattest family by character. The style schema is at
+version 2 for the new field.
+
+**Growth rates the ruling did not state.** The table in §1.2 names the principal axis for
+masts, nozzles and point defence but not the secondary one. They are set at half rate; the
+arm (bandit) is `{ along: 1, out: 0.75 }`; plasma, particle beam and CIWS grow like a gun,
+since each is a barrel with a body behind it. These are styling choices, not rulings, and
+all of them are in the one `GROWTH` table.
+
+**Launchers are a block, not a row.** More cells at a fixed pitch (§1.2) laid in one line
+made a 16-cell VLS 16 m long. Cells and tubes are laid out as a bundle about twice as wide
+as it is deep — which is exactly the rocket reference: 18 tubes, three rows side-on and six
+abreast from above. Side-on only the row along the hull shows. When the module names no
+count, the size class does: 2/4/8/14 cells, 3/6/12/21 tubes. A 256 cap guards against a
+typo, not against a big launcher.
+
+**Where the polity's mount family shows.** On a gun it *is* the gunhouse, as before. On the
+reference-drawn laser, rocket, bandit and plasma it is the footing, where each reference has
+its own base plate. CIWS, VLS and the particle beam have no mounting and ignore it. A
+point-defence slot now draws as the CIWS — the reference is of the point-defence gun.
+
+**An appendage draws only in the plane it was authored in.** A hand-drawn outline says
+nothing about what the part looks like from elsewhere, so hull appendages (the greeble
+collars, a hand-authored radiator wing) are absent from the plan view rather than guessed.
+Fitted parts are generated in both views, so they always appear. The canvas also hides the
+spine's drag handles in plan view: they set the half-height, and from above that is not
+what is on screen.
+
+**A second unit bug, strokes this time.** `toSvg()` wrote stroke widths and dash lengths —
+screen pixels, as the canvas treats them — straight into a viewBox in metres, so every
+outline in an export was `pxPerMetre` pixels thick: 7 px in the style probe, enough to drown
+the new part detail. Same fix as the labels, same kind of test.
+
+**The style probe uses the app's theme.** It carried its own hex stand-ins for the tokens,
+which is a second palette. It now inlines `src/theme.css`.
+
+### Step 3 — hull classes, built 2026-09-22
+
+Eleven presets in `hull/classes.ts`, the reference measured by
+`scripts/measure-fleet-reference.mjs`, and a class picker wherever a hull's spine is empty.
+
+**The measured ladder corrects the plan's in one place that matters: the CL is bigger than
+the CA.** The reference draws every navy's ships with one icon per class at one common scale —
+widths agree across all four fleet colours to within a pixel — so the measurement is clean.
+Anchored on the destroyer icon at 138 m and snapped to the 3 m grid:
+
+| class | plan's starting figure | measured | icon length |
+|---|---|---|---|
+| CG | ~200 m | **183 m** | 40.2 px |
+| CA | ~225 m | **198 m** | 43.8 px |
+| CL | ~185 m | **237 m** | 52.4 px |
+| CV | ~260 m | **270 m** | 59.9 px |
+| BB | ~300 m | **315 m** | 69.4 px |
+
+CV and BB land within 5% of the plan; CG and CA come in shorter; the CL is the reversal. The
+presets follow the measurement, as the plan asked. If the setting's CL really is the smaller
+ship, the reference is the thing to correct, not the preset.
+
+**Five classes cannot be measured, and say so.** The chart has no frigate, monitor,
+strikecraft or missile, and it draws DD and DL with the *same* icon — each navy's smallest
+escort. Their lengths are the plan's own (FF 111, MN 150, DL 165, SC 21, MSL 8; 110 and 20
+moved onto the grid), and each shape is derived from a named source rather than drawn:
+DL is the anchor with a 27 m magazine plug ("a stretched DD: more magazine"); FF and SC are
+the anchor scaled uniformly; MN is the measured CV profile — the reference's lowest L/D —
+at 150 m; MSL takes the L/D of 10 from the vault's existing `missile-body` preset. The plan
+also calls the FF "thin". Uniform scaling keeps the DD's L/D, and anything thinner would need
+a figure nobody has given.
+
+**Heights are anchored on the destroyer too, not read straight off the icons.** The icons are
+pictograms and draw hulls thick: at the length scale, the destroyer icon is about twice the
+height of the 138 m destroyer it stands for. Read raw, every measured class would be twice
+as fat as the anchor it is scaled from. So the destroyer icon's mean thickness is made the
+anchor's mean height, and every class keeps its proportions *relative to the destroyer*
+exactly as drawn — the CV and the monitor at L/D 5.6 against the DD's 10.1, the DL at 12.1.
+That is a choice about what the icons mean; reading them literally is the alternative, and
+would double every measured class's volume.
+
+**The plan-view shape is the anchor's too.** The reference is side views only, so beam comes
+from the anchor's own ratios: 0.96 of the greatest height, reached a fifth of the way aft of
+a narrow bow.
+
+**No class carries a structural mass or cost.** Both are absolute figures the budget reads
+directly, and scaling the anchor's would need a law for how structure mass grows — with
+volume, with wetted area — which is a physical claim nobody has made. Every class but the
+anchor leaves them unset, and the budget's existing assumption line says so. **Armour** is
+the anchor's own 6 cm of composite on every class; a class's character shows in its
+*coverage* — the BB's belt between its bands, the monitor armoured end to end, the CA's nose
+over its forward battery. Per-class thickness is the vault owner's to give. The missile is
+unarmoured and carries no external slots (its motor is internal), deliberately.
+
+**MN is the monitor's code.** The open question that asked whether it should be `BM`, as the
+`monitor` craft preset still says, was withdrawn from `gallery/09` on 2026-09-22 without an
+answer recorded; `MN` is what the plan's list of eleven uses. The two presets disagree until
+someone picks.
+
+**The reference draws radiators as blocks, and the step 2 ruling makes them spikes.** Every
+measured radiator block is about 5 px (≈ 23 m) along the hull; under the literal "never
+wider" reading a radiator is 4 m long at every size. The presets size radiators by how far
+the reference's blocks reach (L for the CA and CG, XL for the rest) and put one slot per
+block, where the reference has them; the *drawn* shape is the generator's. This is the
+clearest evidence yet on the open radiator-growth question above.
+
+**The class picker only fills an empty spine.** It appears in the hull editor while the hull
+has no length or fewer than two stations, and fills the geometry fields (spine, sections,
+armour, slots, appendages, packing) — never the author's links, style or bus. A class is a
+starting point; replacing a drawn hull with one would be a destructive edit the editor has no
+undo for, so it is not offered.
+
 ## Still deferred
 
 - **Variants** — the hull schema's `parent` ref and the ghost overlay exist; the four legal
@@ -212,20 +368,49 @@ hull's length rather than a mounting on it — are deferred.
   figure would be structurally zero. Needs a canted or tangential nozzle the record cannot
   describe.
 
-## Known bugs this plan fixes
+## Known bugs — both fixed, 2026-09-22 (`gallery/09` §4 step 1)
 
-Both were found by reading the code for `gallery/09`, and neither is caught by any existing
-check — the 446 vitest tests are core-only (`environment: node`), and the headless smoke
-scripts do not touch either path.
+Both were found by reading the code for `gallery/09`, and neither was caught by any existing
+check — the vitest suite is core-only (`environment: node`), and the headless smoke scripts
+did not touch either path. Both now have coverage, because "nothing asserted which consumer
+was right" is what let the first one exist at all.
 
-- **Hull-canvas labels render at 2.2–3 CSS pixels at every zoom level.**
-  `HullCanvas.tsx:325` is `fontSize={scale(el.size ?? 11)}`, where `scale()` converts screen
-  pixels to scene metres — but `render.ts` authors `el.size` in metres. The round trip
-  cancels, so `perMetre` grows on zoom-in and the font shrinks by the identical factor. The
-  same scene through `toSvg()` renders at 12–18 px and is legible: the export path and the
-  on-screen path disagree about the unit, and the `?? 11` default versus `toSvg`'s `?? 3` is
-  the tell.
-- **Clicking an armour belt blanks the hull inspector.** `HullCanvas` makes zones pickable as
-  `kind: "zone"`, `Inspector` has no `zone` branch, and the flow falls through to the
-  appendage lookup and returns `null`. Armour is the one thing doc 07 §3 lists as owned by
-  editor 1 that has no editor at all.
+- **Hull-canvas labels rendered at 2.2–3 CSS pixels at every zoom level.** `render.ts`
+  authored `el.size` in metres; `HullCanvas` read it as screen pixels. The round trip
+  cancelled exactly, so the label was the one thing on the canvas that never grew.
+
+  **Fixed by moving the authored unit to screen pixels**, not by changing the canvas — its
+  `scale(size)` was already the right formula for a pixel-valued size, and screen-constant
+  labels are what a technical drawing wants and what `SystemMap` already does. Sizes now come
+  from an exported `LABEL_PX` (section 13, slot 11, CG 12, ruler tick 10) which both consumers
+  read, so the default can no longer differ between them the way `?? 11` and `?? 3` did.
+  `toSvg()` divides by `pxPerMetre`, its viewBox being in metres, and consequently renders
+  every label at its authored pixel size at *any* export scale — it was 8.8–12 px at
+  `pxPerMetre: 4` and 13–18 px at 6, i.e. legible by accident rather than by contract.
+
+  Labels also moved off `--navy-200`/`--navy-300`, which are surface tints, onto
+  `--text-muted`, and gained `SystemMap`'s hover-enlarge: a text element carries an `owner`
+  naming the element whose hover enlarges it, since a label is never itself a pointer target.
+
+  **Not done, and now visibly wanted:** label collision. Six turrets sharing a station draw six
+  labels on top of each other. `SystemMap` has a `placeLabels()` collision placer; the hull
+  canvas has nothing. `gallery/09` §3.1 lists this as "consider semantic zoom … worth it once
+  there are more than a handful of slots", and the UJCN pattern hull is past that point.
+
+- **Clicking an armour belt blanked the hull inspector.** Zones were pickable as
+  `kind: "zone"`, `Inspector` had no `zone` branch, and the flow fell through to the appendage
+  lookup and returned `null`.
+
+  **Fixed with a `ZoneInspector`**: from, to, material, thickness, plus areal density, belt
+  area and zone mass derived. Armour zones also gained an outliner group — the branch was
+  otherwise reachable only by hitting a 2 px belt stroke, which is not an editor. The derived
+  figures repeat `armorMass()` from `ship/budget.ts` rather than calling it, that function
+  being private to the ship budget and taking a whole `ShipContext`; both read
+  `density_kg_m3` from `_tables/armor.yaml` over `wettedArea`, so they agree by construction.
+  If that stops being true the shared formula belongs in the kernel.
+
+  A material the `armor` table does not carry still saves, is still listed in the select, and
+  is reported as having no density rather than silently contributing zero. A provisional
+  density carries the `⚠` marker onto the areal density and the zone mass both, per
+  `docs/UNITS.md` §5 — no armour row is provisional today, so this is the rule honoured
+  ahead of a row that needs it, not a live marker.
