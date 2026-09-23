@@ -222,6 +222,21 @@ describe("rings", () => {
   });
 });
 
+describe("flight decks", () => {
+  it("draw on a hangar slot of subtype flight-deck, and a plain bay draws nothing", () => {
+    const deck = partsForHull(hull([{ id: "d", x: 50, theta_deg: 0, type: "hangar", subtype: "flight-deck", size: "L" }]));
+    expect(deck.length).toBeGreaterThan(0);
+    expect(deck[0]!.kind).toBe("flightdeck");
+    expect(width(deck.map((p) => p.outline))).toBeCloseTo(32, 6); // four spans of an L
+    expect(partsForHull(hull([{ id: "b", x: 50, theta_deg: 0, type: "hangar", size: "L" }]))).toEqual([]);
+  });
+
+  it("round-trip their subtype through the record", () => {
+    const h = hull([{ id: "d", x: 50, theta_deg: 0, type: "hangar", subtype: "flight-deck", size: "L" }]);
+    expect(readHull(writeHull({}, h)).external_slots?.[0]?.subtype).toBe("flight-deck");
+  });
+});
+
 describe("plasma and rocket weapons", () => {
   it("ship as presets sourced from the mounts table, drawn as their own families", () => {
     const preset = (id: string) => BUILTIN_PRESETS.find((p) => p.id === id)!;

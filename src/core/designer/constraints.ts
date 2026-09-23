@@ -192,7 +192,7 @@ export const DEFAULT_CONSTRAINT_SET: ConstraintSet = {
       value: 0.715,
       unit: "t/m³",
       provisional: true,
-      note: "Rated full-load mass per m³ of usable volume. Calibrated so the 138 m DD anchor rates at 8,000 t, the NEBULOUS example destroyer the vault owner supplied on 2026-09-23. The Arleigh Burke Flight III's ~9,900 t would make it 0.885. A set for a lighter or denser-built navy should override it.",
+      note: "Rated full-load mass per m³ of usable volume. Calibrated so the 138 m DD anchor rates at 8,000 t — the NEBULOUS example destroyer, ruled the baseline by the vault owner on 2026-09-24 over the Arleigh Burke Flight III's ~9,900 t (which would make it 0.885). Provisional because it is a calibration, not a measurement. A set for a lighter or denser-built navy should override it.",
     },
     structure_cost_per_t: {
       value: 0.14,

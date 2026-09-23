@@ -254,7 +254,7 @@ The three constants are base-set parameters:
 | parameter | value | standing |
 |---|---|---|
 | `structure_density_kg_m3` (ρ_s) | 7,850 | sourced — `_tables/armor.yaml` steel |
-| `design_density_t_m3` (ρ_d) | 0.715 | provisional — calibrated so the 138 m DD rates at 8,000 t |
+| `design_density_t_m3` (ρ_d) | 0.715 | provisional — calibrated so the 138 m DD rates at 8,000 t, the baseline ruled 2026-09-24 |
 | `structure_cost_per_t` (c) | 0.14 | provisional — calibrated so the DD costs its old 380 |
 
 A `structural_mass_t` or `structural_cost` typed on a hull still wins, and the budget shows
@@ -275,6 +275,7 @@ Three optional fields on a hull's `external_slots[]`, read by the drawing and th
 | `facing_deg` | ° | Turn about the mount's own outward axis. 0 as drawn (muzzle to the bow, exhaust aft), 180 reversed; positive turns toward increasing clock angle. |
 | `tilt_deg` | ° | Thrusters and drives only: 0 fires along the hull, 90 straight outward. A `thruster` slot defaults to 90 — radial — which is what the attitude budget always assumed. |
 | `count` | 1–8 | A ring: this many copies spaced evenly round the hull from `theta_deg`. A fitting in a ring slot is charged once per member, on the thrust line. |
+| `subtype` | — | A kind within the slot type. A `hangar` is a `bay` (internal, the default, drawn as nothing) or a `flight-deck` — the externally mounted hangar, drawn as a deck on pylons (ruled 2026-09-24). |
 
 The attitude budget takes each thruster's torque as `r × F` about the centre of gravity, so a
 nozzle turned tangential produces **roll**, which is now reported whenever something can

@@ -87,6 +87,11 @@ export interface ExternalSlot {
   /** Thrusters and drives: 0 fires along the hull, 90 straight outward. */
   tilt_deg?: number;
   /**
+   * A kind within the slot type. `hangar` takes `bay` (internal, the default,
+   * draws nothing) or `flight-deck` (mounted outside the hull, drawn).
+   */
+  subtype?: string;
+  /**
    * A ring: this many copies spaced evenly round the hull from `theta_deg`,
    * 1–8. How a collar of drop tanks or a quad of attitude thrusters is one
    * slot rather than eight.

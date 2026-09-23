@@ -346,10 +346,14 @@ What each section may hold (`allowed`, in module categories):
 - **Quarterdeck** — habitat, flag and command, docking, EW, cargo, hangar.
 - **Fantail** — radiators, tanks, drive, reactor, thrusters, point defence, hangar and flight deck.
 
-Open when it is built: "flag / command" and "flight deck" need a module category (today's
-list has neither — `habitat` and `hangar` are the nearest), and the two-section FF and MN
-need their `allowed` lists stated. Where a destroyer merges its quarterdeck into the
-citadel, the citadel takes the union.
+Settled 2026-09-24: **flight deck** is a subtype of hangar, externally mounted — a hangar slot
+with `subtype: flight-deck` (built). **Flag bridge and command suites** are deferred; when
+built they are the same internal compartment category as the CIC and the intelligence
+suite — the `command` group of `_tables/compartments.yaml` (archetype `cic`, with
+intelligence as `fusion_processor`), which today has no module category of its own.
+
+Still open when this is built: the two-section FF and MN need their `allowed` lists stated,
+and where a destroyer merges its quarterdeck into the citadel, the citadel takes the union.
 
 ## 4. Order of work
 

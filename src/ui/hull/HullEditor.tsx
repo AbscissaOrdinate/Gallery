@@ -20,7 +20,7 @@ import { readHull, stationPitch, writeHull } from "../../core/designer/hull/reco
 import { hullAdvisories, type AdvisoryContext, type BusStandard, type StyleKit } from "../../core/designer/hull/advisories";
 import { hullMetrics, wettedArea } from "../../core/designer/hull/geometry";
 import { renderHull, toSvg } from "../../core/designer/hull/render";
-import { familiesOf, partsForHull, radiatorRatio, slotIdOf, DEFAULT_RADIATOR_ASPECT, SLOT_TYPES, type View } from "../../core/designer/hull/parts";
+import { familiesOf, partsForHull, radiatorRatio, slotIdOf, DEFAULT_RADIATOR_ASPECT, SLOT_SUBTYPES, SLOT_TYPES, type View } from "../../core/designer/hull/parts";
 import { slotOrientation, TILTABLE } from "../../core/designer/hull/orientation";
 import { byDomain, sortViolations, type Violation } from "../../core/designer/violations";
 import type { HullGeometry, ShadowCone } from "../../core/designer/hull/types";
@@ -406,6 +406,15 @@ function Inspector({ hull, selection, commit, pitch }: { hull: HullGeometry; sel
         <Num label="Clock" unit="°" value={s.theta_deg} onChange={(theta_deg) => set({ theta_deg })} />
         <Choice label="Type" value={s.type} options={SLOT_TYPES} onChange={(type) => set({ type })} />
         <Choice label="Size" value={String(s.size)} options={["S", "M", "L", "XL"]} onChange={(size) => set({ size })} />
+        {SLOT_SUBTYPES[s.type] && (
+          // The first subtype is the default, so choosing it clears the field.
+          <Choice
+            label="Subtype"
+            value={s.subtype ?? SLOT_SUBTYPES[s.type]![0]!}
+            options={SLOT_SUBTYPES[s.type]!}
+            onChange={(v) => set({ subtype: v === SLOT_SUBTYPES[s.type]![0] ? undefined : v })}
+          />
+        )}
         {/* Which way the mount points (hull/orientation.ts). A gun that has to
             fire astern is flipped; a thruster is turned and tilted. */}
         <div className="field">

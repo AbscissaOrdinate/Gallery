@@ -255,12 +255,14 @@ describe("schema versions", () => {
   it("bumps hull, module and craft, and ships bus and style", () => {
     const byId = Object.fromEntries(BUILTIN_SCHEMAS.map((s) => [s.id, s]));
     // 3: slot facing/tilt/ring count and the hull's internal density (2026-09-23).
-    expect(byId.hull?.version).toBe(3);
+    // 4: slot subtype, for flight decks (2026-09-24).
+    expect(byId.hull?.version).toBe(4);
     // Editor 2 added the six fields the ship kernel reads: standby draw,
     // radiator temperature, radiated power, and the three weapon-scale figures.
     expect(byId.module?.version).toBe(3);
     // Fittings, manifest, tanks, modes, watch factor and endurance.
-    expect(byId.craft?.version).toBe(2);
+    // 3: the watch bill's fields, which changed on 2026-09-20 without a bump.
+    expect(byId.craft?.version).toBe(3);
     expect(byId.bus?.version).toBe(1);
     // radiator_aspect, ruled 2026-09-20: radiators stay taller than wide, and
     // how much taller is the kit's to set (`gallery/09` §1.3).
@@ -275,7 +277,7 @@ describe("schema versions", () => {
     await fs.writeText("_schemas/hull.schema.json", JSON.stringify({ id: "hull", version: 1, title: "Hull", folder: "hulls", fields: { type: "object", properties: {} } }));
     await repo.registry.seed(fs);
     const upgraded = JSON.parse(await fs.readText("_schemas/hull.schema.json")) as { version: number };
-    expect(upgraded.version).toBe(3);
+    expect(upgraded.version).toBe(4);
     expect(await fs.exists("_schemas/hull.schema.v1.json")).toBe(true);
   });
 

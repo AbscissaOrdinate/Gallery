@@ -418,6 +418,28 @@ plan's ~185 on the grid, with the icon's profile. **MN** is the monitor's code. 
 strikecraft has no example row, so its nose zone carries no thickness rather than the
 destroyer's.
 
+### Rulings of 2026-09-24
+
+**The CV and MN keep their fat proportions and are resized as a whole** to their example
+masses: the CV to 123 m and the MN to 78 m, both at L/D ~5.6, rating at 19,000 t and 5,000 t
+with 33% and 65% of that hull. Part of the CV's hangar space is **external**: three flight
+decks, one along the spine and one off each beam, while the bays stay inside. The CV is now
+shorter than the cruisers; its length is the hull, not the carrier with its decks.
+
+**Flight deck is a subtype of hangar**, mounted outside the hull. Slots gained `subtype`
+(hull schema v4): a `hangar` is a `bay` by default and draws nothing, or a `flight-deck`,
+which draws a runway on pylons, four spans long. It is a slot property, so any hull can carry
+one; no module field was needed.
+
+**8,000 t is the destroyer baseline**, over the Burke's ~9,900 t. The design density stays
+at 0.715 t/m³, still provisional as a calibration.
+
+**Two schemas had changed without a version bump** — `craft` (the watch bill of 2026-09-20)
+and `system` (distance fields) — so a vault that already had them never upgraded; the working
+vault still offered the retired `watch_factor`. Both are bumped to v3, and
+`tests/schema-versions.test.ts` now pins every built-in schema's content to its version, so
+the next such change fails a test instead of going quietly missing.
+
 ## Still deferred
 
 - **Variants** — the hull schema's `parent` ref and the ghost overlay exist; the four legal

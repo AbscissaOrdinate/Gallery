@@ -80,6 +80,7 @@ export function readHull(fields: Record<string, unknown>): HullGeometry {
       size: typeof s.size === "number" ? s.size : str(s.size, "M"),
     };
     if (s.part !== undefined && str(s.part).trim()) slot.part = str(s.part).trim();
+    if (typeof s.subtype === "string" && s.subtype.trim()) slot.subtype = s.subtype.trim();
     const facing = num(s.facing_deg, NaN);
     if (Number.isFinite(facing) && facing !== 0) slot.facing_deg = facing;
     const tilt = num(s.tilt_deg, NaN);

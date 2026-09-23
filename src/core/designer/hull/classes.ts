@@ -354,6 +354,12 @@ interface ClassDef {
   title: string;
   /** Where the length and shape come from, one line, for the preset's description. */
   basis: string;
+  /**
+   * Keep the proportions and solve the **size** for the example mass, rather
+   * than keeping the length and solving the height. For the classes whose
+   * character is being fat — ruled 2026-09-24 for the CV and MN.
+   */
+  keepProportions?: boolean;
   build: (ctx: ClassContext) => { spine: Spine; sections: HullSection[]; armor_zones: ArmorZone[]; external_slots: ExternalSlot[]; design_notes: string };
 }
 
@@ -428,7 +434,8 @@ export const HULL_CLASSES: ClassDef[] = [
     code: "CV",
     id: "class-cv-hull",
     title: "CV — carrier hull",
-    basis: "Measured: the CV icon, 59.9 px — the fattest hull the reference draws.",
+    basis: "The CV icon's proportions — the fattest hull the reference draws — resized as a whole to its example mass; part of its hangar space is external, as flight decks (ruled 2026-09-24).",
+    keepProportions: true,
     build: (ctx) => {
       const spine = measuredSpine(ctx, "CV");
       const L = spine.length_m!;
@@ -444,6 +451,11 @@ export const HULL_CLASSES: ClassDef[] = [
         external_slots: [
           { id: "bay-1", x: 90, theta_deg: 180, type: "hangar", size: "L" },
           { id: "bay-2", x: 180, theta_deg: 180, type: "hangar", size: "L" },
+          // The external hangar space: a flight deck along the spine and one
+          // hung off each beam.
+          { id: "deck-d", x: 141, theta_deg: 0, type: "hangar", subtype: "flight-deck", size: "XL" },
+          { id: "deck-s", x: 120, theta_deg: 90, type: "hangar", subtype: "flight-deck", size: "L" },
+          { id: "deck-p", x: 120, theta_deg: 270, type: "hangar", subtype: "flight-deck", size: "L" },
           { id: "radar", x: 30, theta_deg: 0, type: "sensor", size: "L" },
           { id: "comms", x: 60, theta_deg: 0, type: "comms", size: "M" },
           { id: "cells-a", x: 105, theta_deg: 0, type: "turret", size: "M" },
@@ -458,7 +470,7 @@ export const HULL_CLASSES: ClassDef[] = [
           ...rcs(12, L - 15),
           { id: "drive", x: L, theta_deg: 0, type: "drive", size: "XL" },
         ],
-        design_notes: "A blunt hangar block: low L/D, hangar sections dominate, defended by point defence and cells rather than a gun battery.",
+        design_notes: "A blunt hangar block: low L/D, with its flight decks outside the hull — one along the spine, one off each beam — and the bays inside. Defended by point defence and cells rather than a gun battery.",
       };
     },
   },
@@ -662,7 +674,8 @@ export const HULL_CLASSES: ClassDef[] = [
     code: "MN",
     id: "class-mn-hull",
     title: "MN — monitor hull",
-    basis: "The measured CV profile — the reference's lowest L/D — at the plan's 150 m, scaled uniformly. The reference draws no monitor.",
+    basis: "The measured CV profile — the reference's lowest L/D — resized as a whole to the example monitor's mass, so it stays fat (ruled 2026-09-24). The reference draws no monitor.",
+    keepProportions: true,
     build: (ctx) => {
       const L = 150;
       const cv = FLEET_REFERENCE.icons.CV;
@@ -797,6 +810,41 @@ function scaleHeight(spine: Spine, k: number): Spine {
   };
 }
 
+/** Scale a whole class uniformly: every station, zone, section and slot. Heights and beams go with it. */
+function scaleWhole(built: ReturnType<ClassDef["build"]>, k: number): ReturnType<ClassDef["build"]> {
+  const L = grid((built.spine.length_m ?? 0) * k);
+  const along = (x: number) => Math.min(L, grid(x * k));
+  const spine: Spine = {
+    ...scaleHeight(built.spine, k),
+    length_m: L,
+    stations: built.spine.stations.map((st) => ({ x: Math.min(L, Math.round(st.x * k)), half_height_m: r1(st.half_height_m * k) })),
+    ...(built.spine.beam_overrides ? { beam_overrides: built.spine.beam_overrides.map((o) => ({ x: Math.min(L, Math.round(o.x * k)), beam_m: r1(o.beam_m * k) })) } : {}),
+  };
+  spine.stations[spine.stations.length - 1]!.x = L;
+  const sections = built.sections.map((sec) => ({ ...sec, x0: along(sec.x0), x1: along(sec.x1) }));
+  sections[sections.length - 1]!.x1 = L;
+  // Slots land on the grid; two that land on one station too close round the
+  // clock would foul, so the later one steps a station aft (or forward, at the stern).
+  const placed: ExternalSlot[] = [];
+  for (const slot of built.external_slots) {
+    let x = along(slot.x);
+    const fouls = (at: number) =>
+      placed.some((o) => o.x === at && Math.min(Math.abs(o.theta_deg - slot.theta_deg) % 360, 360 - (Math.abs(o.theta_deg - slot.theta_deg) % 360)) < 15);
+    while (fouls(x)) x = x + PITCH <= L ? x + PITCH : x - PITCH;
+    placed.push({ ...slot, x });
+  }
+  return { ...built, spine, sections: sections.filter((sec) => sec.x1 > sec.x0), external_slots: placed };
+}
+
+/** The uniform scale at which a class rates at `mass_t`: rated displacement goes as its cube. */
+function sizeForMass(built: ReturnType<ClassDef["build"]>, mass_t: number, packing: number, density: number): ReturnType<ClassDef["build"]> {
+  const rated = ratedDisplacement({ spine: built.spine, packing_efficiency: packing }, density) ?? 0;
+  if (!(rated > 0)) return built;
+  const resized = scaleWhole(built, Math.cbrt(mass_t / rated));
+  // The length went onto the grid; take up the last few per cent in height.
+  return { ...resized, spine: heightForMass(resized.spine, mass_t, packing, density) };
+}
+
 /**
  * The height at which a spine rates at `mass_t` — by bisection on the one
  * scale factor, since rated displacement grows as its square.
@@ -850,7 +898,8 @@ export function hullClassPresets(anchor: { spine: Spine; armor_zones?: ArmorZone
     const built = def.build(ctx);
     const example = NEBULOUS_EXAMPLES[def.code];
     if (example && density) {
-      built.spine = heightForMass(built.spine, example.mass_t, packing, density);
+      if (def.keepProportions) Object.assign(built, sizeForMass(built, example.mass_t, packing, density));
+      else built.spine = heightForMass(built.spine, example.mass_t, packing, density);
       built.armor_zones = classArmour(built.spine, example.armour_cm);
     }
     return {

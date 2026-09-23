@@ -10,7 +10,7 @@ const str = (title: string, extra: Record<string, unknown> = {}) => ({ type: "st
 
 export const SYSTEM_SCHEMA: TypeSchema = {
   id: "system",
-  version: 2,
+  version: 3, // 3: distance fields gained x-distance without a bump; bumped 2026-09-24 so vaults pick it up
   title: "Star system",
   description: "A star system and its schematic orbital map: radius mapping, moon-system scale, annotations (rings, transit arcs, labels).",
   folder: "systems",

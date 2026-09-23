@@ -243,7 +243,7 @@ export const MODULE_SCHEMA: TypeSchema = {
 
 export const HULL_SCHEMA: TypeSchema = {
   id: "hull",
-  version: 3, // 3: slot facing/tilt/count, internal density
+  version: 4, // 3: slot facing/tilt/count, internal density. 4: slot subtype (flight decks)
   title: "Hull",
   description:
     "A reusable hull: the spine and its stations, the volumetric sections, the external slot inventory, armour zones and appendages. This is the frozen contract \u2014 a ship built on the hull fills it but never reshapes it.",
@@ -342,6 +342,9 @@ export const HULL_SCHEMA: TypeSchema = {
             }),
             facing_deg: num("Facing", "\u00b0", {
               description: "Turn about the mount's own outward axis. 0 as drawn — muzzle to the bow, exhaust aft; 180 reversed; positive turns toward increasing clock angle.",
+            }),
+            subtype: str("Subtype", {
+              description: "A kind within the slot type. A `hangar` is a `bay` (internal, the default) or a `flight-deck` (mounted outside the hull, and drawn).",
             }),
             tilt_deg: num("Tilt", "\u00b0", {
               minimum: 0,
@@ -503,7 +506,7 @@ export const STYLE_SCHEMA: TypeSchema = {
 
 export const CRAFT_SCHEMA: TypeSchema = {
   id: "craft",
-  version: 2,
+  version: 3, // 3: the watch bill (watch_sections, watches_manned) replaced watch_factor on 2026-09-20 without a bump; bumped 2026-09-24 so vaults pick it up
   title: "Craft",
   description:
     "Ships, stations, strike craft, missiles, drones: what fills a hull. Slot assignments, the internal manifest, tank fill, magazines, crew and operating modes. Geometry belongs to the hull and is never changed here.",

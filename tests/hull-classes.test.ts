@@ -49,7 +49,8 @@ describe("the ladder", () => {
   });
 
   it("takes every measured length from the reference, snapped to the 3 m grid", () => {
-    for (const code of ["BB", "CV", "CA", "CG"] as MeasuredClass[]) {
+    // The CV was measured too, then resized as a whole on 2026-09-24.
+    for (const code of ["BB", "CA", "CG"] as MeasuredClass[]) {
       const L = hullOf(code).spine.length_m!;
       expect(L % 3, code).toBe(0);
       expect(Math.abs(L - measuredLength(code)), code).toBeLessThanOrEqual(1.5);
@@ -63,14 +64,14 @@ describe("the ladder", () => {
     expect(L("CL")).toBe(186);
     expect(L("DL")).toBeLessThan(L("CL"));
     expect(L("CL")).toBeLessThan(L("CA"));
-    expect(L("CA")).toBeLessThan(L("CV"));
-    expect(L("CV")).toBeLessThan(L("BB"));
+    expect(L("CA")).toBeLessThan(L("BB"));
   });
 
   it("keeps the unmeasured classes at the plan's own figures", () => {
     expect(hullOf("DL").spine.length_m).toBe(165);
     expect(hullOf("FF").spine.length_m).toBe(111);
-    expect(hullOf("MN").spine.length_m).toBe(150);
+    // The monitor was resized as a whole to its example mass (2026-09-24).
+    expect(hullOf("MN").spine.length_m).toBe(78);
     expect(hullOf("SC").spine.length_m).toBe(21);
     expect(hullOf("MSL").spine.length_m).toBe(8);
   });
@@ -104,6 +105,20 @@ describe("proportions", () => {
     }
     // The destroyer, the baseline: about a third of it is hull.
     expect(structureOf(hullOf("DD"), params, composite).fraction).toBeCloseTo(0.34, 2);
+  });
+
+  it("keeps the CV and the monitor fat, resizing them to their masses instead", () => {
+    // Ruled 2026-09-24: their character is being fat, so they keep the CV
+    // icon's proportions and change size — the CV to 123 m, the MN to 78 m.
+    expect(LD("CV")).toBeLessThan(LD("DD") * 0.7);
+    expect(LD("MN")).toBeLessThan(LD("DD") * 0.7);
+    expect(hullOf("CV").spine.length_m).toBe(123);
+  });
+
+  it("puts part of the CV's hangar space outside the hull, as flight decks", () => {
+    const decks = (hullOf("CV").external_slots ?? []).filter((s) => s.type === "hangar" && s.subtype === "flight-deck");
+    expect(decks.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(decks.map((d) => d.theta_deg))).toEqual(new Set([0, 90, 270]));
   });
 
   it("keeps the DL thinner than the DD", () => {

@@ -53,7 +53,7 @@ import { beamAt, halfHeightAt } from "./geometry";
 import { exhaustLocal, slotOrientation, toShip, turn } from "./orientation";
 
 /** The external fittings a silhouette shows. */
-export type PartKind = "radiator" | "turret" | "pd" | "antenna" | "radar" | "optics" | "tank" | "thruster" | "dock";
+export type PartKind = "radiator" | "turret" | "pd" | "antenna" | "radar" | "optics" | "tank" | "thruster" | "dock" | "flightdeck";
 
 export type SizeClass = "S" | "M" | "L" | "XL";
 
@@ -158,7 +158,7 @@ type Views = Record<View, Part>;
 // ---------------------------------------------------------------------------
 
 /** What grows at its own rate: a weapon family, or a non-weapon kind. */
-export type GrowthKey = WeaponFamily | "pd" | "radiator" | "tank-round" | "tank-long" | "antenna" | "radar" | "optics" | "dock" | "thruster";
+export type GrowthKey = WeaponFamily | "pd" | "radiator" | "tank-round" | "tank-long" | "antenna" | "radar" | "optics" | "dock" | "thruster" | "flightdeck";
 
 /**
  * How each family grows with its size class — the whole of `gallery/09` §1.2
@@ -202,6 +202,9 @@ export const GROWTH: Readonly<Record<GrowthKey, { along: number; out: number }>>
   optics: { along: 0.5, out: 1 },
   dock: { along: 0.5, out: 1 },
   thruster: { along: 1, out: 0.5 },
+  // A flight deck is a runway: it lengthens with its size class and barely
+  // stands further off the hull.
+  flightdeck: { along: 1, out: 0.3 },
 };
 
 /**
@@ -954,6 +957,32 @@ function thruster(A: number, O: number, family: PartFamilies["thruster"]): Part 
   }
 }
 
+/**
+ * A flight deck — the externally mounted kind of hangar (ruled 2026-09-24): a
+ * long, flat deck carried off the hull on pylons, its forward end ramped. From
+ * above, a broad runway with a centreline. Four spans long, so an L deck is
+ * 32 m of runway.
+ */
+function flightDeck(A: number, O: number): Views {
+  const len = A * 4;
+  const deck = O * 0.12;
+  const lift = O * 0.35;
+  const w = O * 1.5;
+  return {
+    profile: [
+      box(len * 0.2, 0, len * 0.26, lift),
+      box(len * 0.74, 0, len * 0.8, lift),
+      ccw([
+        [len * 0.06, lift],
+        [len, lift],
+        [len, lift + deck],
+        [0, lift + deck * 1.8],
+      ]),
+    ],
+    plan: [ccw([[len * 0.06, -w / 2], [len, -w / 2], [len, w / 2], [len * 0.06, w / 2], [0, w * 0.3], [0, -w * 0.3]]), box(len * 0.1, -w * 0.02, len * 0.95, w * 0.02)],
+  };
+}
+
 /** A docking ring: a collar standing off the skin side-on; a ring from above. */
 function dock(A: number, O: number): Views {
   return {
@@ -1030,6 +1059,10 @@ export function partViews(spec: PartSpec): Views {
       const { A, O } = dims(spec.size, "dock", k);
       return shiftViews(dock(A, O), -A / 2);
     }
+    case "flightdeck": {
+      const { A, O } = dims(spec.size, "flightdeck", k);
+      return shiftViews(flightDeck(A, O), -A * 2);
+    }
   }
 }
 
@@ -1041,7 +1074,9 @@ export function makePart(spec: PartSpec, view: View = "profile"): Part {
 /**
  * Slot types the hull schema knows, mapped to what they look like. A slot type
  * with no external appearance of its own — a bay, a hangar that is a hole
- * rather than a box — maps to `undefined` and draws nothing.
+ * rather than a box — maps to `undefined` and draws nothing. A hangar whose
+ * `subtype` is `flight-deck` is the exception: it is mounted outside the hull
+ * and draws one (see `partKindFor`).
  *
  * `spinal` maps to nothing *here*, because what it looks like is whatever
  * weapon is in it: `partsForHull` draws a spinal slot as its fitted weapon's
@@ -1284,8 +1319,14 @@ export function partKindFor(slot: ExternalSlot & { part?: string }): PartKind | 
   const override = typeof slot.part === "string" ? slot.part.trim().toLowerCase() : "";
   if (override && override in SLOT_PART) return SLOT_PART[override];
   if (override && PART_KINDS.includes(override as PartKind)) return override as PartKind;
+  // A flight deck is a hangar mounted outside the hull; an ordinary bay is a
+  // hole in it and has nothing to draw.
+  if (slot.type === "hangar" && slot.subtype === "flight-deck") return "flightdeck";
   return SLOT_PART[slot.type];
 }
+
+/** Subtypes a slot type can take. The first is the default. */
+export const SLOT_SUBTYPES: Record<string, readonly string[]> = { hangar: ["bay", "flight-deck"] };
 
 /**
  * Read a style record's `part_*` fields into families the generators
@@ -1335,6 +1376,6 @@ export function slotIdOf(partId: string): string {
   return i === -1 ? partId : partId.slice(0, i);
 }
 
-export const PART_KINDS: PartKind[] = ["radiator", "turret", "pd", "antenna", "radar", "optics", "tank", "thruster", "dock"];
+export const PART_KINDS: PartKind[] = ["radiator", "turret", "pd", "antenna", "radar", "optics", "tank", "thruster", "dock", "flightdeck"];
 export const WEAPON_FAMILIES: WeaponFamily[] = ["gun", "cell", "rocket", "arm", "laser", "plasma", "particle", "ciws"];
 export const SLOT_TYPES = Object.keys(SLOT_PART);
