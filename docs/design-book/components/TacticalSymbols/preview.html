@@ -1,0 +1,83 @@
+<!-- @dsCard group="Indicators" height=360 width=900 subtitle="MIL-STD-2525 affiliation frames plus Gallery's space-object and echelon modifiers" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px;background:var(--map-void)}
+.wrap{max-width:830px}
+.sec{margin-bottom:16px}
+.cap{color:var(--ink-300);display:block;margin-bottom:8px}
+.strip{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.it{display:flex;flex-direction:column;align-items:center;gap:5px;width:88px;text-align:center}
+.it .dxs{color:var(--ink-300)}
+.it .lbl{color:var(--ink-200)}
+svg{display:block}
+.fr-f{fill:none;stroke:var(--glyph-navy);stroke-width:2}
+.fr-h{fill:none;stroke:var(--status-red-mark);stroke-width:2}
+.fr-n{fill:none;stroke:var(--status-green-mark);stroke-width:2}
+.fr-u{fill:none;stroke:var(--status-amber-mark);stroke-width:2}
+.ic-f{fill:var(--glyph-navy)}.ic-h{fill:var(--status-red-mark)}.ic-n{fill:var(--status-green-mark)}.ic-u{fill:var(--status-amber-mark)}
+.st-f{stroke:var(--glyph-navy);stroke-width:1.5;fill:none}
+.sel{fill:none;stroke:var(--accent-500);stroke-width:2}
+.tk{stroke:var(--map-orbit);stroke-width:1;fill:none}
+</style>
+<div class="wrap">
+  <div class="sec">
+    <span class="lxs cap">AFFILIATION FRAMES &mdash; shape carries the meaning, colour repeats it</span>
+    <div class="strip">
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-f" x="7" y="7" width="30" height="20"/><circle class="ic-f" cx="22" cy="17" r="3"/></svg><span class="lsm lbl">FRIEND</span><span class="dxs">rectangle</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><path class="fr-h" d="M22 4 L38 17 L22 30 L6 17 Z"/><circle class="ic-h" cx="22" cy="17" r="3"/></svg><span class="lsm lbl">HOSTILE</span><span class="dxs">diamond</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-n" x="11" y="6" width="22" height="22"/><circle class="ic-n" cx="22" cy="17" r="3"/></svg><span class="lsm lbl">NEUTRAL</span><span class="dxs">square</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><path class="fr-u" d="M15 10a6 6 0 1 1 6 6 6 6 0 1 1-6-6z" transform="translate(1,0)"/><path class="fr-u" d="M29 10a6 6 0 1 0-6 6 6 6 0 1 0 6-6z" transform="translate(-1,0)"/><path class="fr-u" d="M15 24a6 6 0 1 0 6-6 6 6 0 1 0-6 6z" transform="translate(1,0)"/><path class="fr-u" d="M29 24a6 6 0 1 1-6-6 6 6 0 1 1 6 6z" transform="translate(-1,0)"/></svg><span class="lsm lbl">UNKNOWN</span><span class="dxs">quatrefoil</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-f" x="7" y="7" width="30" height="20" opacity=".65" stroke-dasharray="3 2"/><circle class="ic-f" cx="22" cy="17" r="3" opacity=".65"/></svg><span class="lsm lbl">SUSPECT</span><span class="dxs">dashed frame</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-f" x="7" y="7" width="30" height="20"/><circle class="ic-f" cx="22" cy="17" r="3"/><rect class="sel" x="2" y="2" width="40" height="30"/></svg><span class="lsm lbl">SELECTED</span><span class="dxs">accent bracket</span></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <span class="lxs cap">SPACE OBJECTS &mdash; drawn inside the affiliation frame, or bare when unowned</span>
+    <div class="strip">
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><path class="st-f" d="M22 6 L22 28 M12.5 11.5 L31.5 22.5 M31.5 11.5 L12.5 22.5" stroke="var(--ink-200)"/></svg><span class="lsm lbl">STAR</span><span class="dxs">asterisk</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><circle cx="22" cy="17" r="8" fill="var(--ink-300)"/></svg><span class="lsm lbl">PLANET</span><span class="dxs">filled disc</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><circle cx="22" cy="17" r="4" fill="var(--ink-300)"/><circle cx="22" cy="17" r="10" fill="none" stroke="var(--map-orbit)"/></svg><span class="lsm lbl">MOON</span><span class="dxs">disc on ring</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-f" x="11" y="6" width="22" height="22"/><path class="st-f" d="M22 10 L22 24 M17 14 h10 M18 21 a4 4 0 0 0 8 0"/></svg><span class="lsm lbl">STATION</span><span class="dxs">anchor</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><rect class="fr-f" x="7" y="7" width="30" height="20"/><path class="ic-f" d="M12 17 l6-3 v6 z"/><path class="ic-f" d="M21 15 h9 v4 h-9 z"/></svg><span class="lsm lbl">FLEET</span><span class="dxs">hull mark</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><path class="tk" d="M6 26 q16 -22 32 -8" stroke-dasharray="4 3"/><circle cx="30" cy="16" r="2.5" fill="var(--status-amber-mark)"/></svg><span class="lsm lbl">TRACK</span><span class="dxs">dashed arc</span></div>
+      <div class="it"><svg width="44" height="34" viewBox="0 0 44 34"><path d="M6 20 q16 -14 32 -2" stroke="var(--map-belt)" stroke-width="5" fill="none" stroke-dasharray="1 3"/></svg><span class="lsm lbl">BELT</span><span class="dxs">stippled band</span></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <span class="lxs cap">ECHELON AND COUNT &mdash; above the frame, label below, nothing else</span>
+    <div class="strip">
+      <div class="it"><svg width="60" height="46" viewBox="0 0 60 46"><text x="30" y="9" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">III</text><rect class="fr-f" x="15" y="13" width="30" height="20"/><circle class="ic-f" cx="30" cy="23" r="3"/><text x="30" y="43" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">TF HAWTHORN</text></svg><span class="dxs">task force</span></div>
+      <div class="it"><svg width="60" height="46" viewBox="0 0 60 46"><text x="30" y="9" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">9</text><rect class="fr-f" x="15" y="13" width="30" height="20"/><circle class="ic-f" cx="30" cy="23" r="3"/><text x="30" y="43" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">SAPPHIRE</text></svg><span class="dxs">hull count</span></div>
+      <div class="it"><svg width="60" height="46" viewBox="0 0 60 46"><path class="fr-h" d="M30 10 L46 23 L30 36 L14 23 Z"/><circle class="ic-h" cx="30" cy="23" r="3"/><circle cx="30" cy="23" r="21" fill="var(--status-red-mark)" opacity=".16"/><text x="30" y="45" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">RUBY</text></svg><span class="dxs">threat envelope</span></div>
+    </div>
+  </div>
+</div>

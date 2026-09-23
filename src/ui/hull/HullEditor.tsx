@@ -743,7 +743,7 @@ function Plate({ hull }: { hull: HullGeometry }) {
       <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
         {scene.elements
           .filter((e) => e.kind === "path" && e.id === "hull")
-          .map((e) => (e.kind === "path" ? <path key={e.id} d={e.d} fill="var(--navy-300)" /> : null))}
+          .map((e) => (e.kind === "path" ? <path key={e.id} d={e.d} fill="var(--ink-300)" /> : null))}
       </g>
     </svg>
   );

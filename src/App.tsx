@@ -112,7 +112,7 @@ function Overview() {
           <tbody>
             {repo.registry.types().map((t) => (
               <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => actions.navigate({ kind: "list", type: t.id })}>
-                <td style={{ color: "var(--accent)" }}>{t.icon}</td>
+                <td style={{ color: "var(--accent-500)" }}>{t.icon}</td>
                 <td>{t.title}</td>
                 <td className="mono">{t.folder}/</td>
                 <td className="num">{stats?.byType[t.id] ?? 0}</td>
