@@ -34,6 +34,8 @@ export interface ShipSource {
   tables?: TableLookupLike;
   /** Bare parameter values from the effective constraint set. */
   values?: Record<string, number>;
+  /** Which of those values are provisional, so what is derived from them keeps the marker. */
+  provisionalParams?: string[];
 }
 
 export interface ShipAnalysis {
@@ -73,6 +75,7 @@ export function analyseShip(craft: SourceRecord, source: ShipSource): ShipAnalys
   if (hullRecord) ctx.hullFields = hullRecord.fields;
   if (source.tables) ctx.tables = source.tables;
   if (source.values) ctx.params = source.values;
+  if (source.provisionalParams) ctx.provisionalParams = source.provisionalParams;
 
   const budget = shipBudget(ship, ctx);
   const advisoryCtx: ShipAdvisoryContext = { ...ctx };

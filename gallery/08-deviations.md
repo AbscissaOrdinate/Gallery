@@ -96,7 +96,8 @@ constant, so the budget reports the angle a design requires and asserts nothing.
 geometric backstop — an arm longer than the hull's own half-height at the drive, which no
 gimbal *inside the hull* could reach — needs no figure and always runs.
 
-**Roll rate is not computed.** A thruster mounted radially fires radially, and a radial
+**Roll rate is not computed.** *(Superseded 2026-09-23: slots now carry a facing and tilt,
+and a tangential nozzle rolls the ship — see "The owner's issue list" below.)* A thruster mounted radially fires radially, and a radial
 thrust line through the axis produces exactly zero roll torque. Rolling needs a canted or
 tangential nozzle, which the record has no way to describe, so reporting a roll rate would be
 reporting a number that is structurally zero. Pitch and yaw are computed.
@@ -224,7 +225,8 @@ a slot at 15° drew its marker on the axis and its handle on the skin.
 360° as ventral, so the Sword hull's turrets at 315° and 345° hung under the keel. Dorsal
 and ventral now go by the sign of `cos θ`.
 
-**Radiator growth is read literally, and the result is slender.** §1.2: a radiator "extends
+**Radiator growth is read literally, and the result is slender.** *(Superseded 2026-09-23:
+the width is fixed per panel, not per array — see below.)* §1.2: a radiator "extends
 further outward and never wider". So the along-hull length is fixed at 4 m for every size,
 the height grows with the size class, and an S radiator — which would otherwise come out
 wider than tall — is floored to square. An XL fin array is therefore 4 m long and about
@@ -279,6 +281,9 @@ which is a second palette. It now inlines `src/theme.css`.
 
 Eleven presets in `hull/classes.ts`, the reference measured by
 `scripts/measure-fleet-reference.mjs`, and a class picker wherever a hull's spine is empty.
+
+*(The CL length, the heights, the armour and the structural mass below were all revised on
+2026-09-23 — see "The owner's issue list". What follows is the step as built.)*
 
 **The measured ladder corrects the plan's in one place that matters: the CL is bigger than
 the CA.** The reference draws every navy's ships with one icon per class at one common scale —
@@ -347,6 +352,72 @@ armour, slots, appendages, packing) — never the author's links, style or bus. 
 starting point; replacing a drawn hull with one would be a destructive edit the editor has no
 undo for, so it is not offered.
 
+### The owner's issue list, resolved 2026-09-23
+
+**Radiators are a fixed width per panel.** Three radiators in a set are three times as wide
+as one, not one radiator cut into thirds. A panel is 4 m along the hull at every size; a
+bigger size class makes it taller; `radiator_panels` sets how many stand side by side.
+Every family repeats per panel (a spine-array's boom runs the whole set). This replaces step
+2's literal reading, and the presets now draw the reference's wide radiator blocks.
+
+**Mounts point.** Slots gained `facing_deg` (every mount) and `tilt_deg` (thrusters and
+drives), set in the hull editor's slot inspector with a Flip button for a gun that has to
+fire astern and Along/Radial for a nozzle. Drawing: where a mount is seen down its own axis
+(beam mounts side-on, dorsal ones from above) its plan view is turned by exactly the facing;
+side-on, a turned mount is drawn at whichever of fore or aft it is nearer, because an exact
+3D rotation needs a 3D form the generators do not have. Nozzles are round, so they are drawn
+exactly in every view, foreshortened, and as their bell mouth when they point at the eye.
+
+The **`thruster` slot now draws radial by default** — the attitude budget always assumed
+radial thrust, and the drawing showed an aft-pointing bell, which was the wrong half. The
+attitude budget now takes `r × F` for every thruster and ring member, so pitch and yaw are
+exactly as before for radial nozzles, and **roll is computed** once any nozzle is turned
+tangential. Tilt is how a nozzle is mounted, not how far it gimbals: `max_gimbal_deg` is
+still unsupplied.
+
+**Rings.** A slot's `count` (1–8) makes it a ring spaced round the hull from its clock angle
+— the radial tank placement, which the ship's tank collar already assumed for balance but
+nothing drew. Every member is drawn, marked on the schematic and checked for fouling; a
+click on any selects the slot; a fitting in a ring slot is charged once per member on the
+thrust line; and a ship's tank collar draws at the ship's count.
+
+**VLS cells** draw the fitted module's own `launch_cells`, cell for cell. With no module the
+size class decides: S 8 (4 × 2), M 16 (6 × 3 less two), L 32 (8 × 4), XL 48 (10 × 5 less two)
+— which the existing bundle layout already produced exactly.
+
+**Plasma, bandit and rocket are weapon families, not module types.** A module's category
+(`weapon-kinetic`, `weapon-missile`, …) drives the budget; its optional `weapon_family`
+decides the silhouette. The field existed; no preset used it. Two presets now do, each from
+its `_tables/mounts.yaml` row: the RL18 rocket launcher and the T81 plasma cannon (a
+magazine-fed `weapon-kinetic`, drawn as `plasma`). The table has no bandit row, so there is
+no `arm` preset — the family works on any module that sets it.
+
+**The structural-mass law** (`docs/UNITS.md` §9) replaces typed structure mass and cost:
+internals from the internal density, armour from the zones, a rated displacement from the
+usable volume, and the structure fraction between them. Constants are base-set parameters,
+the two calibrated ones provisional. The DD anchor was retooled to it: 0.5 cm/m, 22 cm of
+composite end to end with the bow taper at 17.6 cm, and no typed figures. It rates at 8,000 t
+with a third of that hull; the Burke's ~9,900 t would be a design density of 0.885. The base
+set on disk now merges parameter by parameter — without that, the law's constants (and, as
+it turned out, the crew parameters delegated on 2026-09-20) never reach a vault seeded before
+they existed.
+
+**The class presets were retooled to the NEBULOUS examples.** Each carries its internal
+density and is armoured end to end at its thickness, the bow taper at four fifths (credit for
+the slope, not overdone). Heights were left to the implementer; they are **solved so each
+class rates at its example mass**, keeping its length and its profile's shape. Every class
+then carries its own structure — 28% of the FF is hull, 34% of the DD, 83% of the BB and 86%
+of the MN — and raises no warning. The price is that the big and heavily armoured classes
+come out slender: BB L/D 19, CV 18, MN 15. The plan's "notably fat" CV and MN are not
+compatible with 19,000 t and 5,000 t at those lengths and that armour; a fat CV needs a lower
+density for its hangar volume, and a fat monitor at 48 cm and 5,000 t is about 75 m long,
+not 150. Both are the vault owner's call.
+
+**CL is the light cruiser**, so the chart's long CL icon is the chart being off: 186 m, the
+plan's ~185 on the grid, with the icon's profile. **MN** is the monitor's code. The
+strikecraft has no example row, so its nose zone carries no thickness rather than the
+destroyer's.
+
 ## Still deferred
 
 - **Variants** — the hull schema's `parent` ref and the ghost overlay exist; the four legal
@@ -364,7 +435,7 @@ undo for, so it is not offered.
 - **Magazine stowage volume charged to a section.** Round mass and volume both compute
   (`docs/UNITS.md` §8); which compartment holds the rounds is not in the record, so the
   volume is reported and not spent.
-- **Roll rate.** A radial thruster firing radially produces exactly zero roll torque, so the
+- ~~**Roll rate.**~~ Computed since 2026-09-23, from tangential nozzles. A radial thruster firing radially produces exactly zero roll torque, so the
   figure would be structurally zero. Needs a canted or tangential nozzle the record cannot
   describe.
 

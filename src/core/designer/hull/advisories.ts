@@ -19,6 +19,7 @@
 import { violation, type Violation } from "../violations";
 import type { HullGeometry, ShadowCone } from "./types";
 import { beamAt, halfHeightAt, hullMetrics, placeAppendages, sectionVolumes, sectionShadowing, sortedStations } from "./geometry";
+import { ringMembers } from "./parts";
 import { familiesOf, partKindFor } from "./parts";
 
 /** The polity style kit's proportion and doctrine rules (`gallery/06` §3.2). */
@@ -312,10 +313,15 @@ function slotAdvisories(hull: HullGeometry, ctx: AdvisoryContext): Violation[] {
     }
   }
 
-  for (let i = 0; i < slots.length; i++) {
-    for (let j = i + 1; j < slots.length; j++) {
-      const a = slots[i]!;
-      const b = slots[j]!;
+  // Every member of a ring is a place something is mounted, so every member is
+  // checked against every other slot's members. Members of one ring cannot
+  // foul each other: eight round the hull are 45° apart.
+  const placed = slots.flatMap((s) => ringMembers(s).map((m) => ({ ...m, id: s.id })));
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const a = placed[i]!;
+      const b = placed[j]!;
+      if (a.id === b.id) continue;
       if (Math.abs(a.x - b.x) > EPS) continue;
       // Shortest way round the clock: 0 deg and 180 deg are 180 apart, not 0.
       const raw = Math.abs(a.theta_deg - b.theta_deg) % 360;

@@ -192,7 +192,10 @@ describe("placing parts on a hull", () => {
     expect(s1.length).toBeGreaterThan(0);
     expect(s1.every((p) => p.far === true && p.plane === "profile")).toBe(true);
     expect(s1[0]?.attach_r).toBeCloseTo(0, 9); // a·cos 90°: on the axis
-    expect(JSON.stringify(s1.map((p) => p.outline))).toBe(JSON.stringify(makePart({ kind: "radar", size: "S" }, "plan")));
+    // The plan, with its tangent axis running the way a starboard slot's
+    // tangent runs side-on: downward.
+    const plan = makePart({ kind: "radar", size: "S" }, "plan").map((o) => o.map(([x, w]) => [x, -w]));
+    expect(s1.map((p) => p.outline.map(([x, y]) => [+x.toFixed(9), +y.toFixed(9)]))).toEqual(plan.map((o) => o.map(([x, y]) => [+x.toFixed(9), +y.toFixed(9)])));
   });
 
   it("reads a mount at 345° as dorsal, like one at 15°", () => {
@@ -282,7 +285,8 @@ describe("growth is per family, not uniform (gallery/09 §1.2)", () => {
 
   it("gives a bigger launcher more cells at the same pitch", () => {
     const hatches = (size: (typeof SIZES)[number]) => makePart({ kind: "turret", size, weapon: "cell" }, "plan").slice(1);
-    expect(SIZES.map((s) => hatches(s).length)).toEqual([2, 4, 8, 14]);
+    // Ruled 2026-09-23: 4 × 2, 6 × 3 less two, 8 × 4, 10 × 5 less two.
+    expect(SIZES.map((s) => hatches(s).length)).toEqual([8, 16, 32, 48]);
     const widths = SIZES.map((s) => extent([hatches(s)[0]!]).w);
     for (const w of widths) expect(w).toBeCloseTo(widths[0]!, 9); // never a wider cell
   });
@@ -409,7 +413,9 @@ describe("placing parts in the plan view", () => {
     const t1 = plan().filter((p) => slotIdOf(p.id) === "t1");
     expect(t1[0]?.attach_r).toBeCloseTo(0, 9);
     expect(t1.every((p) => !p.far && p.plane === "plan")).toBe(true);
-    expect(JSON.stringify(t1.map((p) => p.outline))).toBe(JSON.stringify(makePart({ kind: "turret", size: "M" }, "plan")));
+    // A dorsal slot's tangent (toward starboard) runs down the screen from above.
+    const top = makePart({ kind: "turret", size: "M" }, "plan").map((o) => o.map(([x, w]) => [+x.toFixed(9), +(-w).toFixed(9)]));
+    expect(t1.map((p) => p.outline.map(([x, y]) => [+x.toFixed(9), +y.toFixed(9)]))).toEqual(top);
   });
 
   it("shows a ventral mount as hidden under the hull", () => {

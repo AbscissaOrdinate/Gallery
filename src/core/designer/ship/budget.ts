@@ -27,7 +27,10 @@
  * reported, and the advisories work on the split.
  */
 import { cgStation, halfHeightAt, beamAt, sectionVolumes, volumeCentroid, wettedArea } from "../hull/geometry";
-import type { HullGeometry, MassItem } from "../hull/types";
+import type { ExternalSlot, HullGeometry, MassItem } from "../hull/types";
+import { ringMembers } from "../hull/parts";
+import { exhaustLocal, slotOrientation, toShip, type ShipDir } from "../hull/orientation";
+import { structureOf, type ArmourDensity } from "../hull/structure";
 import { violation, type Violation } from "../violations";
 import { heatClassOf, readModule, rejectableHeat, rejectClassOf, type HeatClass, type ModuleSpec } from "./module";
 import { dutyDraw, dutyFor, modesOf } from "./modes";
@@ -53,6 +56,8 @@ export interface ShipContext {
   tables?: TableLookupLike;
   /** Effective constraint-set parameters (`automation_factor`, `kg_per_crew_day`, …). */
   params?: Record<string, number>;
+  /** Names of the parameters above that are provisional. */
+  provisionalParams?: string[];
 }
 
 /** One contributing item, flattened for the UI and for the mass/CG roll-up. */
@@ -79,6 +84,8 @@ export interface BudgetLine {
   theta_deg?: number;
   /** True for a fitting on a `thruster` slot: attitude control, not propulsion. */
   attitude?: boolean;
+  /** The hull slot a fitting sits in — where attitude control reads its ring and its direction. */
+  slot?: ExternalSlot;
 }
 
 export interface SectionBudget {
@@ -142,11 +149,13 @@ export interface ModeBudget {
  * an arm. That distinction already exists in the hull schema, so nothing new
  * has to be declared for a ship to say which is which.
  *
- * Pitch and yaw are computed rather than roll. A thruster mounted radially
- * fires radially, and a radial thrust line through the axis produces no roll
- * torque at all — rolling needs a canted or tangential nozzle, which the record
- * has no way to describe. Reporting a roll rate from radial thrusters would be
- * reporting a number that is structurally zero.
+ * Each thruster pushes the ship opposite its exhaust, which the hull slot
+ * describes (`hull/orientation.ts`): a `thruster` slot fires radially unless it
+ * is tilted or turned. The torque is `r × F` about the centre of gravity, so a
+ * radial thruster turns the ship in pitch and yaw by its distance from the
+ * centre of gravity, and a nozzle turned **tangential** rolls it by its
+ * standoff from the axis. Roll is reported only when something can produce it
+ * — a ship of radial thrusters has none, and says so rather than printing zero.
  */
 export interface AttitudeControl {
   /** Moment of inertia in pitch about the centre of gravity, t·m². */
@@ -167,6 +176,17 @@ export interface AttitudeControl {
   /** Thrusters forward of the centre of gravity, and aft of it. */
   forward: number;
   aft: number;
+  /**
+   * Roll, when any thruster has a tangential component. The couple is the
+   * weaker of the two senses, for the same reason pitch takes the weaker end:
+   * a roll that can start but not stop is not control.
+   */
+  roll?: {
+    inertia_t_m2: number;
+    torque_kNm: number;
+    accel_deg_s2: number;
+    slew90_s: number;
+  };
 }
 
 export interface Stage {
@@ -184,6 +204,15 @@ export interface ShipBudget {
   lines: BudgetLine[];
 
   structuralMass_t: number;
+  /**
+   * Where the structural mass came from: typed on the hull (`hand`), the
+   * structural-mass law from its internal density (`law`), or nowhere.
+   */
+  structureSource: "hand" | "law" | "none";
+  /** What the hull is built to carry fully loaded, by the law. Absent without a design density. */
+  ratedMass_t?: number;
+  /** Structure and armour as a share of the rated displacement. */
+  structureFraction?: number;
   moduleMass_t: number;
   /**
    * Ordnance aboard: every magazine's rounds, at the mount that holds them.
@@ -285,11 +314,13 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
   for (const f of ship.fittings) {
     const spec = specOf(f.module);
     const slot = slots.get(f.slot);
+    // A fitting in a ring slot is one module per member of the ring.
+    const ring = slot ? ringMembers(slot).length : 1;
     const line: BudgetLine = {
       id: f.slot,
       kind: "fitting",
-      count: 1,
-      mass_t: spec?.mass_t ?? 0,
+      count: ring,
+      mass_t: (spec?.mass_t ?? 0) * ring,
       // External fittings add mass and wetted area but consume no internal
       // volume (`gallery/05` §2.5).
       volume_m3: 0,
@@ -298,7 +329,10 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
     if (spec) line.spec = spec;
     if (slot) {
       line.x = slot.x;
-      line.theta_deg = slot.theta_deg;
+      line.slot = slot;
+      // A ring is spaced evenly about the axis, so its mass is on the thrust
+      // line, exactly as a collar of tanks is.
+      if (ring < 2) line.theta_deg = slot.theta_deg;
       // A `thruster` slot is attitude control; a `drive` slot is the main
       // engine. The hull already made that distinction, so a ship does not have
       // to declare it again.
@@ -378,12 +412,44 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
 
   // ---- mass ----------------------------------------------------------------
   const moduleMass = lines.reduce((sum, l) => sum + l.mass_t, 0);
-  const structuralMass = n(ctx.hullFields?.structural_mass_t);
-  if (ctx.hull && structuralMass === 0) {
-    assumptions.push("Structure mass is 0: the hull declares no `structural_mass_t`, and `_tables/structures.yaml` is a placeholder whose own header says not to rely on any row.");
-  }
 
-  const armor = armorMass(ctx, provisional);
+  // Structure and armour, by the structural-mass law (`hull/structure.ts`,
+  // docs/UNITS.md §9). A figure typed on the hull still wins — a captured
+  // hull's known mass beats an estimate — and the law is shown beside it.
+  const law = ctx.hull
+    ? structureOf(
+        ctx.hull,
+        {
+          structure_density_kg_m3: ctx.params?.structure_density_kg_m3,
+          design_density_t_m3: ctx.params?.design_density_t_m3,
+          structure_cost_per_t: ctx.params?.structure_cost_per_t,
+        },
+        armourDensity(ctx),
+      )
+    : undefined;
+  const handMass = n(ctx.hullFields?.structural_mass_t);
+  const structureSource: ShipBudget["structureSource"] = handMass > 0 ? "hand" : law?.internal_t !== undefined ? "law" : "none";
+  const structuralMass = structureSource === "hand" ? handMass : (law?.internal_t ?? 0);
+  if (ctx.hull && structureSource === "none") {
+    assumptions.push(
+      ctx.hull.internal_density_cm_m === undefined
+        ? "Structure mass is 0: the hull declares neither a `structural_mass_t` nor an internal density for the structural-mass law to work from."
+        : "Structure mass is 0: the hull has an internal density, but no constraint set supplies `structure_density_kg_m3`.",
+    );
+  }
+  if (structureSource === "hand" && law?.internal_t !== undefined && ctx.hull) {
+    advisories.push(
+      violation("info", `Structural mass is hand-set at ${fmt(handMass, 0)} t; the structural-mass law gives ${fmt(law.internal_t, 0)} t from the hull's internal density. The hand-set figure is used.`, {
+        field: "structural_mass_t",
+        domain: "structure",
+        source: "hull",
+      }),
+    );
+  }
+  const provisionalParam = (name: string) => ctx.provisionalParams?.includes(name) ?? false;
+
+  const armor = { mass_t: law?.armour_t ?? 0 };
+  if (law?.armourProvisional && !provisional.includes("armour mass")) provisional.push("armour mass");
   const propellant = propellantLoad(ship, ctx, provisional, advisories);
   const magazine = magazineLoad(ship, ctx, lines, provisional, advisories);
   for (const line of lines) {
@@ -396,7 +462,9 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
   let thrust = 0;
   let ispWeighted = 0;
   let capacity = 0;
-  let cost = n(ctx.hullFields?.structural_cost);
+  const handCost = n(ctx.hullFields?.structural_cost);
+  let cost = handCost > 0 ? handCost : (law?.cost ?? 0);
+  if (!(handCost > 0) && law?.cost !== undefined && provisionalParam("structure_cost_per_t")) provisional.push("structural cost");
   /** Stations manned in one watch, from modules whose `crew` is a per-watch figure. */
   let perWatchStations = 0;
   /** Complements, from modules whose `crew` is already the whole complement. */
@@ -488,11 +556,39 @@ export function shipBudget(ship: ShipLoadout, ctx: ShipContext = {}): ShipBudget
   }
 
   const attitude = attitudeControl(lines, ctx.hull, cg, wet);
+
+  // The rating: what the hull is built to carry, and how much of that is the
+  // hull itself. Structure is the *built* hull here — hand-set or law — plus
+  // armour, so a hand-set figure is judged by the same yardstick.
+  const rated = law?.rated_t;
+  const built = structuralMass + armor.mass_t;
+  const fraction = rated !== undefined && rated > 0 && built > 0 ? built / rated : undefined;
+  if (rated !== undefined && provisionalParam("design_density_t_m3")) provisional.push("rated displacement and structure fraction");
+  if (rated !== undefined && fraction !== undefined && fraction >= 1) {
+    advisories.push(
+      violation("warn", `Structure and armour (${fmt(built, 0)} t) outweigh the hull's rated full load (${fmt(rated, 0)} t): a hull this heavily built has nothing left to carry.`, {
+        field: "armor_zones",
+        domain: "structure",
+        source: "hull",
+      }),
+    );
+  } else if (rated !== undefined && wet > rated) {
+    advisories.push(
+      violation("info", `Loaded to ${fmt((wet / rated) * 100, 0)}% of the hull's rated full load (${fmt(wet, 0)} of ${fmt(rated, 0)} t).`, {
+        field: "fittings",
+        domain: "structure",
+        source: "ship",
+      }),
+    );
+  }
   const staged = stageDeltaV(ship, dry, isp, thrust, propellant, specOf);
 
   const budget: ShipBudget = {
     lines,
     structuralMass_t: structuralMass,
+    structureSource,
+    ...(rated === undefined ? {} : { ratedMass_t: rated }),
+    ...(fraction === undefined ? {} : { structureFraction: fraction }),
     moduleMass_t: moduleMass,
     magazineMass_t: magazine.mass_t,
     magazineVolume_m3: magazine.volume_m3,
@@ -688,25 +784,16 @@ function magazineLoad(
 // ---------------------------------------------------------------------------
 
 /**
- * Armour mass, per zone: the hull's wetted area over the zone's run, times the
- * thickness, times the material density from `_tables/armor.yaml`. Armour
- * consumes no internal volume (`gallery/05` §3).
+ * Armour materials' densities from `_tables/armor.yaml`, for the structural-mass
+ * law. A material the table does not carry has no density and contributes
+ * nothing, which the hull editor's zone inspector reports.
  */
-function armorMass(ctx: ShipContext, provisional: string[]): { mass_t: number } {
-  const zones = ctx.hull?.armor_zones ?? [];
-  if (!ctx.hull || !zones.length) return { mass_t: 0 };
-  let mass = 0;
-  for (const zone of zones) {
-    const thickness = zone.thickness_cm ?? 0;
-    if (!(thickness > 0) || !zone.material) continue;
-    const found = ctx.tables?.lookup("armor", zone.material, "density_kg_m3");
-    if (!found || "error" in found) continue;
-    const density = typeof found.lookup.value === "number" ? found.lookup.value : 0;
-    const area = wettedArea(ctx.hull.spine, Math.min(zone.x0, zone.x1), Math.max(zone.x0, zone.x1));
-    mass += (area * (thickness / 100) * density) / 1000;
-    if (found.lookup.provisional && !provisional.includes("armour mass")) provisional.push("armour mass");
-  }
-  return { mass_t: mass };
+function armourDensity(ctx: ShipContext): ArmourDensity {
+  return (material) => {
+    const found = ctx.tables?.lookup("armor", material, "density_kg_m3");
+    if (!found || "error" in found || typeof found.lookup.value !== "number") return undefined;
+    return { density_kg_m3: found.lookup.value, provisional: found.lookup.provisional };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -876,6 +963,7 @@ function attitudeControl(lines: BudgetLine[], hull: HullGeometry | undefined, cg
   if (!thrusters.length) return undefined;
 
   let inertia = 0;
+  let rollInertia = 0;
   for (const line of lines) {
     if (line.x === undefined) continue;
     const laden = line.mass_t + (line.propellant_t ?? 0) + (line.magazine_t ?? 0);
@@ -883,6 +971,10 @@ function attitudeControl(lines: BudgetLine[], hull: HullGeometry | undefined, cg
     const arm = line.x - cg;
     const standoff = line.theta_deg === undefined ? 0 : halfHeightAt(hull.spine, line.x);
     inertia += laden * (arm * arm + standoff * standoff);
+    // A ring's mass sits on the axis for balance but not for roll: it is out
+    // on the skin, all the way round.
+    const rollArm = line.theta_deg !== undefined ? standoff : line.slot && line.count > 1 ? halfHeightAt(hull.spine, line.x) : 0;
+    rollInertia += laden * rollArm * rollArm;
   }
   // The hull itself, as a uniform rod about its own centre plus the shift to
   // the centre of gravity. Without it a bare hull has almost no inertia and
@@ -892,19 +984,49 @@ function attitudeControl(lines: BudgetLine[], hull: HullGeometry | undefined, cg
   if (structure > 0 && length > 0) {
     const centre = volumeCentroid(hull.spine) ?? length / 2;
     inertia += structure * ((length * length) / 12 + (centre - cg) * (centre - cg));
+    // About the long axis, a solid elliptical section: m(a² + b²)/4, at the
+    // mean half-height and half-beam.
+    let a = 0;
+    let b = 0;
+    for (let i = 0; i < 64; i++) {
+      const x = ((i + 0.5) / 64) * length;
+      a += halfHeightAt(hull.spine, x) / 64;
+      b += beamAt(hull.spine, x) / 2 / 64;
+    }
+    rollInertia += (structure * (a * a + b * b)) / 4;
   }
 
   let forward = 0;
   let aft = 0;
+  let rollPlus = 0;
+  let rollMinus = 0;
   for (const t of thrusters) {
-    const arm = Math.abs((t.x as number) - cg);
-    const couple = (t.spec?.thrust_kN ?? 0) * t.count * arm;
-    if ((t.x as number) < cg) forward += couple;
-    else aft += couple;
+    const x = t.x as number;
+    const thrust = (t.spec?.thrust_kN ?? 0) * (t.slot ? 1 : t.count);
+    const members = t.slot ? ringMembers(t.slot, t.count) : [undefined];
+    for (const m of members) {
+      const theta = m?.theta_deg ?? 0;
+      const rad = (theta * Math.PI) / 180;
+      // Where it is, relative to the centre of gravity, in the ship frame.
+      const r: ShipDir = [x - cg, halfHeightAt(hull.spine, x) * Math.cos(rad), (beamAt(hull.spine, x) / 2) * Math.sin(rad)];
+      // Pushed opposite its exhaust.
+      const e = toShip(exhaustLocal(m ? slotOrientation(m) : { facing_deg: 0, tilt_deg: 90 }), theta);
+      const F: ShipDir = [-e[0] * thrust, -e[1] * thrust, -e[2] * thrust];
+      const tau: ShipDir = [r[1] * F[2] - r[2] * F[1], r[2] * F[0] - r[0] * F[2], r[0] * F[1] - r[1] * F[0]];
+      // Pitch and yaw: the torque about the transverse axes. Forward of the
+      // centre of gravity against aft of it, as before.
+      const turnTorque = Math.hypot(tau[1], tau[2]);
+      if (x < cg) forward += turnTorque;
+      else aft += turnTorque;
+      if (tau[0] > 1e-9) rollPlus += tau[0];
+      else if (tau[0] < -1e-9) rollMinus -= tau[0];
+    }
   }
   const torque = Math.min(forward, aft);
   const accel = inertia > 0 ? (torque / inertia) * (180 / Math.PI) : 0;
-  return {
+  const rollTorque = Math.min(rollPlus, rollMinus);
+  const rollAccel = rollInertia > 0 ? (rollTorque / rollInertia) * (180 / Math.PI) : 0;
+  const out: AttitudeControl = {
     inertia_t_m2: inertia,
     torque_kNm: torque,
     accel_deg_s2: accel,
@@ -912,6 +1034,10 @@ function attitudeControl(lines: BudgetLine[], hull: HullGeometry | undefined, cg
     forward: thrusters.filter((t) => (t.x as number) < cg).length,
     aft: thrusters.filter((t) => (t.x as number) >= cg).length,
   };
+  if (rollPlus > 0 || rollMinus > 0) {
+    out.roll = { inertia_t_m2: rollInertia, torque_kNm: rollTorque, accel_deg_s2: rollAccel, slew90_s: rollAccel > 0 ? 2 * Math.sqrt(45 / rollAccel) : 0 };
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

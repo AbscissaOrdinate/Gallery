@@ -244,8 +244,11 @@ else {
   await page.locator(".hullsvg").click({ position: { x: 5, y: 5 } }); // clear the selection first
   await page.waitForTimeout(150);
   const onBelt = await page.evaluate(() => {
-    const el = document.querySelector('.hullsvg [data-pick^="zone:"]');
-    if (!el || !el.getPointAtLength) return null;
+    // The longest belt, at its middle: a short one (the bow taper) can sit
+    // under a slot's drag handle, which rightly takes the click.
+    const belts = [...document.querySelectorAll('.hullsvg [data-pick^="zone:"]')].filter((e) => e.getTotalLength);
+    const el = belts.sort((a, b) => b.getTotalLength() - a.getTotalLength())[0];
+    if (!el) return null;
     const p = el.getPointAtLength(el.getTotalLength() * 0.5);
     const m = el.getScreenCTM();
     return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f };

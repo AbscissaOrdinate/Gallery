@@ -80,6 +80,13 @@ export function readHull(fields: Record<string, unknown>): HullGeometry {
       size: typeof s.size === "number" ? s.size : str(s.size, "M"),
     };
     if (s.part !== undefined && str(s.part).trim()) slot.part = str(s.part).trim();
+    const facing = num(s.facing_deg, NaN);
+    if (Number.isFinite(facing) && facing !== 0) slot.facing_deg = facing;
+    const tilt = num(s.tilt_deg, NaN);
+    if (Number.isFinite(tilt)) slot.tilt_deg = Math.max(0, Math.min(90, tilt));
+    // A ring holds one to eight; anything else is read as the nearest that does.
+    const count = Math.round(num(s.count, 1));
+    if (count > 1) slot.count = Math.min(8, count);
     return slot;
   });
 
@@ -118,6 +125,8 @@ export function readHull(fields: Record<string, unknown>): HullGeometry {
   if (Number.isFinite(packing) && packing > 0) hull.packing_efficiency = packing;
   const fraction = num(fields.structure_mass_fraction, NaN);
   if (Number.isFinite(fraction) && fraction >= 0) hull.structure_mass_fraction = fraction;
+  const internal = num(fields.internal_density_cm_m, NaN);
+  if (Number.isFinite(internal) && internal >= 0) hull.internal_density_cm_m = internal;
   return hull;
 }
 
@@ -147,6 +156,7 @@ export function writeHull(fields: Record<string, unknown>, hull: HullGeometry): 
   put("appendages", hull.appendages);
   if (hull.packing_efficiency !== undefined) out.packing_efficiency = hull.packing_efficiency;
   if (hull.structure_mass_fraction !== undefined) out.structure_mass_fraction = hull.structure_mass_fraction;
+  if (hull.internal_density_cm_m !== undefined) out.internal_density_cm_m = hull.internal_density_cm_m;
   return out;
 }
 

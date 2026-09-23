@@ -243,7 +243,7 @@ export const MODULE_SCHEMA: TypeSchema = {
 
 export const HULL_SCHEMA: TypeSchema = {
   id: "hull",
-  version: 2,
+  version: 3, // 3: slot facing/tilt/count, internal density
   title: "Hull",
   description:
     "A reusable hull: the spine and its stations, the volumetric sections, the external slot inventory, armour zones and appendages. This is the frozen contract \u2014 a ship built on the hull fills it but never reshapes it.",
@@ -296,7 +296,16 @@ export const HULL_SCHEMA: TypeSchema = {
         },
       },
       packing_efficiency: num("Packing efficiency", undefined, { minimum: 0, maximum: 1, "x-group": "Geometry", description: "Usable fraction of gross internal volume." }),
-      structure_mass_fraction: num("Structure mass fraction", undefined, { minimum: 0, "x-group": "Budget" }),
+      structure_mass_fraction: num("Structure mass fraction", undefined, {
+        minimum: 0,
+        "x-group": "Budget",
+        description: "Share of the rated full-load mass that is structure and armour. Computed by the budget from the structural-mass law; a value here is compared against it, not used in its place.",
+      }),
+      internal_density_cm_m: num("Internal density", "cm/m", {
+        minimum: 0,
+        "x-group": "Budget",
+        description: "Decks and bulkheads, as NEBULOUS states them: cm of plate a straight path meets per metre of interior. With the hull's volume it sets the structural mass (docs/UNITS.md §9).",
+      }),
       sections: {
         type: "array",
         title: "Sections",
@@ -331,6 +340,21 @@ export const HULL_SCHEMA: TypeSchema = {
             part: str("Part override", {
               description: "Draw this part instead of the one the style kit gives this slot type — a captured or export hull carrying a foreign fitting. Reported as a deviation, never blocked.",
             }),
+            facing_deg: num("Facing", "\u00b0", {
+              description: "Turn about the mount's own outward axis. 0 as drawn — muzzle to the bow, exhaust aft; 180 reversed; positive turns toward increasing clock angle.",
+            }),
+            tilt_deg: num("Tilt", "\u00b0", {
+              minimum: 0,
+              maximum: 90,
+              description: "Thrusters and drives: 0 fires along the hull, 90 straight outward. A thruster slot is radial (90) unless set.",
+            }),
+            count: {
+              type: "integer" as const,
+              title: "Ring count",
+              minimum: 1,
+              maximum: 8,
+              description: "Copies spaced evenly round the hull from the clock angle — a collar of drop tanks, a quad of thrusters.",
+            },
           },
         },
       },
@@ -366,8 +390,12 @@ export const HULL_SCHEMA: TypeSchema = {
           },
         },
       },
-      structural_mass_t: num("Structural mass", "t", { minimum: 0, "x-group": "Budget" }),
-      structural_cost: num("Structural cost", "M$", { minimum: 0, "x-group": "Budget" }),
+      structural_mass_t: num("Structural mass", "t", {
+        minimum: 0,
+        "x-group": "Budget",
+        description: "A hand-set figure. Wins over the structural-mass law when present; leave it empty to let the law compute it from the internal density.",
+      }),
+      structural_cost: num("Structural cost", "M$", { minimum: 0, "x-group": "Budget", description: "A hand-set figure; wins over the law when present." }),
       armor: str("Armour scheme"),
       migration_review: {
         type: "boolean" as const,

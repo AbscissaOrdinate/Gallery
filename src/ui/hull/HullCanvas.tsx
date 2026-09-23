@@ -361,7 +361,8 @@ function pickable(el: SceneElement): string | undefined {
     const id = el.id
       .slice(prefix.length)
       .replace(/-m$/, "") // an appendage's mirror selects its original
-      .replace(/-(top|bottom)$/, ""); // both halves of an armour belt select the zone
+      .replace(/-(top|bottom)$/, "") // both halves of an armour belt select the zone
+      .replace(/@\d+$/, ""); // any member of a ring selects its slot
     return `${kind}:${id}`;
   }
   return undefined;

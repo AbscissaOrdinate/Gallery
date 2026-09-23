@@ -20,11 +20,14 @@ import { readHull, stationPitch, writeHull } from "../../core/designer/hull/reco
 import { hullAdvisories, type AdvisoryContext, type BusStandard, type StyleKit } from "../../core/designer/hull/advisories";
 import { hullMetrics, wettedArea } from "../../core/designer/hull/geometry";
 import { renderHull, toSvg } from "../../core/designer/hull/render";
-import { familiesOf, partsForHull, radiatorRatio, slotIdOf, DEFAULT_RADIATOR_ASPECT, type View } from "../../core/designer/hull/parts";
+import { familiesOf, partsForHull, radiatorRatio, slotIdOf, DEFAULT_RADIATOR_ASPECT, SLOT_TYPES, type View } from "../../core/designer/hull/parts";
+import { slotOrientation, TILTABLE } from "../../core/designer/hull/orientation";
 import { byDomain, sortViolations, type Violation } from "../../core/designer/violations";
 import type { HullGeometry, ShadowCone } from "../../core/designer/hull/types";
 import type { RenderMode } from "../../core/designer/hull/render";
 import { CLASS_CODES } from "../../core/designer/hull/classes";
+import { structureOf } from "../../core/designer/hull/structure";
+import { provisionalParams } from "../../core/designer/constraints";
 import type { Preset } from "../../core/types";
 
 const fmt = (n: number, d = 0) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "—");
@@ -88,6 +91,21 @@ export function HullEditor({ id }: { id: string }) {
 
   const advisories = useMemo(() => sortViolations(hullAdvisories(hull, ctx)), [hull, ctx]);
   const metrics = useMemo(() => hullMetrics(hull), [hull]);
+  // The structural-mass law (docs/UNITS.md §9), so a hull's mass and rating
+  // are on screen while it is being shaped, not only once a ship is built.
+  const law = useMemo(() => {
+    if (!repo) return undefined;
+    const eff = repo.effectiveConstraints();
+    const estimate = structureOf(
+      hull,
+      { structure_density_kg_m3: eff.values.structure_density_kg_m3, design_density_t_m3: eff.values.design_density_t_m3, structure_cost_per_t: eff.values.structure_cost_per_t },
+      (material) => {
+        const found = repo.tables.lookup("armor", material, "density_kg_m3");
+        return "error" in found || typeof found.lookup.value !== "number" ? undefined : { density_kg_m3: found.lookup.value, provisional: found.lookup.provisional };
+      },
+    );
+    return { ...estimate, ratedProvisional: provisionalParams(eff).includes("design_density_t_m3") };
+  }, [hull, repo]);
   const pitch = ctx.stationPitch_m ?? 3;
 
   const parent = refRecord(repo, draft, "parent");
@@ -232,6 +250,17 @@ export function HullEditor({ id }: { id: string }) {
         <Rail k="L/D" v={fmt(metrics.length_over_diameter, 2)} />
         <Rail k="Gross vol" v={fmt(metrics.gross_volume_m3)} unit="m³" />
         <Rail k="Usable vol" v={fmt(metrics.usable_volume_m3)} unit="m³" />
+        {law?.internal_t !== undefined && <Rail k="Structure" v={fmt(law.internal_t)} unit="t" />}
+        {law && law.armour_t > 0 && <Rail k="Armour" v={fmt(law.armour_t)} unit="t" mark={law.armourProvisional} />}
+        {law?.rated_t !== undefined && (
+          <Rail
+            k="Rated load"
+            v={fmt(law.rated_t)}
+            unit={law.fraction !== undefined ? `t · ${fmt(law.fraction * 100)}% hull` : "t"}
+            warn={(law.fraction ?? 0) >= 1}
+            mark={law.ratedProvisional}
+          />
+        )}
         <Rail k="Wetted area" v={fmt(metrics.wetted_area_m2)} unit="m²" />
         <Rail k="Bow-on" v={fmt(metrics.presented_bow_m2)} unit="m²" />
         <Rail k="Beam-on" v={fmt(metrics.presented_beam_m2)} unit="m²" />
@@ -271,11 +300,12 @@ function Toggle({ on, onClick, label, disabled, title }: { on: boolean; onClick:
   );
 }
 
-function Rail({ k, v, unit, warn }: { k: string; v: string; unit?: string; warn?: boolean }) {
+function Rail({ k, v, unit, warn, mark }: { k: string; v: string; unit?: string; warn?: boolean; mark?: boolean }) {
   return (
     <div className="stat">
       <div className="k">{k}</div>
       <div className={"v" + (warn ? " warn" : "")}>
+        {mark && <span className="provisional inline" title="Rests on a provisional figure" />}
         {v}
         {unit && <small>{unit}</small>}
       </div>
@@ -368,13 +398,56 @@ function Inspector({ hull, selection, commit, pitch }: { hull: HullGeometry; sel
     const s = (hull.external_slots ?? []).find((s) => s.id === selection.id);
     if (!s) return null;
     const set = (patch: Partial<typeof s>) => commit({ ...hull, external_slots: (hull.external_slots ?? []).map((t) => (t.id === s.id ? { ...t, ...patch } : t)) });
+    const orientation = slotOrientation(s);
     return (
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Slot {s.id}</h3>
         <Num label="Station" unit="m" value={s.x} onChange={(x) => set({ x })} />
         <Num label="Clock" unit="°" value={s.theta_deg} onChange={(theta_deg) => set({ theta_deg })} />
-        <Text label="Type" value={s.type} onChange={(type) => set({ type })} />
-        <Text label="Size" value={String(s.size)} onChange={(size) => set({ size })} />
+        <Choice label="Type" value={s.type} options={SLOT_TYPES} onChange={(type) => set({ type })} />
+        <Choice label="Size" value={String(s.size)} options={["S", "M", "L", "XL"]} onChange={(size) => set({ size })} />
+        {/* Which way the mount points (hull/orientation.ts). A gun that has to
+            fire astern is flipped; a thruster is turned and tilted. */}
+        <div className="field">
+          <label>Facing</label>
+          <span className="row">
+            <input type="number" step={15} value={orientation.facing_deg} onChange={(e) => set({ facing_deg: Number(e.target.value) || undefined })} style={{ maxWidth: 80 }} />
+            <span className="unit">°</span>
+            <button className="ghost" style={{ height: 22, padding: "0 6px", fontSize: 11 }} title="Turn the mount to face the other way" onClick={() => set({ facing_deg: (orientation.facing_deg + 180) % 360 || undefined })}>
+              Flip
+            </button>
+          </span>
+        </div>
+        {TILTABLE.has(s.type) && (
+          <div className="field">
+            <label>Tilt</label>
+            <span className="row">
+              <input type="number" min={0} max={90} step={15} value={orientation.tilt_deg} onChange={(e) => set({ tilt_deg: Number(e.target.value) })} style={{ maxWidth: 80 }} />
+              <span className="unit">°</span>
+              <button className="ghost" style={{ height: 22, padding: "0 6px", fontSize: 11 }} title="Fire along the hull" onClick={() => set({ tilt_deg: 0 })}>
+                Along
+              </button>
+              <button className="ghost" style={{ height: 22, padding: "0 6px", fontSize: 11 }} title="Fire straight outward" onClick={() => set({ tilt_deg: 90 })}>
+                Radial
+              </button>
+            </span>
+          </div>
+        )}
+        <div className="field">
+          <label>Ring</label>
+          <select value={String(s.count ?? 1)} onChange={(e) => set({ count: Number(e.target.value) > 1 ? Number(e.target.value) : undefined })} style={{ maxWidth: 80 }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? "single" : `${n} round`}
+              </option>
+            ))}
+          </select>
+        </div>
+        {(s.count ?? 1) > 1 && (
+          <p className="muted" style={{ fontSize: 11, margin: "0 0 6px" }}>
+            {s.count} copies every {Math.round(360 / (s.count ?? 1))}° from {s.theta_deg}° — one slot, balanced on the axis.
+          </p>
+        )}
         <Text label="Part override" value={s.part ?? ""} onChange={(part) => set({ part: part.trim() || undefined })} />
       </div>
     );
@@ -675,6 +748,23 @@ function Num({ label, unit, value, step, onChange }: { label: string; unit?: str
         <input type="number" step={step ?? 0.1} value={Number.isFinite(value) ? value : 0} onChange={(e) => onChange(Number(e.target.value))} style={{ maxWidth: 120 }} />
         {unit && <span className="unit">{unit}</span>}
       </span>
+    </div>
+  );
+}
+
+function Choice({ label, value, options, onChange }: { label: string; value: string; options: readonly string[]; onChange: (v: string) => void }) {
+  // A value off the list is kept and shown, never silently replaced.
+  const all = options.includes(value) ? options : [value, ...options];
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={{ maxWidth: 160 }}>
+        {all.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

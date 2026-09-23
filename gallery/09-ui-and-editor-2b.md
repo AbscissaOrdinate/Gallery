@@ -328,6 +328,29 @@ recorded in `08`.
 
 ---
 
+## 3½. Class section schemes — deferred (ruled 2026-09-23)
+
+The eleven presets currently carry three sections each (forward, magazine, engineering).
+The vault owner has ruled a naval section scheme, to be applied in a later pass:
+
+| class | sections, bow to stern |
+|---|---|
+| **Cruisers and larger** (CL, CG, CA, CV, BB) | forecastle · citadel · quarterdeck · fantail |
+| **Destroyers** (DD, DL) | forecastle · citadel (the quarterdeck merged into it) · fantail |
+| **Frigates and monitors** (FF, MN) | bow · stern |
+
+What each section may hold (`allowed`, in module categories):
+
+- **Forecastle** — sensors, thrusters, kinetic weapons, point defence. Nothing else.
+- **Citadel / gundeck / magazine** — sensors, every weapon type, point defence, radiators.
+- **Quarterdeck** — habitat, flag and command, docking, EW, cargo, hangar.
+- **Fantail** — radiators, tanks, drive, reactor, thrusters, point defence, hangar and flight deck.
+
+Open when it is built: "flag / command" and "flight deck" need a module category (today's
+list has neither — `habitat` and `hangar` are the nearest), and the two-section FF and MN
+need their `allowed` lists stated. Where a destroyer merges its quarterdeck into the
+citadel, the citadel takes the union.
+
 ## 4. Order of work
 
 1. **Label fix + armour-zone inspector branch.** Small, self-contained, immediately visible.
@@ -363,6 +386,10 @@ Per `docs/CLAUDE.md`, `npm run typecheck` and `npm test` must be clean before an
   that went wrong.
 
 ## Open questions
+
+*Resolved 2026-09-23: the hull ladder (measured, with CL restored to light cruiser at 186 m),
+MN as the monitor's code, and heights (solved from the NEBULOUS example masses — see
+`gallery/08`). Round mass above 450 mm was settled by the 600 mm anchor in `docs/UNITS.md` §8.*
 
 - **`max_gimbal_deg`** is still unsupplied, so the thrust-line check reports the angle a
   design needs and asserts nothing.

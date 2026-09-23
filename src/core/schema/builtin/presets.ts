@@ -225,6 +225,26 @@ const BASE_PRESETS: Preset[] = [
     tags: ["weapon", "missile", "ujcn"],
     fields: { category: "weapon-missile", slot: "turret", launch_cells: 32, magazine: 32, mass_t: 60, volume_m3: 220, power_in_MW: 0.4, crew: 4, bus_iface: "UJCN-L", cost: 70 },
   },
+  // The two NEBULOUS mounts `_tables/mounts.yaml` has for families that no
+  // other preset shows. Every figure is the table row's, converted (kW -> MW);
+  // nothing the row does not give — heat, cost, volume — is filled in. There is
+  // no bandit (`arm`) row to seed a third from.
+  {
+    id: "rl18-launcher",
+    type: "module",
+    title: "RL18 rocket launcher",
+    description: "From `_tables/mounts.yaml` row `rl18` (NEBULOUS: Fleet Command wiki, CC BY-SA). An unguided rocket bundle: category `weapon-missile`, drawn as `rocket` — 18 tubes, three rows by six.",
+    tags: ["weapon", "rocket", "nebulous"],
+    fields: { category: "weapon-missile", slot: "turret", weapon_family: "rocket", launch_cells: 18, magazine: 18, mass_t: 8, power_in_MW: 0.05 },
+  },
+  {
+    id: "t81-plasma",
+    type: "module",
+    title: "T81 plasma cannon",
+    description: "From `_tables/mounts.yaml` row `t81-plasma-cannon` (NEBULOUS: Fleet Command wiki, CC BY-SA). Magazine-fed — it fires 400 mm plasma ampoules — so it is a `weapon-kinetic` for the budget, drawn as `plasma`.",
+    tags: ["weapon", "plasma", "nebulous"],
+    fields: { category: "weapon-kinetic", slot: "turret", weapon_family: "plasma", bore_mm: 400, mass_t: 80, power_in_MW: 1.5, crew: 15, crew_basis: "total" },
+  },
   {
     id: "beam-turret",
     type: "module",
@@ -380,10 +400,13 @@ const BASE_PRESETS: Preset[] = [
       hull_class: "DD",
       environment: "orbital",
       packing_efficiency: 0.78,
-      structure_mass_fraction: 0.16,
-      structural_mass_t: 1650,
-      structural_cost: 380,
-      armor: "Nose-heavy: spaced ceramic over the bow third, whipple elsewhere",
+      // Retooled 2026-09-23 to the NEBULOUS example destroyer: internal density
+      // and armour from the owner's table, and no hand-set structural mass or
+      // cost — the structural-mass law computes both (docs/UNITS.md §9). It
+      // rates at 8,000 t, which is what the base set's design density is
+      // calibrated on.
+      internal_density_cm_m: 0.5,
+      armor: "End to end at 22 cm; the bow taper at 17.6 cm, credited for its slope",
       spine: {
         length_m: 138,
         beam_m: 13,
@@ -420,7 +443,10 @@ const BASE_PRESETS: Preset[] = [
         { id: "magazine", x0: 48, x1: 87, allowed: ["weapon-missile", "weapon-kinetic", "cargo", "other"] },
         { id: "engineering", x0: 87, x1: 138, allowed: ["reactor", "drive", "radiator", "tank", "other"] },
       ],
-      armor_zones: [{ id: "bow", x0: 0, x1: 48, material: "composite", thickness_cm: 6 }],
+      armor_zones: [
+        { id: "nose", x0: 0, x1: 27, material: "composite", thickness_cm: 17.6 },
+        { id: "hull", x0: 27, x1: 138, material: "composite", thickness_cm: 22 },
+      ],
       external_slots: [
         { id: "gun-a", x: 21, theta_deg: 0, type: "turret", size: "M" },
         { id: "gun-b", x: 36, theta_deg: 0, type: "turret", size: "M" },

@@ -254,7 +254,8 @@ describe("migrateAll", () => {
 describe("schema versions", () => {
   it("bumps hull, module and craft, and ships bus and style", () => {
     const byId = Object.fromEntries(BUILTIN_SCHEMAS.map((s) => [s.id, s]));
-    expect(byId.hull?.version).toBe(2);
+    // 3: slot facing/tilt/ring count and the hull's internal density (2026-09-23).
+    expect(byId.hull?.version).toBe(3);
     // Editor 2 added the six fields the ship kernel reads: standby draw,
     // radiator temperature, radiated power, and the three weapon-scale figures.
     expect(byId.module?.version).toBe(3);
@@ -269,12 +270,12 @@ describe("schema versions", () => {
   it("upgrades an on-disk schema and keeps the old copy, per the existing mechanism", async () => {
     const fs = new MemoryAdapter();
     const repo = new Repository(fs);
-    await repo.init(); // writes v2 schemas
+    await repo.init(); // writes the current schemas
     // Pretend an older Gallery had written v1 hull, then re-seed.
     await fs.writeText("_schemas/hull.schema.json", JSON.stringify({ id: "hull", version: 1, title: "Hull", folder: "hulls", fields: { type: "object", properties: {} } }));
     await repo.registry.seed(fs);
     const upgraded = JSON.parse(await fs.readText("_schemas/hull.schema.json")) as { version: number };
-    expect(upgraded.version).toBe(2);
+    expect(upgraded.version).toBe(3);
     expect(await fs.exists("_schemas/hull.schema.v1.json")).toBe(true);
   });
 

@@ -95,14 +95,19 @@ describe("composition", () => {
 
 describe("sourcing discipline", () => {
   it("ships a base set whose only sourced figure is cited, and whose conventions are marked", () => {
-    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params).sort()).toEqual(["T_ENV", "automation_factor", "cell_pitch_m", "cell_volume_m3", "kg_per_crew_day"].sort());
-    // The one looked-up figure carries its citation and is not provisional.
+    expect(Object.keys(DEFAULT_CONSTRAINT_SET.params).sort()).toEqual(
+      ["T_ENV", "automation_factor", "cell_pitch_m", "cell_volume_m3", "kg_per_crew_day", "structure_density_kg_m3", "design_density_t_m3", "structure_cost_per_t"].sort(),
+    );
+    // The looked-up figures carry their citations and are not provisional:
+    // the CMB temperature, and steel for the structural-mass law (2026-09-23).
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.source).toMatch(/Fixsen 2009/);
     expect(DEFAULT_CONSTRAINT_SET.params.T_ENV?.provisional).toBeFalsy();
+    expect(DEFAULT_CONSTRAINT_SET.params.structure_density_kg_m3?.source).toMatch(/armor\.yaml.*steel/);
+    expect(DEFAULT_CONSTRAINT_SET.params.structure_density_kg_m3?.provisional).toBeFalsy();
     // Everything else in the base set is a ruling or a delegated assumption,
     // not a measurement: no source, provisional, and a note saying what it
     // rests on — so every figure derived from one keeps the marker.
-    for (const name of ["cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day"]) {
+    for (const name of ["cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day", "design_density_t_m3", "structure_cost_per_t"]) {
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.source, name).toBeUndefined();
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.provisional, name).toBe(true);
       expect(DEFAULT_CONSTRAINT_SET.params[name]?.note, name).toBeTruthy();
@@ -134,18 +139,18 @@ describe("sourcing discipline", () => {
     const missing = missingParams(eff).map((p) => p.name);
     // Set by the base set: one sourced figure, the two cell conventions, and
     // the two crew assumptions delegated on 2026-09-20.
-    for (const name of ["T_ENV", "cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day"]) expect(missing).not.toContain(name);
+    for (const name of ["T_ENV", "cell_pitch_m", "cell_volume_m3", "automation_factor", "kg_per_crew_day", "structure_density_kg_m3", "design_density_t_m3", "structure_cost_per_t"]) expect(missing).not.toContain(name);
     // Everything else is a campaign assumption that has to be chosen, not
     // looked up — including `max_gimbal_deg`, which is why the thrust-line
     // check reports the angle it needs and asserts nothing.
     expect(missing).toContain("target_accel_g");
     expect(missing).toContain("closing_speed_kps");
     expect(missing).toContain("max_gimbal_deg");
-    expect(missing).toHaveLength(ENGINE_PARAMS.length - 5);
+    expect(missing).toHaveLength(ENGINE_PARAMS.length - 8);
   });
 
   it("marks exactly one declared engine parameter as physically citable", () => {
-    expect(ENGINE_PARAMS.filter((p) => p.physical).map((p) => p.name)).toEqual(["T_ENV"]);
+    expect(ENGINE_PARAMS.filter((p) => p.physical).map((p) => p.name)).toEqual(["T_ENV", "structure_density_kg_m3"]);
   });
 });
 
@@ -183,6 +188,28 @@ describe("vault I/O", () => {
     expect(problems).toEqual([]);
     expect([...sets.keys()].sort()).toEqual(["2130s", "default"]);
     expect(composeConstraints(sets, { era: "2130s" }).values.T_ENV).toBe(40);
+  });
+
+  it("lets a vault's copy of the base set win parameter by parameter, not wholesale", async () => {
+    // Seeded once and never overwritten: a vault seeded before a parameter
+    // existed must still see it, or it silently goes missing — which is how
+    // automation_factor never reached a vault seeded on 2026-09-19.
+    const fs = new MemoryAdapter();
+    await fs.mkdirAll(VAULT.constraintsDir);
+    await fs.writeText(
+      `${VAULT.constraintsDir}/default.yaml`,
+      `id: default
+name: Old base
+scope: base
+params:
+  T_ENV: { value: 3, source: 'mine' }
+`,
+    );
+    const { sets } = await loadConstraints(fs);
+    const values = composeConstraints(sets, {}).values;
+    expect(values.T_ENV).toBe(3); // the vault's own figure wins
+    expect(values.automation_factor).toBe(1); // what it never had arrives
+    expect(values.design_density_t_m3).toBeCloseTo(0.715, 9);
   });
 
   it("treats a missing _constraints/ as just the built-in default", async () => {

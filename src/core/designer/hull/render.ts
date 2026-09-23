@@ -33,7 +33,7 @@
  * pixels to know where a station is.
  */
 import type { Appendage, ExternalSlot, HullGeometry, ShadowCone } from "./types";
-import type { View } from "./parts";
+import { ringMembers, type View } from "./parts";
 import { breakpoints, halfHeightAt, beamAt, placeAppendage, placeAppendages, sectionVolumes, shadowRadiusAt } from "./geometry";
 
 export type RenderMode = "silhouette" | "schematic";
@@ -376,7 +376,12 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   if (options.slots ?? schematic) {
     for (const slot of hull.external_slots ?? []) {
       const { y } = slotAnchor(hull, slot, view);
-      elements.push({ kind: "circle", id: `slot-${slot.id}`, role: `slot:${slot.type}`, cx: slot.x, cy: y, r: 1.2, fill: "rust-300", stroke: "line-strong", strokeWidth: 0.5 });
+      // Every member of a ring gets a marker (`slot-<id>@2`), and a click on
+      // any of them selects the slot; only the first carries the label.
+      for (const member of ringMembers(slot)) {
+        const at = slotAnchor(hull, member, view);
+        elements.push({ kind: "circle", id: `slot-${member.id}`, role: `slot:${slot.type}`, cx: slot.x, cy: at.y, r: 1.2, fill: "rust-300", stroke: "line-strong", strokeWidth: 0.5 });
+      }
       if (schematic) {
         elements.push({
           kind: "text",
@@ -384,7 +389,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
           role: "slot-label",
           x: slot.x,
           y: y + (y >= 0 ? 3 : -3),
-          text: `${slot.type} ${slot.size}`,
+          text: `${slot.type} ${slot.size}${(slot.count ?? 1) > 1 ? ` ×${slot.count}` : ""}`,
           anchor: "middle",
           size: LABEL_PX.slot,
           owner: `slot-${slot.id}`,

@@ -103,9 +103,14 @@ export interface SilhouetteOptions {
 export function shipSilhouette(hull: HullGeometry, ship: ShipLoadout, options: SilhouetteOptions = {}): ShipSilhouette {
   const families = options.families ?? familiesOf(options.style);
   const bySlot = new Map<string, ModuleSpec | undefined>();
+  // How many tanks each collar actually carries. The hull's ring count says how
+  // many would fit; the ship's tank entry says how many are there, and that is
+  // what draws — a collar of four is four barrels round the hull, not one.
+  const counts: Record<string, number> = {};
   // A drop tank occupies a slot as surely as a turret does, and has to appear.
   for (const t of ship.tanks) {
     if (!t.slot || bySlot.has(t.slot)) continue;
+    if (t.count > 1) counts[t.slot] = t.count;
     const fields = t.module ? options.module?.(t.module) : undefined;
     bySlot.set(t.slot, fields ? readModule(fields) : undefined);
   }
@@ -163,6 +168,6 @@ export function shipSilhouette(hull: HullGeometry, ship: ShipLoadout, options: S
     if (weapon) weapons[id] = weapon;
   }
 
-  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons, scales, view: options.view });
+  const parts = partsForHull({ ...hull, external_slots: fitted }, { families, weapons, scales, counts, view: options.view });
   return { parts, emptySlots };
 }

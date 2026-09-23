@@ -306,7 +306,7 @@ const RADIATORS: { f: RadiatorFamily; label: string; panels?: number; sweep?: nu
 const SIZES = ["S", "M", "L", "XL"] as const;
 const LADDERS: { name: string; spec: PartSpec; view?: View }[] = [
   { name: "gun 300mm — barrel lengthens, gunhouse expands more slowly", spec: { kind: "turret", weapon: "gun", bore_mm: 300 } },
-  { name: "VLS from above — more cells, same pitch", spec: { kind: "turret", weapon: "cell" }, view: "plan" },
+  { name: "VLS from above — 8, 16, 32, 48 cells at one pitch (ruled 2026-09-23)", spec: { kind: "turret", weapon: "cell" }, view: "plan" },
   { name: "rocket from above — more tubes, same tube", spec: { kind: "turret", weapon: "rocket" }, view: "plan" },
   { name: "laser — a sphere stays a sphere", spec: { kind: "turret", weapon: "laser" } },
   { name: "radiator · fin — taller, never longer", spec: { kind: "radiator", families: { radiator: "fin" } } },
@@ -350,6 +350,12 @@ const gallery = `<section>
   <div class="swatches">${RADIATORS.map((x) => swatch(makePart({ kind: "radiator", size: "L", families: { radiator: x.f }, panels: x.panels, sweep_deg: x.sweep }), x.label)).join("")}</div>
   <h3>the same, from above — a radiator is a sheet, so edge-on</h3>
   <div class="swatches">${RADIATORS.map((x) => swatch(makePart({ kind: "radiator", size: "L", families: { radiator: x.f }, panels: x.panels, sweep_deg: x.sweep }, "plan"), x.label)).join("")}</div>
+  <h3>panels at one scale — one, two and three radiators in a set, each panel the same width (ruled 2026-09-23)</h3>
+  <div class="swatches">${ladder(
+    (["fin", "panel", "spine-array"] as const).flatMap((radiator) =>
+      [1, 2, 3].map((panels) => ({ pieces: makePart({ kind: "radiator", size: "L", families: { radiator }, panels }), label: `${radiator} × ${panels}` })),
+    ),
+  )}</div>
   <h3>radiator_aspect from the style kit, at one scale — 1.0, the default 1.35, and 2.0</h3>
   <div class="swatches">${ladder(
     (["fin", "panel", "membrane"] as const).flatMap((radiator) =>
@@ -359,6 +365,32 @@ const gallery = `<section>
       })),
     ),
   )}</div>
+</section>`;
+
+/** One slot on a short barrel, drawn in both views, so a turned mount can be seen turned. */
+function turnedSwatch(slot: Record<string, unknown>, label: string): string {
+  const h: HullGeometry = {
+    spine: { length_m: 24, beam_m: 6, station_pitch_m: 3, stations: [{ x: 0, half_height_m: 3 }, { x: 24, half_height_m: 3 }] },
+    external_slots: [{ id: "m", x: 12, theta_deg: 0, type: "turret", size: "M", ...slot } as never],
+  };
+  const one = (view: View) => toSvg(renderHull(h, { mode: "silhouette", view, fitted: partsForHull(h, { view, weapons: { m: { weapon: "gun", bore_mm: 300 } } }) }), { pxPerMetre: 4 });
+  return `<figure><div style="display:flex;gap:6px">${one("profile")}${one("plan")}</div><figcaption>${label} — side · from above</figcaption></figure>`;
+}
+
+const turned = `<section>
+  <h2>Turned mounts — facing and tilt, set per slot in the hull editor (2026-09-23)</h2>
+  <div class="swatches">
+    ${turnedSwatch({}, "gun, as drawn")}
+    ${turnedSwatch({ facing_deg: 180 }, "gun, flipped")}
+    ${turnedSwatch({ facing_deg: 90 }, "gun, turned 90°")}
+  </div>
+  <div class="swatches">
+    ${turnedSwatch({ type: "thruster", size: "S" }, "thruster, default radial")}
+    ${turnedSwatch({ type: "thruster", size: "S", tilt_deg: 0 }, "thruster, tilt 0")}
+    ${turnedSwatch({ type: "thruster", size: "S", tilt_deg: 0, facing_deg: 180 }, "thruster, retro")}
+    ${turnedSwatch({ type: "thruster", size: "S", tilt_deg: 45, facing_deg: 90 }, "thruster, canted for roll")}
+    ${turnedSwatch({ type: "tank", size: "M", count: 4, theta_deg: 45 }, "tank ring × 4")}
+  </div>
 </section>`;
 
 const out = process.argv[2] ?? "hull-style-probe.html";
@@ -380,6 +412,7 @@ ${theme}
 </style>
 <h1>Hull style probe — can the generators make the reference shapes?</h1>
 ${gallery}
+${turned}
 ${cards}
 `,
 );

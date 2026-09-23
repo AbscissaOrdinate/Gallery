@@ -227,3 +227,55 @@ The anchors live in that file's `meta.round_scale`; a row may override the resul
 `mass_kg` / `volume_m3`. Magazine mass is attributed to the **mount**, because that is where
 the ready rounds are and a full magazine under a dorsal turret pulls the centre of gravity
 like anything else.
+
+## 9. Structure has mass by law, and mounts point (ruled 2026-09-23)
+
+### The structural-mass law
+
+A hull's structural mass is no longer typed onto it. It follows from what the hull is
+(`src/core/designer/hull/structure.ts`):
+
+```
+internal structure   M_s = (d / 100) · ρ_s · V        d  internal_density_cm_m
+armour               M_a = Σ zones A · t · ρ_armour   `_tables/armor.yaml`
+rated displacement   M_r = ρ_d · p · V                p  packing_efficiency
+structure fraction   f   = (M_s + M_a) / M_r
+structural cost      C   = c · (M_s + M_a)
+```
+
+`V` is gross volume. **`internal_density_cm_m`** is NEBULOUS's internal density: centimetres
+of plate a straight path meets per metre of interior. Averaged over directions, the fraction
+of a path lying in solid equals the solid's volume fraction (the stereological identity
+L_L = V_V), so `d/100` is the share of the hull's volume that is deck and bulkhead, and the
+law needs no other factor.
+
+The three constants are base-set parameters:
+
+| parameter | value | standing |
+|---|---|---|
+| `structure_density_kg_m3` (ρ_s) | 7,850 | sourced — `_tables/armor.yaml` steel |
+| `design_density_t_m3` (ρ_d) | 0.715 | provisional — calibrated so the 138 m DD rates at 8,000 t |
+| `structure_cost_per_t` (c) | 0.14 | provisional — calibrated so the DD costs its old 380 |
+
+A `structural_mass_t` or `structural_cost` typed on a hull still wins, and the budget shows
+the law's figure beside it. `structure_mass_fraction` on a hull is now a computed output, not
+an input. A hull whose structure and armour outweigh its rating (f ≥ 1) is warned about;
+everything derived from a provisional constant carries the marker.
+
+A vault's copy of the base constraint set now wins **parameter by parameter**, so a vault
+seeded before a parameter existed still receives it.
+
+### Slot orientation and rings
+
+Three optional fields on a hull's `external_slots[]`, read by the drawing and the budget
+(`src/core/designer/hull/orientation.ts`):
+
+| field | unit | meaning |
+|---|---|---|
+| `facing_deg` | ° | Turn about the mount's own outward axis. 0 as drawn (muzzle to the bow, exhaust aft), 180 reversed; positive turns toward increasing clock angle. |
+| `tilt_deg` | ° | Thrusters and drives only: 0 fires along the hull, 90 straight outward. A `thruster` slot defaults to 90 — radial — which is what the attitude budget always assumed. |
+| `count` | 1–8 | A ring: this many copies spaced evenly round the hull from `theta_deg`. A fitting in a ring slot is charged once per member, on the thrust line. |
+
+The attitude budget takes each thruster's torque as `r × F` about the centre of gravity, so a
+nozzle turned tangential produces **roll**, which is now reported whenever something can
+produce it.

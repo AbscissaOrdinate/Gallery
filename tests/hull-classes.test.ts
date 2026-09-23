@@ -11,7 +11,20 @@ import { BUILTIN_PRESETS } from "../src/core/schema/builtin/presets";
 import { readHull } from "../src/core/designer/hull/record";
 import { hullMetrics } from "../src/core/designer/hull/geometry";
 import { hullAdvisories } from "../src/core/designer/hull/advisories";
-import { ANCHOR_PRESET_ID, CLASS_CODES, FLEET_REFERENCE, measuredLength, meanHeight, verticalScale, type MeasuredClass } from "../src/core/designer/hull/classes";
+import {
+  ANCHOR_PRESET_ID,
+  CLASS_ARMOUR_MATERIAL,
+  CLASS_CODES,
+  FLEET_REFERENCE,
+  NEBULOUS_EXAMPLES,
+  NOSE_THICKNESS_FACTOR,
+  measuredLength,
+  meanHeight,
+  verticalScale,
+  type MeasuredClass,
+} from "../src/core/designer/hull/classes";
+import { ratedDisplacement, structureOf } from "../src/core/designer/hull/structure";
+import { DEFAULT_CONSTRAINT_SET } from "../src/core/designer/constraints";
 import { SLOT_TYPES } from "../src/core/designer/hull/parts";
 
 const classes = BUILTIN_PRESETS.filter((p) => p.type === "hull" && p.tags?.includes("class"));
@@ -36,20 +49,21 @@ describe("the ladder", () => {
   });
 
   it("takes every measured length from the reference, snapped to the 3 m grid", () => {
-    for (const code of ["BB", "CV", "CL", "CA", "CG"] as MeasuredClass[]) {
+    for (const code of ["BB", "CV", "CA", "CG"] as MeasuredClass[]) {
       const L = hullOf(code).spine.length_m!;
       expect(L % 3, code).toBe(0);
       expect(Math.abs(L - measuredLength(code)), code).toBeLessThanOrEqual(1.5);
     }
   });
 
-  it("orders the measured classes as the reference draws them — CL above CA", () => {
-    // The plan's starting ladder had CL at ~185 m, below CA at ~225. The
-    // reference draws the CL icon 52.4 px long and the CA 43.8.
+  it("puts the light cruiser below the heavy one, whatever the chart draws", () => {
+    // Ruled 2026-09-23: CL means light cruiser, so the chart's long CL icon is
+    // the chart being off. The CL takes the plan's ~185 m (186 on the grid).
     const L = (c: string) => hullOf(c).spine.length_m!;
-    expect(L("CG")).toBeLessThan(L("CA"));
-    expect(L("CA")).toBeLessThan(L("CL"));
-    expect(L("CL")).toBeLessThan(L("CV"));
+    expect(L("CL")).toBe(186);
+    expect(L("DL")).toBeLessThan(L("CL"));
+    expect(L("CL")).toBeLessThan(L("CA"));
+    expect(L("CA")).toBeLessThan(L("CV"));
     expect(L("CV")).toBeLessThan(L("BB"));
   });
 
@@ -69,9 +83,30 @@ describe("proportions", () => {
     expect(FLEET_REFERENCE.icons.DD.mean_px * verticalScale(anchor.spine)).toBeCloseTo(meanHeight(anchor.spine), 9);
   });
 
-  it("makes the CV and the monitor fat and the DL thin, as the plan and the reference say", () => {
-    expect(LD("CV")).toBeLessThan(LD("DD") * 0.7);
-    expect(LD("MN")).toBeLessThan(LD("DD") * 0.7);
+  it("rates every example class at its NEBULOUS mass, by solving its height", () => {
+    const density = DEFAULT_CONSTRAINT_SET.params.design_density_t_m3!.value;
+    for (const [code, ex] of Object.entries(NEBULOUS_EXAMPLES)) {
+      const rated = ratedDisplacement(hullOf(code), density)!;
+      expect(Math.abs(rated - ex.mass_t) / ex.mass_t, code).toBeLessThan(0.005);
+    }
+  });
+
+  it("leaves every example class able to carry its own structure", () => {
+    const params = {
+      structure_density_kg_m3: DEFAULT_CONSTRAINT_SET.params.structure_density_kg_m3!.value,
+      design_density_t_m3: DEFAULT_CONSTRAINT_SET.params.design_density_t_m3!.value,
+    };
+    const composite = () => ({ density_kg_m3: 1930, provisional: false }); // _tables/armor.yaml
+    for (const code of Object.keys(NEBULOUS_EXAMPLES)) {
+      const f = structureOf(hullOf(code), params, composite).fraction!;
+      expect(f, code).toBeGreaterThan(0.2);
+      expect(f, code).toBeLessThan(1);
+    }
+    // The destroyer, the baseline: about a third of it is hull.
+    expect(structureOf(hullOf("DD"), params, composite).fraction).toBeCloseTo(0.34, 2);
+  });
+
+  it("keeps the DL thinner than the DD", () => {
     expect(LD("DL")).toBeGreaterThan(LD("DD"));
   });
 
@@ -85,8 +120,13 @@ describe("proportions", () => {
     expect(bumps("CG")).toBeGreaterThanOrEqual(2);
   });
 
-  it("stretches the DL out of the DD's magazine block, at the DD's height", () => {
-    expect(hullMetrics(hullOf("DL")).max_half_height_m).toBeCloseTo(hullMetrics(anchor).max_half_height_m, 9);
+  it("stretches the DL out of the DD's magazine block, in the DD's proportions", () => {
+    // Same profile, scaled as a whole: every station's height is the DD's
+    // times one factor.
+    const dl = hullOf("DL").spine.stations.filter((s) => s.x <= 60);
+    const dd = anchor.spine.stations.filter((s) => s.x <= 60);
+    const k = dl[1]!.half_height_m / dd[1]!.half_height_m;
+    for (let i = 1; i < dd.length; i++) expect(dl[i]!.half_height_m / dd[i]!.half_height_m).toBeCloseTo(k, 1);
     const mag = hullOf("DL").sections!.find((s) => s.id === "magazine")!;
     const ddMag = anchor.sections!.find((s) => s.id === "magazine")!;
     expect(mag.x1 - mag.x0).toBe(ddMag.x1 - ddMag.x0 + 27);
@@ -121,23 +161,31 @@ describe("every class is a hull the kernel is happy with", () => {
 });
 
 describe("nothing invented", () => {
-  it("leaves structural mass and cost to the anchor alone", () => {
-    // Scaling them would need a structure-mass law nobody has ruled on.
+  it("types no structural mass or cost onto any class, the anchor included", () => {
+    // The structural-mass law computes both (ruled 2026-09-23).
     for (const p of classes) {
-      if (p.id === ANCHOR_PRESET_ID) continue;
       expect(p.fields.structural_mass_t, String(p.fields.hull_class)).toBeUndefined();
       expect(p.fields.structural_cost, String(p.fields.hull_class)).toBeUndefined();
     }
   });
 
-  it("gives every armour zone the anchor's own material and thickness", () => {
-    const bow = anchor.armor_zones![0]!;
-    for (const code of CLASS_CODES) {
-      for (const z of hullOf(code).armor_zones ?? []) {
-        expect(z.material, code).toBe(bow.material);
-        expect(z.thickness_cm, code).toBe(bow.thickness_cm);
-      }
+  it("armours every example class end to end at its thickness, the bow taper at four fifths", () => {
+    for (const [code, ex] of Object.entries(NEBULOUS_EXAMPLES)) {
+      const hull = hullOf(code);
+      expect(hull.internal_density_cm_m, code).toBe(ex.internal_cm_m);
+      const zones = hull.armor_zones!;
+      expect(zones.map((z) => z.material), code).toEqual([CLASS_ARMOUR_MATERIAL, CLASS_ARMOUR_MATERIAL]);
+      expect(zones[0]!.thickness_cm, code).toBeCloseTo(ex.armour_cm * NOSE_THICKNESS_FACTOR, 9);
+      expect(zones[1]!.thickness_cm, code).toBe(ex.armour_cm);
+      // Contiguous, bow to stern.
+      expect(zones[0]!.x0).toBe(0);
+      expect(zones[1]!.x0).toBe(zones[0]!.x1);
+      expect(zones[1]!.x1).toBe(hull.spine.length_m);
     }
+  });
+
+  it("leaves the strikecraft's armour thickness for the author, having no example to take it from", () => {
+    expect(hullOf("SC").armor_zones?.[0]?.thickness_cm).toBeUndefined();
   });
 
   it("leaves a missile unarmoured with nothing standing off it", () => {

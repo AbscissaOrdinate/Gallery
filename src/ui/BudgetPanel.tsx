@@ -2,6 +2,7 @@ import { useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import { analyseShip } from "../core/designer/ship";
 import { byDomain } from "../core/designer/violations";
+import { provisionalParams } from "../core/designer/constraints";
 
 const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "—");
 
@@ -16,20 +17,25 @@ const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toLocaleString(undefin
 export function BudgetPanel({ craft }: { craft: TypedRecord }) {
   const { repo } = useApp();
   if (!repo) return null;
+  const eff = repo.effectiveConstraints();
   const { budget: b, advisories } = analyseShip(craft, {
     typed: (id) => repo.typed(id),
     tables: repo.tables,
-    values: repo.effectiveConstraints().values,
+    values: eff.values,
+    provisionalParams: provisionalParams(eff),
   });
-  const Stat = ({ k, v, unit, warn }: { k: string; v: string; unit?: string; warn?: boolean }) => (
+  /** `mark` puts the provisional marker on the figure itself, not only in the note below. */
+  const Stat = ({ k, v, unit, warn, mark }: { k: string; v: string; unit?: string; warn?: boolean; mark?: boolean }) => (
     <div className="stat">
       <div className="k">{k}</div>
       <div className={"v" + (warn ? " warn" : "")}>
+        {mark && <span className="provisional inline" title="Rests on a provisional figure" />}
         {v}
         {unit && <small>{unit}</small>}
       </div>
     </div>
   );
+  const ratedProvisional = b.provisional.includes("rated displacement and structure fraction");
   // `flagged`, not `warn`: `.warn` sets a colour, and on a card this size that
   // inherits down into every stat and every table cell, so the one figure that
   // is actually in trouble stops standing out. `flagged` only borders.
@@ -40,6 +46,16 @@ export function BudgetPanel({ craft }: { craft: TypedRecord }) {
       <div className="budget">
         <Stat k="Dry mass" v={fmt(b.dryMass_t, 0)} unit="t" />
         <Stat k="Wet mass" v={fmt(b.wetMass_t, 0)} unit="t" />
+        <Stat k={b.structureSource === "hand" ? "Structure (hand-set)" : "Structure"} v={fmt(b.structuralMass_t, 0)} unit={b.armorMass_t > 0 ? `t · ${fmt(b.armorMass_t, 0)} t armour` : "t"} />
+        {b.ratedMass_t !== undefined && (
+          <Stat
+            k="Rated full load"
+            v={fmt(b.ratedMass_t, 0)}
+            unit={b.structureFraction !== undefined ? `t · ${fmt(b.structureFraction * 100, 0)}% hull` : "t"}
+            warn={(b.structureFraction ?? 0) >= 1}
+            mark={ratedProvisional}
+          />
+        )}
         <Stat
           k="Propellant"
           v={`${fmt(b.propellant_t, 0)}${b.propellantCapacity_t ? ` / ${fmt(b.propellantCapacity_t, 0)}` : ""}`}
@@ -54,6 +70,8 @@ export function BudgetPanel({ craft }: { craft: TypedRecord }) {
         <Stat k="Heat" v={`${fmt(b.heatReject_MW, 0)} − ${fmt(b.heatOut_MW, 0)}`} unit={`= ${fmt(b.heatMargin_MW, 0)} MW`} warn={b.heatOut_MW > 0 && b.heatMargin_MW < 0} />
         <Stat k="Cost" v={fmt(b.cost, 0)} unit="M$" />
         <Stat k="Crew" v={fmt(b.crew, 0)} unit={b.crewOnWatch > 0 ? `· ${fmt(b.crewOnWatch, 0)} on watch` : undefined} />
+        {b.attitude && <Stat k="Turn 90° (pitch/yaw)" v={b.attitude.slew90_s > 0 ? fmt(b.attitude.slew90_s, 0) : "—"} unit="s" warn={b.attitude.slew90_s === 0} />}
+        {b.attitude?.roll && <Stat k="Roll 90°" v={b.attitude.roll.slew90_s > 0 ? fmt(b.attitude.roll.slew90_s, 0) : "—"} unit="s" />}
       </div>
 
       {b.modes.length > 1 && (

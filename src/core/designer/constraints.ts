@@ -118,6 +118,9 @@ export const ENGINE_PARAMS: EngineParamSpec[] = [
     physical: false,
   },
   { name: "cell_pitch_m", dim: [0, 1, 0, 0], unit: "m", usedBy: "laying NEBULOUS-catalogue mounts out along the spine", physical: false },
+  { name: "structure_density_kg_m3", dim: [1, -3, 0, 0], unit: "kg/m³", usedBy: "structural mass from internal density (docs/UNITS.md §9)", physical: true },
+  { name: "design_density_t_m3", dim: [1, -3, 0, 0], unit: "t/m³", usedBy: "rated full-load displacement and structure fraction (docs/UNITS.md §9)", physical: false },
+  { name: "structure_cost_per_t", dim: DIMENSIONLESS, unit: "cost/t", usedBy: "structural cost (docs/UNITS.md §9)", physical: false },
   { name: "cell_volume_m3", dim: [0, 3, 0, 0], unit: "m³", usedBy: "internal volume budgets for NEBULOUS-catalogue compartments", physical: false },
 ];
 
@@ -177,6 +180,25 @@ export const DEFAULT_CONSTRAINT_SET: ConstraintSet = {
       unit: "m³",
       provisional: true,
       note: "Floored by NEBULOUS's own magazine capacities: capacity_per_slot_size is m3 per cell (a 4x1x8 Reinforced Magazine reads 320 m3 = 32 cells x 10), and bulk-magazine is 15 m3 per cell, so a cell cannot be under 15 m3. This falsifies the earlier 2 m/cell (8 m3). At 27 m3 a bulk magazine runs at 56% stowage efficiency.",
+    },
+    // The structural-mass law, ruled 2026-09-23 (docs/UNITS.md §9).
+    structure_density_kg_m3: {
+      value: 7850,
+      unit: "kg/m³",
+      source: "_tables/armor.yaml row `steel` — Terra Invicta Official Wiki, Ship Armor List (retrieved 2026-09-14)",
+      note: "The plate the decks and bulkheads are made of. Internal density (cm/m) is the share of the volume that is plate; times this, its mass.",
+    },
+    design_density_t_m3: {
+      value: 0.715,
+      unit: "t/m³",
+      provisional: true,
+      note: "Rated full-load mass per m³ of usable volume. Calibrated so the 138 m DD anchor rates at 8,000 t, the NEBULOUS example destroyer the vault owner supplied on 2026-09-23. The Arleigh Burke Flight III's ~9,900 t would make it 0.885. A set for a lighter or denser-built navy should override it.",
+    },
+    structure_cost_per_t: {
+      value: 0.14,
+      unit: "cost/t",
+      provisional: true,
+      note: "Calibrated so the DD anchor's structure and armour (2,706 t under the law) cost the 380 its hand-set structural_cost used to say. Carries that placeholder's authority, no more.",
     },
   },
   rules: [],
@@ -345,7 +367,13 @@ export async function loadConstraints(fs: StorageAdapter, dir: string = VAULT.co
     try {
       const { set, problems: p } = parseConstraintSet(id, await fs.readText(joinPath(dir, e.name)));
       problems.push(...p);
-      if (set) sets.set(set.id, set);
+      // The vault's copy of the base set wins parameter by parameter, not
+      // wholesale. It is seeded once and never overwritten, so a vault seeded
+      // before a parameter existed would otherwise never see it — which is
+      // exactly how automation_factor and kg_per_crew_day, delegated on
+      // 2026-09-20, never reached a vault seeded on the 19th.
+      if (set && set.id === DEFAULT_CONSTRAINT_SET.id) sets.set(set.id, { ...set, params: { ...DEFAULT_CONSTRAINT_SET.params, ...set.params } });
+      else if (set) sets.set(set.id, set);
     } catch (err) {
       problems.push(`${e.name}: ${(err as Error).message}`);
     }

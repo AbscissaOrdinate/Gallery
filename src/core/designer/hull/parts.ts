@@ -50,6 +50,7 @@
  */
 import type { Appendage, ExternalSlot, HullGeometry } from "./types";
 import { beamAt, halfHeightAt } from "./geometry";
+import { exhaustLocal, slotOrientation, toShip, turn } from "./orientation";
 
 /** The external fittings a silhouette shows. */
 export type PartKind = "radiator" | "turret" | "pd" | "antenna" | "radar" | "optics" | "tank" | "thruster" | "dock";
@@ -174,7 +175,9 @@ export type GrowthKey = WeaponFamily | "pd" | "radiator" | "tank-round" | "tank-
  *  - **laser, spherical tank**: spheres, so both axes grow together.
  *  - **cell, rocket**: nothing grows. A bigger launcher has *more* tubes at a
  *    fixed size — see `DEFAULT_COUNT`.
- *  - **radiator**: extends outward, never lengthens along the hull.
+ *  - **radiator**: each *panel* extends outward and never widens. An array of
+ *    three panels is three panel-widths long — the array grows by panels,
+ *    each panel by height.
  *  - **barrel / conformal tank**: lengthens, barely thickens.
  *  - **masts** (antenna, radar, optics, dock) grow outward; a **thruster**
  *    grows aft. The secondary axis at half rate is a styling choice, not a
@@ -202,11 +205,26 @@ export const GROWTH: Readonly<Record<GrowthKey, { along: number; out: number }>>
 };
 
 /**
- * Cells or tubes per launcher at size M, when the fitted module does not say.
- * A launcher's count then scales with its size class, the tube itself never.
- * A module's own `launch_cells` always wins.
+ * Rocket tubes per launcher at size M, when the fitted module does not say.
+ * The count scales with the size class, the tube itself never. A module's own
+ * `launch_cells` always wins.
  */
-const DEFAULT_COUNT = { cell: 4, rocket: 6 } as const;
+const DEFAULT_COUNT = { rocket: 6 } as const;
+
+/**
+ * VLS cells by size class, when the fitted module does not say (ruled
+ * 2026-09-23): S 8 (4 × 2), M 16 (6 × 3 less two), L 32 (8 × 4), XL 48
+ * (10 × 5 less two). A module's own `launch_cells` always wins, and is drawn
+ * cell for cell.
+ */
+const CELLS_BY_SIZE: Record<SizeClass, number> = { S: 8, M: 16, L: 32, XL: 48 };
+
+/** The size class a size stands for: itself, or the class nearest a size given in metres. */
+function sizeClassOf(size: PartSpec["size"]): SizeClass {
+  if (typeof size === "string" && size.toUpperCase() in SIZE_M) return size.toUpperCase() as SizeClass;
+  const m = span(size);
+  return (Object.keys(SIZE_M) as SizeClass[]).reduce((best, k) => (Math.abs(Math.log(SIZE_M[k] / m)) < Math.abs(Math.log(SIZE_M[best] / m)) ? k : best), "M");
+}
 
 /** Guard against a typo drawing ten thousand polygons. Not a design limit. */
 const MAX_COUNT = 256;
@@ -227,16 +245,17 @@ function dims(size: PartSpec["size"], key: GrowthKey, scale: number): { A: numbe
   return { A: BASE * s ** g.along * scale, O: BASE * s ** g.out * scale, s };
 }
 
-/** Tubes or cells for a launcher: the module's own figure, else one scaled from the size class. */
-function countFor(explicit: number | undefined, key: keyof typeof DEFAULT_COUNT, s: number): number {
-  const n = typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0 ? explicit : DEFAULT_COUNT[key] * s;
+/** Tubes or cells for a launcher: the module's own figure, else the size class's. */
+function countFor(explicit: number | undefined, fallback: number): number {
+  const n = typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0 ? explicit : fallback;
   return Math.max(2, Math.min(MAX_COUNT, Math.round(n)));
 }
 
 /**
  * Lay `n` tubes out as a bundle about twice as wide as it is deep: 18 tubes is
  * 3 × 6, which is what the rocket reference shows — three rows side-on, six
- * abreast from above.
+ * abreast from above. It is also exactly the ruled VLS grids: 8 is 4 × 2, 16 is
+ * 6 × 3 less two, 32 is 8 × 4, 48 is 10 × 5 less two.
  */
 export function bundle(n: number): { rows: number; cols: number } {
   const rows = Math.max(1, Math.round(Math.sqrt(n / 2)));
@@ -631,9 +650,9 @@ function turret(spec: PartSpec, family: MountFamily, k: number): Views {
       return gun(A, O, family, spec);
     }
     case "cell":
-      return cell(countFor(spec.cells, "cell", dims(spec.size, "cell", 1).s), k);
+      return cell(countFor(spec.cells, CELLS_BY_SIZE[sizeClassOf(spec.size)]), k);
     case "rocket":
-      return rocket(countFor(spec.cells, "rocket", dims(spec.size, "rocket", 1).s), k, family);
+      return rocket(countFor(spec.cells, DEFAULT_COUNT.rocket * dims(spec.size, "rocket", 1).s), k, family);
     case "arm": {
       const { A, O } = dims(spec.size, "arm", k);
       return arm(A, O, family);
@@ -694,93 +713,99 @@ export function radiatorRatio(family: RadiatorFamily | undefined, aspect: number
 }
 
 /**
- * Radiators, profile. `A` is the length along the hull, which never grows with
- * size; `H` is the height, which does. The family is the polity's signature;
- * `panels` and `sweep_deg` are how one class differs from another in the
- * same navy.
+ * Radiators, profile. `W` is **one panel's** width along the hull, which never
+ * grows with size; `H` is the height, which does. An array of `panels` is
+ * `panels × W` long — three radiators in a set are three times as wide as one
+ * (ruled 2026-09-23), not one radiator cut into thirds. The family is the
+ * polity's signature; `panels` and `sweep_deg` are how one class differs from
+ * another in the same navy.
  */
-function radiatorProfile(A: number, H: number, family: RadiatorFamily | undefined, panels: number, sweepDeg: number): Part {
+function radiatorProfile(W: number, H: number, family: RadiatorFamily | undefined, panels: number, sweepDeg: number): Part {
   const n = Math.max(1, Math.min(8, Math.round(panels)));
+  const A = n * W;
   const tan = Math.tan((Math.max(-60, Math.min(60, sweepDeg)) * Math.PI) / 180);
   /** Rake a piece: every point leans by its height times the sweep. */
   const rake = (o: Outline): Outline => o.map(([x, y]) => [x + y * tan, y] as [number, number]);
-  /** Lay `n` copies of one panel along the hull. */
-  const array = (panel: (w: number) => Outline): Part => {
-    const w = A / n;
-    return Array.from({ length: n }, (_, i) => rake(panel(w).map(([x, y]) => [x + i * w, y] as [number, number])));
-  };
+  /** One panel's pieces, drawn from `x0`, repeated `n` times along the hull. */
+  const each = (unit: (x0: number) => Outline[]): Part => Array.from({ length: n }, (_, i) => unit(i * W)).flat().map(rake);
 
   switch (family) {
     case "droplet-boom":
-      // Two booms with a droplet sheet between them.
-      return [
-        rake([
-          [0, 0],
-          [A * 0.12, 0],
-          [A * 0.12, H * 0.82],
-          [A * 0.88, H * 0.82],
-          [A * 0.88, 0],
-          [A, 0],
-          [A, H],
-          [0, H],
-        ]),
-      ];
+      // Two booms with a droplet sheet between them, per panel.
+      return each((x0) => [
+        [
+          [x0, 0],
+          [x0 + W * 0.12, 0],
+          [x0 + W * 0.12, H * 0.82],
+          [x0 + W * 0.88, H * 0.82],
+          [x0 + W * 0.88, 0],
+          [x0 + W, 0],
+          [x0 + W, H],
+          [x0, H],
+        ],
+      ]);
     case "spine-array":
-      // A boom with a row of panels hung off it: the array that grows by
-      // adding panels rather than by getting bigger.
+      // A boom the length of the array with a panel hung off it per panel:
+      // the family that most obviously grows by adding panels.
       return [
         box(0, 0, A, H * 0.12),
-        ...array((w) => [
-          [w * 0.12, H * 0.12],
-          [w * 0.88, H * 0.12],
-          [w * 0.88, H],
-          [w * 0.12, H],
+        ...each((x0) => [
+          [
+            [x0 + W * 0.12, H * 0.12],
+            [x0 + W * 0.88, H * 0.12],
+            [x0 + W * 0.88, H],
+            [x0 + W * 0.12, H],
+          ],
         ]),
       ];
     case "hoop": {
       // A closed loop standing off a short pylon — a moving-belt radiator.
-      const t = A * 0.1;
-      return [
-        box(A * 0.45, 0, A * 0.55, H * 0.25),
-        box(0, H * 0.25, A, H),
+      const t = W * 0.1;
+      return each((x0) => [
+        box(x0 + W * 0.45, 0, x0 + W * 0.55, H * 0.25),
+        box(x0, H * 0.25, x0 + W, H),
         // The hole, wound the same way so it reads as a rim at plate size.
-        box(t, H * 0.25 + t, A - t, H - t),
-      ].map(rake);
+        box(x0 + t, H * 0.25 + t, x0 + W - t, H - t),
+      ]);
     }
     case "membrane":
       // A slack sheet between two spars: obviously not rigid. Taller than wide
       // now, like every radiator.
-      return [
-        rake([
-          [0, 0],
-          [A, 0],
-          [A * 0.94, H * 0.55],
-          [A * 0.72, H],
-          [A * 0.28, H],
-          [A * 0.06, H * 0.55],
-        ]),
-      ];
+      return each((x0) => [
+        [
+          [x0, 0],
+          [x0 + W, 0],
+          [x0 + W * 0.94, H * 0.55],
+          [x0 + W * 0.72, H],
+          [x0 + W * 0.28, H],
+          [x0 + W * 0.06, H * 0.55],
+        ],
+      ]);
     case "fin":
       // Swept triangular fins, one per panel.
-      return array((w) => [
-        [0, 0],
-        [w, 0],
-        [w * 0.62, H],
-        [w * 0.18, H],
+      return each((x0) => [
+        [
+          [x0, 0],
+          [x0 + W, 0],
+          [x0 + W * 0.62, H],
+          [x0 + W * 0.18, H],
+        ],
       ]);
     case "panel":
     default: {
       // Flat rectangular panels on a short stalk.
       const stalk = H * 0.16;
-      return array((w) => [
-        [w * 0.42, 0],
-        [w * 0.58, 0],
-        [w * 0.58, stalk],
-        [w, stalk],
-        [w, H],
-        [0, H],
-        [0, stalk],
-        [w * 0.42, stalk],
+      return each((x0) => [
+        [
+          [x0 + W * 0.42, 0],
+          [x0 + W * 0.58, 0],
+          [x0 + W * 0.58, stalk],
+          [x0 + W, stalk],
+          [x0 + W, H],
+          [x0, H],
+          [x0, stalk],
+          [x0 + W * 0.42, stalk],
+        ],
       ]);
     }
   }
@@ -791,8 +816,8 @@ function radiatorProfile(A: number, H: number, family: RadiatorFamily | undefine
  * strip across its own run along the hull. A radiator is a sheet, and the
  * honest plan of a sheet is a line with just enough thickness to be seen.
  */
-function radiatorPlan(profile: Part, A: number): Part {
-  const t = Math.max(0.12, A * 0.03);
+function radiatorPlan(profile: Part, W: number): Part {
+  const t = Math.max(0.12, W * 0.03);
   return profile.map((o) => {
     const xs = o.map(([x]) => x);
     return box(Math.min(...xs), -t / 2, Math.max(...xs), t / 2);
@@ -970,11 +995,14 @@ export function partViews(spec: PartSpec): Views {
       return { profile: centred, plan: centred };
     }
     case "radiator": {
-      const { A, O } = dims(spec.size, "radiator", k);
-      // Never wider than tall, at any size: an S radiator is floored to square.
-      const H = Math.max(A, O * radiatorRatio(f.radiator, f.radiator_aspect));
-      const profile = shift(radiatorProfile(A, H, f.radiator, spec.panels ?? f.radiator_panels ?? 1, spec.sweep_deg ?? f.radiator_sweep_deg ?? 0), -A / 2);
-      return { profile, plan: radiatorPlan(profile, A) };
+      // `A` here is one panel's width: GROWTH holds it fixed, so a bigger
+      // radiator is a taller panel and a longer array is more panels.
+      const { A: W, O } = dims(spec.size, "radiator", k);
+      const n = Math.max(1, Math.min(8, Math.round(spec.panels ?? f.radiator_panels ?? 1)));
+      // Never wider than tall, panel by panel: an S panel is floored to square.
+      const H = Math.max(W, O * radiatorRatio(f.radiator, f.radiator_aspect));
+      const profile = shift(radiatorProfile(W, H, f.radiator, n, spec.sweep_deg ?? f.radiator_sweep_deg ?? 0), (-n * W) / 2);
+      return { profile, plan: radiatorPlan(profile, W) };
     }
     case "turret":
       return turret(spec, f.turret, k);
@@ -1063,6 +1091,12 @@ export interface PartsOptions {
   weapons?: Record<string, FittedWeapon>;
   /** Which view the parts are for. Profile — the side elevation — unless asked. */
   view?: View;
+  /**
+   * How many copies a slot's ring actually carries, by slot id — the ship's
+   * collar of drop tanks, say, where the hull only says how many would fit.
+   * Falls back to the slot's own `count`.
+   */
+  counts?: Record<string, number>;
 }
 
 /**
@@ -1091,8 +1125,9 @@ export interface PartsOptions {
 export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Appendage[] {
   const view = options.view ?? "profile";
   const out: Appendage[] = [];
-  for (const slot of hull.external_slots ?? []) {
-    const weapon = options.weapons?.[slot.id];
+  for (const slot of (hull.external_slots ?? []).flatMap((s) => ringMembers(s, options.counts?.[s.id]))) {
+    const base = slotIdOf(slot.id);
+    const weapon = options.weapons?.[base];
     const spinal = !slot.part && slot.type === "spinal";
     // A spinal slot borrows its weapon's side profile for now; purpose-built
     // spinal glyphs are deferred (`gallery/08`).
@@ -1102,9 +1137,31 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
       kind,
       size: slot.size as SizeClass,
       families: options.families,
-      ...(options.scales?.[slot.id] === undefined ? {} : { scale: options.scales[slot.id] }),
+      ...(options.scales?.[base] === undefined ? {} : { scale: options.scales[base] }),
       ...(weapon ?? {}),
     });
+    const orientation = slotOrientation(slot);
+    /**
+     * Seen down its own axis, a mount turned by `facing_deg` is its plan view
+     * turned by exactly that — the one case a flat drawing can show exactly.
+     * The plan's second axis is the slot's tangent, and `lateral` says which
+     * way that tangent runs up the screen in this view.
+     */
+    const turnedPlan = (lateral: number): Part =>
+      views.plan.map((o) =>
+        o.map(([x, w]) => {
+          const t = turn(x, w, orientation.facing_deg);
+          return [t.aft, t.tang * lateral] as [number, number];
+        }),
+      );
+    /**
+     * Side-on, a turned mount needs its real 3D form to draw exactly, which
+     * the generators do not have. It is drawn at whichever of fore or aft it
+     * is nearer — a gun turned to fire astern is mirrored — and the true angle
+     * shows wherever the mount is seen down its axis.
+     */
+    const facedProfile = (): Part =>
+      Math.cos((orientation.facing_deg * Math.PI) / 180) < 0 ? views.profile.map((o) => o.map(([x, y]) => [-x, y] as [number, number])) : views.profile;
 
     const rad = (norm(slot.theta_deg) * Math.PI) / 180;
     const beam = !spinal && isBeamOn(slot.theta_deg);
@@ -1121,40 +1178,56 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
     let far = false;
     let mirror: Appendage["mirror"] = "none";
 
-    if (spinal) {
+    /** Which way the slot's tangent runs up the screen: −sin θ side-on, −cos θ from above. */
+    const lateral = (view === "profile" ? -Math.sin(rad) : -Math.cos(rad)) < 0 ? -1 : 1;
+
+    if (axial) {
+      // A nozzle is round, so its projection in any direction is exact: lay
+      // its outline along the exhaust as this view sees it, foreshortened, or
+      // show the bell mouth where it points at or away from the eye.
+      const e = toShip(exhaustLocal(orientation), slot.theta_deg);
+      const v: [number, number] = view === "profile" ? [e[0], e[1]] : [e[0], -e[2]];
+      outline = nozzle(views.profile, v);
+      // Firing along the hull it sits inboard on the thrust line, as a drive
+      // does; firing outward it stands on the skin.
+      const reach = orientation.tilt_deg < 45 ? 0.5 : 1;
+      attach = (view === "profile" ? a * Math.cos(rad) : -b * Math.sin(rad)) * reach;
+      far = view === "profile" ? beam : ventral;
+    } else if (spinal) {
       // On the axis, inside the hull: a hidden line, in drawing terms.
-      if (view === "plan") outline = views.plan;
+      if (view === "plan") outline = turnedPlan(lateral);
       else {
-        const ys = views.profile.flat().map(([, y]) => y);
-        outline = centreY(views.profile, Math.max(...ys) + Math.min(...ys));
+        const faced = facedProfile();
+        const ys = faced.flat().map(([, y]) => y);
+        outline = centreY(faced, Math.max(...ys) + Math.min(...ys));
       }
       attach = 0;
       far = true;
     } else if (view === "profile") {
       if (beam) {
         // Seen straight down its own outward axis: its plan.
-        outline = views.plan;
-        attach = a * Math.cos(rad) * (axial ? 0.5 : 1);
+        outline = turnedPlan(lateral);
+        attach = a * Math.cos(rad);
         far = true;
       } else {
-        outline = views.profile;
+        outline = facedProfile();
         flip = ventral;
-        attach = (ventral ? -1 : 1) * a * (axial ? 0.5 : 1);
+        attach = (ventral ? -1 : 1) * a;
         mirror = symmetric ? "vertical" : "none";
       }
     } else {
       // From above, bow to the right: starboard (θ = 90) lies at −y, port at +y.
-      const lateral = -b * Math.sin(rad);
+      const off = -b * Math.sin(rad);
       if (beam) {
-        outline = views.profile;
-        flip = lateral < 0;
-        attach = lateral * (axial ? 0.5 : 1);
+        outline = facedProfile();
+        flip = off < 0;
+        attach = off;
         // A radiator on one beam implies one on the other, which in plan is
         // exactly a mirror about the centreline.
         mirror = symmetric ? "vertical" : "none";
       } else {
-        outline = views.plan;
-        attach = lateral * (axial ? 0.5 : 1);
+        outline = turnedPlan(lateral);
+        attach = off;
         far = ventral;
       }
     }
@@ -1177,6 +1250,33 @@ export function partsForHull(hull: HullGeometry, options: PartsOptions = {}): Ap
     });
   }
   return out;
+}
+
+/**
+ * A slot's ring, as the slots it stands for: the first keeps the slot's id,
+ * the rest are `<id>@1`, `<id>@2`, spaced evenly round the hull. A slot with
+ * no ring is itself.
+ */
+export function ringMembers(slot: ExternalSlot, override?: number): ExternalSlot[] {
+  const n = Math.max(1, Math.min(8, Math.round(override ?? slot.count ?? 1)));
+  if (n === 1) return [slot];
+  return Array.from({ length: n }, (_, i) => ({ ...slot, id: i === 0 ? slot.id : `${slot.id}@${i}`, theta_deg: slot.theta_deg + (i * 360) / n }));
+}
+
+/**
+ * A round nozzle laid along a direction as a view sees it. `outline` runs
+ * along +x (throat at 0, bell aft) centred on y = 0; `v` is the exhaust
+ * direction projected into the view, whose length is how much of it lies in
+ * the view's plane. Under a third of it, the nozzle is seen end on and drawn
+ * as its bell mouth.
+ */
+function nozzle(outline: Part, v: [number, number]): Part {
+  const len = Math.hypot(v[0], v[1]);
+  const ys = outline.flat().map(([, y]) => y);
+  const r = (Math.max(...ys) - Math.min(...ys)) / 2;
+  if (len < 1 / 3) return [ellipse(0, 0, r, r, 12)];
+  const [ux, uy] = [v[0] / len, v[1] / len];
+  return outline.map((o) => ccw(o.map(([px, py]) => [px * len * ux - py * uy, px * len * uy + py * ux] as [number, number])));
 }
 
 /** The part kind a slot draws: its own override if it has one, else its type's. */
@@ -1227,10 +1327,11 @@ export function familiesOf(style: Record<string, unknown> | undefined): PartFami
 
 /**
  * The slot a drawn piece belongs to. `partsForHull` names extra pieces
- * `<slot>~1`, `<slot>~2`; a click on a gun's barrel has to select the gun.
+ * `<slot>~1`, `<slot>~2`, and ring members `<slot>@1`; a click on a gun's
+ * barrel, or on the fourth tank of a collar, has to select the slot.
  */
 export function slotIdOf(partId: string): string {
-  const i = partId.indexOf("~");
+  const i = partId.search(/[~@]/);
   return i === -1 ? partId : partId.slice(0, i);
 }
 

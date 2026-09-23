@@ -23,20 +23,52 @@
  * Their lengths are the plan's own ladder, and each is derived from a named
  * source rather than drawn freehand — see `HULL_CLASSES`.
  *
- * ## What is deliberately left out
+ * ## Mass, armour and height (ruled 2026-09-23)
  *
- * `structural_mass_t` and `structural_cost` are absolute figures the budget
- * reads directly. Scaling the anchor's would mean choosing a scaling law for
- * structure mass — by volume, by wetted area — and that is a physical claim
- * nobody has made. So only the anchor carries them; every other class leaves
- * them unset and the budget says so (`docs/CLAUDE.md`: do not seed a physical
- * figure from recall). Armour likewise: every class carries the anchor's own
- * 6 cm of composite, and expresses its character through *coverage* — a BB's
- * belt, a monitor armoured end to end — not through a thickness nobody gave.
+ * The vault owner supplied NEBULOUS example craft — armour thickness, internal
+ * density and mass for nine classes (`NEBULOUS_EXAMPLES`) — and a structural
+ * law to match them (`hull/structure.ts`). So every class in that table:
+ *
+ *  - carries its **internal density**, from which the law computes its
+ *    structural mass; nothing is typed onto the hull any more;
+ *  - is **armoured end to end** at its thickness, with the sloped bow taper at
+ *    four fifths of it — credit for the slope, deliberately not overdone;
+ *  - has its **height solved** so its rated displacement (usable volume at the
+ *    base set's design density) is its example mass. Heights were left to the
+ *    implementer; this is the one choice that makes the examples come out, and
+ *    it keeps every class's measured length and its profile's shape.
+ *
+ * The strikecraft and missile have no example row and are left as they were.
  */
 import type { Preset } from "../../types";
 import type { ArmorZone, ExternalSlot, HullSection, Spine, Station } from "./types";
 import { breakpoints, halfHeightAt } from "./geometry";
+import { ratedDisplacement } from "./structure";
+import { DEFAULT_CONSTRAINT_SET } from "../constraints";
+
+/**
+ * NEBULOUS: Fleet Command example craft, as supplied by the vault owner on
+ * 2026-09-23: armour thickness, internal density (cm of plate per metre of
+ * interior) and mass. The masses are what each class's height is solved to
+ * rate at; the thickness and density go onto the hull as they are.
+ */
+export const NEBULOUS_EXAMPLES: Record<string, { armour_cm: number; internal_cm_m: number; mass_t: number }> = {
+  MN: { armour_cm: 48, internal_cm_m: 0.75, mass_t: 5000 },
+  FF: { armour_cm: 15, internal_cm_m: 0.5, mass_t: 5000 },
+  DD: { armour_cm: 22, internal_cm_m: 0.5, mass_t: 8000 },
+  DL: { armour_cm: 26, internal_cm_m: 0.75, mass_t: 9000 },
+  CL: { armour_cm: 26, internal_cm_m: 1, mass_t: 10000 },
+  CG: { armour_cm: 30, internal_cm_m: 1.2, mass_t: 12000 },
+  CA: { armour_cm: 40, internal_cm_m: 1.2, mass_t: 14500 },
+  CV: { armour_cm: 30, internal_cm_m: 0.75, mass_t: 19000 },
+  BB: { armour_cm: 56, internal_cm_m: 1.5, mass_t: 21000 },
+};
+
+/** The bow taper carries this share of the class thickness: credit for the slope, not overdone. */
+export const NOSE_THICKNESS_FACTOR = 0.8;
+
+/** The class armour material — the anchor's, which the owner authored. */
+export const CLASS_ARMOUR_MATERIAL = "composite";
 
 // ---------------------------------------------------------------------------
 // The measurement
@@ -511,31 +543,32 @@ export const HULL_CLASSES: ClassDef[] = [
     code: "CL",
     id: "class-cl-hull",
     title: "CL — light cruiser hull",
-    basis: "Measured: the CL icon, 52.4 px. Longer than the CA in the reference — see gallery/08.",
+    basis: "The CL icon's profile at the plan's ~185 m (186 on the grid). The reference draws its CL longer than the CA; ruled 2026-09-23 that CL means light cruiser, so the chart is off and the plan's length stands.",
     build: (ctx) => {
-      const spine = measuredSpine(ctx, "CL");
-      const L = spine.length_m!;
+      const L = 186;
+      const icon = FLEET_REFERENCE.icons.CL;
+      const stations = iconStations(icon, L, ctx.kv);
       return {
-        spine,
+        spine: { length_m: L, station_pitch_m: PITCH, datum: "bow", stations, ...beamLike(ctx.anchor, stations, L) },
         sections: [
-          { id: "forward", x0: 0, x1: 81, allowed: FORWARD, pressurised: true },
-          { id: "magazine", x0: 81, x1: 159, allowed: MAGAZINE },
-          { id: "engineering", x0: 159, x1: L, allowed: ENGINEERING },
+          { id: "forward", x0: 0, x1: 63, allowed: FORWARD, pressurised: true },
+          { id: "magazine", x0: 63, x1: 126, allowed: MAGAZINE },
+          { id: "engineering", x0: 126, x1: L, allowed: ENGINEERING },
         ],
         armor_zones: [nose(ctx, L)],
         external_slots: [
-          { id: "gun-a", x: 24, theta_deg: 0, type: "turret", size: "M" },
-          { id: "gun-b", x: 39, theta_deg: 0, type: "turret", size: "M" },
-          { id: "gun-c", x: 132, theta_deg: 0, type: "turret", size: "M" },
-          { id: "gun-y", x: 60, theta_deg: 180, type: "turret", size: "S" },
-          { id: "eo", x: 15, theta_deg: 0, type: "optics", size: "S" },
-          { id: "radar", x: 54, theta_deg: 0, type: "sensor", size: "M" },
-          { id: "comms", x: 69, theta_deg: 0, type: "comms", size: "M" },
-          { id: "cells", x: 111, theta_deg: 0, type: "turret", size: "L" },
-          { id: "pd-s", x: 96, theta_deg: 90, type: "pd", size: "S" },
-          { id: "pd-p", x: 96, theta_deg: 270, type: "pd", size: "S" },
-          ...measuredRadiators(FLEET_REFERENCE.icons.CL, L, ctx.kv),
-          { id: "tank", x: 174, theta_deg: 0, type: "tank", size: "L" },
+          { id: "gun-a", x: 18, theta_deg: 0, type: "turret", size: "M" },
+          { id: "gun-b", x: 30, theta_deg: 0, type: "turret", size: "M" },
+          { id: "gun-c", x: 105, theta_deg: 0, type: "turret", size: "M" },
+          { id: "gun-y", x: 48, theta_deg: 180, type: "turret", size: "S" },
+          { id: "eo", x: 9, theta_deg: 0, type: "optics", size: "S" },
+          { id: "radar", x: 42, theta_deg: 0, type: "sensor", size: "M" },
+          { id: "comms", x: 54, theta_deg: 0, type: "comms", size: "M" },
+          { id: "cells", x: 87, theta_deg: 0, type: "turret", size: "L" },
+          { id: "pd-s", x: 75, theta_deg: 90, type: "pd", size: "S" },
+          { id: "pd-p", x: 75, theta_deg: 270, type: "pd", size: "S" },
+          ...measuredRadiators(icon, L, ctx.kv),
+          { id: "tank", x: 141, theta_deg: 0, type: "tank", size: "L" },
           { id: "ring", x: 18, theta_deg: 180, type: "dock", size: "S" },
           ...rcs(12, L - 12),
           { id: "drive", x: L, theta_deg: 0, type: "drive", size: "L" },
@@ -673,8 +706,10 @@ export const HULL_CLASSES: ClassDef[] = [
         spine: { ...ctx.anchor, length_m: L, stations, ...beamLike(ctx.anchor, stations, L) },
         // "One section, no rotation."
         sections: [{ id: "hull", x0: 0, x1: L, allowed: ["habitat", "sensor", "weapon-kinetic", "weapon-laser", "weapon-missile", "reactor", "drive", "tank", "other"], pressurised: true }],
-        // "Minimal armour": the nose only.
-        armor_zones: [zone(ctx, "nose", 0, 3)],
+        // "Minimal armour": the nose only. No example row gives a thickness,
+        // and the destroyer's would be absurd on a 21 m craft, so it is left
+        // for the author — the zone inspector says it contributes nothing.
+        armor_zones: [{ id: "nose", x0: 0, x1: 3, material: CLASS_ARMOUR_MATERIAL }],
         external_slots: [
           { id: "sensor", x: 3, theta_deg: 0, type: "sensor", size: "S" },
           { id: "gun", x: 9, theta_deg: 0, type: "turret", size: "S" },
@@ -752,32 +787,84 @@ export const ANCHOR_PRESET_ID = "ujcn-destroyer-hull";
  * Takes the anchor rather than importing it, because the anchor lives in the
  * built-in preset list that these presets join.
  */
+/** Scale a spine's heights and beams together: the profile keeps its shape, the volume goes as the square. */
+function scaleHeight(spine: Spine, k: number): Spine {
+  return {
+    ...spine,
+    beam_m: r1((spine.beam_m ?? 0) * k),
+    stations: spine.stations.map((st) => ({ x: st.x, half_height_m: r1(st.half_height_m * k) })),
+    ...(spine.beam_overrides ? { beam_overrides: spine.beam_overrides.map((o) => ({ x: o.x, beam_m: r1(o.beam_m * k) })) } : {}),
+  };
+}
+
+/**
+ * The height at which a spine rates at `mass_t` — by bisection on the one
+ * scale factor, since rated displacement grows as its square.
+ */
+function heightForMass(spine: Spine, mass_t: number, packing: number, density: number): Spine {
+  const rate = (k: number) => ratedDisplacement({ spine: scaleHeight(spine, k), packing_efficiency: packing }, density) ?? 0;
+  let lo = 0.02;
+  let hi = 20;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (rate(mid) > mass_t) hi = mid;
+    else lo = mid;
+  }
+  return scaleHeight(spine, (lo + hi) / 2);
+}
+
+/**
+ * The class armour scheme: end to end at the class thickness, with the bow
+ * taper — the spine's first segment — at `NOSE_THICKNESS_FACTOR` of it.
+ */
+export function classArmour(spine: Spine, armour_cm: number): ArmorZone[] {
+  const L = spine.length_m ?? 0;
+  const taper = spine.stations.find((st) => st.x > 0)?.x ?? 0;
+  const nose = Math.min(L, Math.max(PITCH, taper));
+  return [
+    { id: "nose", x0: 0, x1: nose, material: CLASS_ARMOUR_MATERIAL, thickness_cm: r1(armour_cm * NOSE_THICKNESS_FACTOR) },
+    { id: "hull", x0: nose, x1: L, material: CLASS_ARMOUR_MATERIAL, thickness_cm: armour_cm },
+  ];
+}
+
+/**
+ * Every class as a hull preset, built against the anchor's fields.
+ *
+ * Takes the anchor rather than importing it, because the anchor lives in the
+ * built-in preset list that these presets join.
+ */
 export function hullClassPresets(anchor: { spine: Spine; armor_zones?: ArmorZone[] }): Preset[] {
   const bow = anchor.armor_zones?.[0];
   const ctx: ClassContext = {
     anchor: anchor.spine,
     kv: verticalScale(anchor.spine),
     armour: {
-      material: bow?.material ?? "composite",
+      material: bow?.material ?? CLASS_ARMOUR_MATERIAL,
       thickness_cm: bow?.thickness_cm ?? 0,
       noseFraction: bow ? Math.max(bow.x0, bow.x1) / (anchor.spine.length_m || 1) : 0,
     },
   };
+  const packing = 0.78;
+  const density = DEFAULT_CONSTRAINT_SET.params.design_density_t_m3?.value;
   return HULL_CLASSES.map((def) => {
     const built = def.build(ctx);
+    const example = NEBULOUS_EXAMPLES[def.code];
+    if (example && density) {
+      built.spine = heightForMass(built.spine, example.mass_t, packing, density);
+      built.armor_zones = classArmour(built.spine, example.armour_cm);
+    }
     return {
       id: def.id,
       type: "hull",
       title: def.title,
-      description: def.basis,
+      description: example ? `${def.basis} Height solved to rate at the NEBULOUS example's ${example.mass_t.toLocaleString("en")} t.` : def.basis,
       tags: ["class", def.code],
       fields: {
         hull_class: def.code,
         environment: "orbital",
-        // The anchor's own ratios, carried unchanged; see the module header
-        // for why structural mass and cost are not.
-        packing_efficiency: 0.78,
-        structure_mass_fraction: 0.16,
+        // The anchor's own packing, carried unchanged.
+        packing_efficiency: packing,
+        ...(example ? { internal_density_cm_m: example.internal_cm_m } : {}),
         ...built,
       },
     };

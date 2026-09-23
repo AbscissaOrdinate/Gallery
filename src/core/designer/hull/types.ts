@@ -79,6 +79,19 @@ export interface ExternalSlot {
    * renderer and reported as a style deviation, never blocked.
    */
   part?: string;
+  /**
+   * Turn about the mount's own outward axis, degrees. 0 as drawn (muzzle to
+   * the bow, exhaust aft), 180 reversed. See `hull/orientation.ts`.
+   */
+  facing_deg?: number;
+  /** Thrusters and drives: 0 fires along the hull, 90 straight outward. */
+  tilt_deg?: number;
+  /**
+   * A ring: this many copies spaced evenly round the hull from `theta_deg`,
+   * 1–8. How a collar of drop tanks or a quad of attitude thrusters is one
+   * slot rather than eight.
+   */
+  count?: number;
 }
 
 /**
@@ -123,6 +136,12 @@ export interface HullGeometry {
   /** Usable fraction of gross internal volume. */
   packing_efficiency?: number;
   structure_mass_fraction?: number;
+  /**
+   * Internal structure — decks and bulkheads — as NEBULOUS states it: cm of
+   * plate a straight path meets per metre of interior. The structural-mass law
+   * reads it (`hull/structure.ts`).
+   */
+  internal_density_cm_m?: number;
 }
 
 /** A mass at a station, for the centre-of-gravity roll-up. */
