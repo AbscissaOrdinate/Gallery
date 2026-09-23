@@ -1,0 +1,78 @@
+<!-- @dsCard group="Foundations" height=360 width=900 subtitle="The three-step surface ramp: panel, group, field — and the depth limit" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px;display:flex;gap:18px}
+.col{flex:1;max-width:400px}
+.p{background:var(--surface-200);border:1px solid var(--line-200)}
+.ph{background:var(--surface-300);border-bottom:1px solid var(--line-200);height:26px;display:flex;align-items:center;
+    justify-content:space-between;padding:0 12px;color:var(--ink-200)}
+.pb{padding:12px;display:flex;flex-direction:column;gap:8px}
+.g{background:var(--surface-300);border:1px solid var(--line-200);padding:8px}
+.gh{color:var(--ink-200);margin-bottom:6px;display:block}
+.fr{display:flex;align-items:center;justify-content:space-between;height:22px;gap:8px}
+.fr + .fr{border-top:1px solid var(--line-100)}
+.fv{background:var(--surface-400);border:1px solid var(--line-200);padding:0 6px;height:20px;display:flex;align-items:center;color:var(--ink-100)}
+.tag{color:var(--ink-300)}
+.ramp{display:flex;flex-direction:column;gap:0;border:1px solid var(--line-200)}
+.st{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;color:var(--ink-200)}
+.bad{border:1px dashed var(--status-red-mark);padding:6px;margin-top:8px}
+</style>
+<div class="col">
+  <div class="p">
+    <div class="ph"><span class="tsm">SHIP COMPONENTS</span><span class="dsm tag">14</span></div>
+    <div class="pb">
+      <div class="g">
+        <span class="lsm gh">MAGAZINE &mdash; CMP7</span>
+        <div class="fr"><span class="lsm mut">250MM AP SHELL</span><span class="fv dmd">550</span></div>
+        <div class="fr"><span class="lsm mut">250MM HE SHELL</span><span class="fv dmd">550</span></div>
+        <div class="fr"><span class="lsm mut">20MM SLUG</span><span class="fv dmd">10,000</span></div>
+      </div>
+      <div class="g">
+        <span class="lsm gh">PROPULSION &mdash; MOD1 / MOD3</span>
+        <div class="fr"><span class="lsm mut">TOP SPEED</span><span class="fv dmd">22.15 m/s</span></div>
+        <div class="fr"><span class="lsm mut">LINEAR THRUST</span><span class="fv dmd">28.38 MN</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="col">
+  <span class="lxs met" style="display:block;margin-bottom:6px">THE RAMP &mdash; never skip a step</span>
+  <div class="ramp">
+    <div class="st" style="background:var(--map-void)"><span class="lsm">map-void</span><span class="dxs met">canvas, below the ramp</span></div>
+    <div class="st" style="background:var(--surface-100)"><span class="lsm">surface-100</span><span class="dxs met">application ground</span></div>
+    <div class="st" style="background:var(--surface-200)"><span class="lsm">surface-200</span><span class="dxs met">outer panel</span></div>
+    <div class="st" style="background:var(--surface-300)"><span class="lsm">surface-300</span><span class="dxs met">group / panel header</span></div>
+    <div class="st" style="background:var(--surface-400)"><span class="lsm">surface-400</span><span class="dxs met">field inset / row hover</span></div>
+  </div>
+  <div class="bad">
+    <span class="lsm red">DO NOT &mdash; FOURTH LEVEL</span>
+    <p class="dmd met" style="margin-top:4px">A group inside a field has nowhere left to go on the ramp. Split the panel instead.</p>
+  </div>
+</div>

@@ -1,0 +1,284 @@
+<!-- @dsCard group="Screens" height=1080 width=1920 subtitle="Hull editor, 1920x1080 — catalog, profile canvas with station ruler, inspector and advisories, budget bar" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+html,body{width:1920px;height:1080px;overflow:hidden}
+.scr{width:1920px;height:1080px;display:flex;flex-direction:column;background:var(--surface-100)}
+.appbar{height:34px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;padding:0 12px;gap:16px}
+.brand{letter-spacing:.14em;color:var(--ink-100);font:600 13px/18px var(--font-sans)}
+.meta{color:var(--ink-300)}
+.abtn{height:24px;padding:0 10px;border:1px solid var(--line-200);background:var(--surface-200);color:var(--ink-200);display:flex;align-items:center;font:500 13px/18px var(--font-sans)}
+.abtn.pri{background:var(--accent-500);border-color:var(--accent-500);color:var(--on-accent);font-weight:600}
+.mid{flex:1;display:flex;min-height:0;gap:0}
+.pane{display:flex;flex-direction:column;min-width:0;background:var(--surface-200)}
+.left{width:340px;border-right:1px solid var(--line-200)}
+.right{width:380px;border-left:1px solid var(--line-200)}
+.ph{height:26px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:var(--ink-200)}
+.srch{height:24px;margin:8px 10px;background:var(--surface-400);border:1px solid var(--line-200);display:flex;align-items:center;padding:0 8px;color:var(--ink-300)}
+.cat{overflow:hidden}
+.ch{display:flex;align-items:center;gap:8px;height:22px;padding:0 10px;background:var(--surface-300);border-top:1px solid var(--line-200);color:var(--ink-200)}
+.ch .c{margin-left:auto;color:var(--ink-300)}
+.it{display:flex;align-items:center;gap:8px;height:24px;padding:0 10px 0 22px;color:var(--ink-100)}
+.it + .it{border-top:1px solid var(--line-100)}
+.it .tag{margin-left:auto;color:var(--ink-300)}
+.it .tile{width:14px;height:14px;background:var(--glyph-navy-wash);border:1px solid var(--line-200);display:inline-flex;
+          align-items:center;justify-content:center;color:var(--glyph-navy);font:400 9px/9px var(--font-mono)}
+.it.on{background:var(--accent-700);color:var(--accent-300);border-left:3px solid var(--accent-500);padding-left:19px}
+.it.bad{color:var(--status-red)}
+.center{flex:1;display:flex;flex-direction:column;min-width:0}
+.ctools{height:34px;background:var(--surface-200);border-bottom:1px solid var(--line-200);display:flex;align-items:center;gap:8px;padding:0 12px}
+.seg{display:inline-flex;border:1px solid var(--line-200)}
+.sg{height:24px;padding:0 10px;display:flex;align-items:center;color:var(--ink-200);background:var(--surface-300);border-right:1px solid var(--line-200)}
+.sg:last-child{border-right:0}
+.sg.on{background:var(--accent-500);color:var(--on-accent);font-weight:600}
+.canvas{flex:1;background:var(--map-void);position:relative;overflow:hidden}
+.ruler{height:52px;background:var(--surface-sunk);border-top:1px solid var(--line-200)}
+.pb{padding:10px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.grp{background:var(--surface-300);border:1px solid var(--line-200);padding:8px 10px}
+.gh{color:var(--ink-200);display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.fr{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:10px;height:22px}
+.fr + .fr{border-top:1px solid var(--line-100)}
+.fr .lsm{color:var(--ink-200)}
+.fv{color:var(--ink-100)}.fv .u{color:var(--ink-300);margin-left:3px}
+.adv{border:1px solid var(--line-200)}
+.ahd{height:22px;display:flex;align-items:center;gap:8px;padding:0 8px;background:var(--surface-300);border-bottom:1px solid var(--line-200);color:var(--ink-200)}
+.ar{display:flex;gap:8px;padding:5px 8px;background:var(--surface-200);align-items:flex-start}
+.ar + .ar{border-top:1px solid var(--line-100)}
+.ar.v{background:var(--status-red-wash);border-left:3px solid var(--status-red-mark)}
+.ar.c{background:var(--status-amber-wash);border-left:3px solid var(--status-amber-mark)}
+.ar.n{background:var(--status-green-wash);border-left:3px solid var(--status-green-mark)}
+.ar .id{color:var(--ink-300);width:72px;flex:none}
+.ar .tx{color:var(--ink-100)}
+.ar .tx small{display:block;color:var(--ink-300);font:400 10px/14px var(--font-mono);margin-top:1px}
+.budget{height:56px;background:var(--surface-200);border-top:1px solid var(--line-200);display:flex;align-items:center;gap:0;padding:0 12px}
+.bc{display:flex;flex-direction:column;gap:3px;padding:0 18px;border-right:1px solid var(--line-100);justify-content:center;height:100%}
+.bc:first-child{padding-left:0}
+.bc .lxs{color:var(--ink-300)}
+.bar{display:flex;align-items:center;gap:8px}
+</style>
+<div class="scr">
+  <div class="appbar">
+    <span class="brand">GALLERY</span>
+    <span class="dsm meta">vault &rsaquo; hull &rsaquo; <span style="color:var(--ink-100)">CDF Mark The Time</span> &rsaquo; editor</span>
+    <div class="abtn" style="margin-left:auto">REVERT</div><div class="abtn">DUPLICATE</div><div class="abtn pri">COMMIT</div>
+  </div>
+
+  <div class="mid">
+    <div class="pane left">
+      <div class="ph"><span class="tsm">CATALOG</span><span class="dsm meta">86 modules</span></div>
+      <div class="srch dsm">Filter by name, class, footprint&hellip;</div>
+      <div class="cat">
+        <div class="ch lsm"><span style="color:var(--glyph-navy);font:400 10px/10px var(--font-mono)">&#9662;</span>COMMAND &amp; CONTROL<span class="dsm c">4 fitted</span></div>
+        <div class="it dmd"><span class="tile">C</span>Reinforced CIC<span class="dsm tag">6&times;1&times;4</span></div>
+        <div class="it dmd"><span class="tile">C</span>Basic CIC<span class="dsm tag">6&times;1&times;4</span></div>
+        <div class="it dmd"><span class="tile">D</span>Damage Control Central<span class="dsm tag">6&times;1&times;8</span></div>
+        <div class="it dmd"><span class="tile">D</span>Rapid DC Locker<span class="dsm tag">6&times;1&times;8</span></div>
+        <div class="ch lsm"><span style="color:var(--glyph-navy);font:400 10px/10px var(--font-mono)">&#9662;</span>PROPULSION<span class="dsm c">3 fitted</span></div>
+        <div class="it on dmd"><span class="tile">M</span>FM230 &lsquo;Whiplash&rsquo; Drive<span class="dsm tag">6&times;6&times;6</span></div>
+        <div class="it dmd"><span class="tile">M</span>FM580 &lsquo;Raider&rsquo; Drive<span class="dsm tag">8&times;12&times;10</span></div>
+        <div class="it dmd"><span class="tile">R</span>FR3300 Micro Reactor<span class="dsm tag">3&times;3&times;3</span></div>
+        <div class="it bad dmd"><span class="tile" style="color:var(--status-red)">R</span>FR4800 Reactor<span class="dsm tag" style="color:var(--status-red)">NO VOLUME</span></div>
+        <div class="ch lsm"><span style="color:var(--glyph-navy);font:400 10px/10px var(--font-mono)">&#9662;</span>ORDNANCE<span class="dsm c">5 fitted</span></div>
+        <div class="it dmd"><span class="tile">W</span>Mk64 Cannon &mdash; 250 mm<span class="dsm tag">8&times;8&times;14</span></div>
+        <div class="it dmd"><span class="tile">W</span>Mk20 &lsquo;Defender&rsquo; PDT<span class="dsm tag">3&times;3&times;4</span></div>
+        <div class="it dmd"><span class="tile">L</span>VLS-3 Launcher<span class="dsm tag">6&times;6&times;12</span></div>
+        <div class="it dmd"><span class="tile">A</span>Ammunition Elevators<span class="dsm tag">3&times;3&times;3</span></div>
+        <div class="it dmd"><span class="tile">A</span>Reinforced Magazine<span class="dsm tag">4&times;1&times;8</span></div>
+        <div class="ch lsm"><span style="color:var(--glyph-navy);font:400 10px/10px var(--font-mono)">&#9656;</span>SENSORS &amp; EW<span class="dsm c">2 fitted</span></div>
+        <div class="ch lsm"><span style="color:var(--glyph-navy);font:400 10px/10px var(--font-mono)">&#9656;</span>AUXILIARY<span class="dsm c">6 fitted</span></div>
+      </div>
+    </div>
+
+    <div class="center">
+      <div class="ctools">
+        <span class="tsm" style="color:var(--ink-100)">PROFILE</span>
+        <span class="dsm meta">CL-140 &middot; Vauxhall-class &middot; 214.6 m</span>
+        <div class="seg"><div class="sg lmd on">PROFILE</div><div class="sg lmd">PLAN</div><div class="sg lmd">SECTION</div></div>
+        <div class="seg"><div class="sg lmd on">STATIONS</div><div class="sg lmd">METRES</div></div>
+        <div class="abtn" style="margin-left:auto">FIT VIEW</div>
+      </div>
+
+      <div class="canvas">
+        <svg width="1178" height="840" viewBox="0 0 1178 840">
+          <defs>
+            <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--map-grid)" stroke-width="3"/>
+            </pattern>
+          </defs>
+          <g opacity=".75">
+            <g stroke="var(--map-grid)" stroke-width="1">
+              <line x1="0" y1="140" x2="1178" y2="140"/><line x1="0" y1="280" x2="1178" y2="280"/>
+              <line x1="0" y1="420" x2="1178" y2="420"/><line x1="0" y1="560" x2="1178" y2="560"/>
+              <line x1="0" y1="700" x2="1178" y2="700"/>
+            </g>
+          </g>
+          <!-- centreline -->
+          <line x1="70" y1="420" x2="1120" y2="420" stroke="var(--map-orbit)" stroke-dasharray="10 5 2 5"/>
+          <text class="dxs" x="74" y="412" fill="var(--ink-300)" style="font:400 10px var(--font-mono)">CL</text>
+
+          <!-- hull envelope -->
+          <path d="M120 420 L196 336 L860 316 L968 336 L1078 356 L1096 420 L1078 484 L968 504 L860 524 L196 504 Z"
+                fill="var(--surface-200)" stroke="var(--line-300)" stroke-width="2"/>
+          <!-- armour band -->
+          <path d="M196 336 L860 316 L860 330 L196 350 Z" fill="url(#hatch)" opacity=".9"/>
+          <path d="M196 504 L860 524 L860 510 L196 490 Z" fill="url(#hatch)" opacity=".9"/>
+
+          <!-- station frames -->
+          <g stroke="var(--line-100)" stroke-width="1">
+            <line x1="220" y1="348" x2="220" y2="494"/><line x1="320" y1="342" x2="320" y2="498"/>
+            <line x1="420" y1="339" x2="420" y2="501"/><line x1="520" y1="336" x2="520" y2="504"/>
+            <line x1="620" y1="333" x2="620" y2="507"/><line x1="720" y1="330" x2="720" y2="510"/>
+            <line x1="820" y1="327" x2="820" y2="513"/><line x1="920" y1="338" x2="920" y2="500"/>
+            <line x1="1020" y1="358" x2="1020" y2="482"/>
+          </g>
+
+          <!-- modules -->
+          <g>
+            <rect x="228" y="366" width="86" height="44" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="271" y="392" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">CIC</text>
+            <rect x="228" y="428" width="86" height="44" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="271" y="454" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">DC CTRL</text>
+
+            <rect x="330" y="356" width="132" height="60" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="396" y="390" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">MAGAZINE</text>
+            <rect x="330" y="426" width="132" height="60" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="396" y="460" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">VLS-3</text>
+
+            <rect x="478" y="352" width="118" height="140" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="537" y="416" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">MK64 BATTERY</text>
+            <text x="537" y="432" text-anchor="middle" fill="var(--ink-300)" style="font:400 10px var(--font-mono)">5 MOUNTS</text>
+
+            <rect x="612" y="360" width="96" height="56" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="660" y="392" text-anchor="middle" fill="var(--ink-100)" style="font:400 11px var(--font-mono)">REACTOR</text>
+            <rect x="612" y="428" width="96" height="56" fill="var(--status-amber-wash)" stroke="var(--status-amber-mark)"/>
+            <text x="660" y="454" text-anchor="middle" fill="var(--status-amber)" style="font:400 11px var(--font-mono)">FAILSAFE?</text>
+
+            <!-- SELECTED module -->
+            <rect x="726" y="346" width="150" height="150" fill="var(--accent-700)" stroke="var(--accent-500)" stroke-width="2"/>
+            <rect x="718" y="338" width="166" height="166" fill="none" stroke="var(--accent-500)" stroke-width="2" stroke-dasharray="8 5"/>
+            <text x="801" y="414" text-anchor="middle" fill="var(--accent-300)" style="font:600 12px var(--font-sans);letter-spacing:.06em">MOD1 &mdash; FM230</text>
+            <text x="801" y="432" text-anchor="middle" fill="var(--ink-200)" style="font:400 10px var(--font-mono)">6&times;6&times;6 &middot; STA 07&ndash;09</text>
+            <g stroke="var(--accent-600)"><line x1="726" y1="330" x2="726" y2="300"/><line x1="876" y1="330" x2="876" y2="300"/><line x1="726" y1="306" x2="876" y2="306"/></g>
+            <text x="801" y="296" text-anchor="middle" fill="var(--accent-300)" style="font:400 10px var(--font-mono)">6 STATIONS</text>
+
+            <rect x="932" y="372" width="72" height="34" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="968" y="394" text-anchor="middle" fill="var(--ink-100)" style="font:400 10px var(--font-mono)">RM50</text>
+            <rect x="932" y="418" width="72" height="34" fill="var(--glyph-navy-wash)" stroke="var(--glyph-navy)"/>
+            <text x="968" y="440" text-anchor="middle" fill="var(--ink-100)" style="font:400 10px var(--font-mono)">PDT</text>
+
+            <!-- empty bay -->
+            <rect x="1028" y="382" width="54" height="76" fill="none" stroke="var(--line-200)" stroke-dasharray="4 4"/>
+            <text x="1055" y="424" text-anchor="middle" fill="var(--ink-400)" style="font:400 10px var(--font-mono)">EMPTY</text>
+          </g>
+
+          <!-- drives -->
+          <g fill="var(--surface-300)" stroke="var(--line-300)">
+            <rect x="1096" y="372" width="26" height="36"/><rect x="1096" y="432" width="26" height="36"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="ruler">
+        <svg width="1178" height="52" viewBox="0 0 1178 52">
+          <line x1="70" y1="8" x2="1120" y2="8" stroke="var(--map-orbit)"/>
+          <g stroke="var(--map-orbit)">
+            <line x1="120" y1="8" x2="120" y2="18"/><line x1="220" y1="8" x2="220" y2="18"/><line x1="320" y1="8" x2="320" y2="18"/>
+            <line x1="420" y1="8" x2="420" y2="18"/><line x1="520" y1="8" x2="520" y2="18"/><line x1="620" y1="8" x2="620" y2="18"/>
+            <line x1="720" y1="8" x2="720" y2="18"/><line x1="820" y1="8" x2="820" y2="18"/><line x1="920" y1="8" x2="920" y2="18"/>
+            <line x1="1020" y1="8" x2="1020" y2="18"/><line x1="1096" y1="8" x2="1096" y2="18"/>
+          </g>
+          <g stroke="var(--line-100)">
+            <line x1="170" y1="8" x2="170" y2="13"/><line x1="270" y1="8" x2="270" y2="13"/><line x1="370" y1="8" x2="370" y2="13"/>
+            <line x1="470" y1="8" x2="470" y2="13"/><line x1="570" y1="8" x2="570" y2="13"/><line x1="670" y1="8" x2="670" y2="13"/>
+            <line x1="770" y1="8" x2="770" y2="13"/><line x1="870" y1="8" x2="870" y2="13"/><line x1="970" y1="8" x2="970" y2="13"/>
+          </g>
+          <g fill="var(--ink-300)" style="font:400 10px var(--font-mono)" text-anchor="middle">
+            <text x="120" y="31">00</text><text x="220" y="31">02</text><text x="320" y="31">04</text><text x="420" y="31">06</text>
+            <text x="520" y="31">08</text><text x="620" y="31">10</text><text x="720" y="31">12</text><text x="820" y="31">14</text>
+            <text x="920" y="31">16</text><text x="1020" y="31">18</text><text x="1096" y="31">20</text>
+          </g>
+          <rect x="726" y="4" width="150" height="8" fill="var(--accent-500)" opacity=".85"/>
+          <text x="801" y="47" text-anchor="middle" fill="var(--accent-300)" style="font:400 10px var(--font-mono)">SELECTED &mdash; STA 07&ndash;09</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="pane right">
+      <div class="ph"><span class="tsm">INSPECTOR</span><span class="stmp met">MOD1</span></div>
+      <div class="pb">
+        <div class="grp" style="background:var(--accent-700);border-color:var(--accent-600)">
+          <div class="tsm" style="color:var(--ink-100)">FM230 &lsquo;Whiplash&rsquo; Drive</div>
+          <div class="dsm" style="color:var(--accent-300);margin-top:2px">MOD1 &middot; 6&times;6&times;6 &middot; STATIONS 07&ndash;09</div>
+        </div>
+        <div class="grp">
+          <span class="lsm gh">PLACEMENT</span>
+          <div class="fr"><span class="lsm">STATION RANGE</span><span class="dsm fv">07 &ndash; 09</span></div>
+          <div class="fr"><span class="lsm">OFFSET FROM CL</span><span class="dsm fv">0.0<span class="u">m</span></span></div>
+          <div class="fr"><span class="lsm">VOLUME USED</span><span class="dsm fv">216 / 320<span class="u">m&sup3;</span></span></div>
+          <div class="fr"><span class="lsm">CLEARANCE</span><span class="dsm fv" style="color:var(--status-green)">NOMINAL</span></div>
+        </div>
+        <div class="grp">
+          <span class="lsm gh">PERFORMANCE</span>
+          <div class="fr"><span class="lsm">LINEAR THRUST</span><span class="dsm fv">28.38<span class="u">MN</span></span></div>
+          <div class="fr"><span class="lsm">TOP SPEED</span><span class="dsm fv">22.15<span class="u">m/s</span></span></div>
+          <div class="fr"><span class="lsm">POWER DRAW</span><span class="dsm fv" style="color:var(--status-red)">1,842<span class="u">kW</span></span></div>
+          <div class="fr"><span class="lsm">MASS</span><span class="dsm fv">1,204<span class="u">t</span></span></div>
+        </div>
+
+        <div class="adv">
+          <div class="ahd"><span class="lsm">ADVISORIES</span>
+            <span class="stmp" style="color:var(--status-red);margin-left:auto">2</span>
+            <span class="stmp" style="color:var(--status-amber)">3</span>
+            <span class="stmp" style="color:var(--status-green)">6</span>
+          </div>
+          <div class="ar v"><span class="dsm id">ADV-0114</span><span class="dmd tx">Power budget exceeded by 142 kW<small>MOD1, MOD3 &mdash; add a reactor or drop a drive</small></span></div>
+          <div class="ar v"><span class="dsm id">ADV-0118</span><span class="dmd tx">Magazine volume over capacity<small>CMP7 &mdash; 340 / 320 m&sup3;</small></span></div>
+          <div class="ar c"><span class="dsm id">ADV-0115</span><span class="dmd tx">Two reactor failsafes unreferenced<small>MOD2, MOD4 &mdash; no damage-control route</small></span></div>
+          <div class="ar c"><span class="dsm id">ADV-0121</span><span class="dmd tx">Station 14 has no frame member<small>hull form &mdash; derived, not surveyed</small></span></div>
+          <div class="ar c"><span class="dsm id">ADV-0124</span><span class="dmd tx">Radar signature 43,600 m&sup2; above class mean<small>RM50 &lsquo;Parallax&rsquo; placement</small></span></div>
+          <div class="ar n"><span class="dsm id">ADV-0116</span><span class="dmd tx">Ammunition load endurance within doctrine<small>9 min 44 s at sustained rate</small></span></div>
+          <div class="ar n"><span class="dsm id">ADV-0119</span><span class="dmd tx">Crew complement fully berthed<small>374 / 374</small></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="budget">
+    <div class="bc"><span class="lxs">POINTS</span><span class="dxl" style="color:var(--ink-100)">2,847 <span class="dsm met">/ 3,000</span></span></div>
+    <div class="bc" style="min-width:230px"><span class="lxs">POWER</span>
+      <div class="bar"><span class="asc red" style="font-size:14px">[###########-]</span><span class="dsm red">108%</span></div></div>
+    <div class="bc" style="min-width:230px"><span class="lxs">VOLUME</span>
+      <div class="bar"><span class="asc amb" style="font-size:14px">[##########--]</span><span class="dsm amb">88%</span></div></div>
+    <div class="bc" style="min-width:230px"><span class="lxs">CREW</span>
+      <div class="bar"><span class="asc grn" style="font-size:14px">[############]</span><span class="dsm grn">100%</span></div></div>
+    <div class="bc"><span class="lxs">MASS</span><span class="dlg" style="color:var(--ink-100)">21,732 <span class="dsm met">t</span></span></div>
+    <div class="bc" style="border-right:0;margin-left:auto;align-items:flex-end">
+      <span class="lxs">STATE</span><span class="stmp" style="color:var(--status-red)">2 VIOLATIONS &mdash; COMMIT BLOCKED</span></div>
+  </div>
+</div>
