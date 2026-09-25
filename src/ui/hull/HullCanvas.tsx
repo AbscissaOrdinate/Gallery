@@ -21,7 +21,7 @@
  * glyph comes out screen-constant at any zoom. That is the same convention
  * `SystemMap` uses and the same one `toSvg` honours against its `pxPerMetre`.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LABEL_PX, renderHull, slotAnchor, type RenderOptions, type SceneElement } from "../../core/designer/hull/render";
 import { snapStation } from "../../core/designer/hull/record";
 import type { HullGeometry } from "../../core/designer/hull/types";
@@ -207,7 +207,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
   const ticks: number[] = [];
   if (pitch > 0 && length > 0 && length / pitch < 400) for (let x = 0; x <= length + 1e-9; x += pitch) ticks.push(x);
 
-  return (
+  const canvas = (
     <div className="hullwrap" ref={wrapRef}>
       <svg
         ref={svgRef}
@@ -222,7 +222,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
         <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
           {/* Station grid, behind everything. */}
           {ticks.map((x) => (
-            <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-100)" strokeWidth={px(0.5)} opacity={0.5} />
+            <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-100)" strokeWidth={px(0.5)} />
           ))}
           {scene.elements.map((el) => (
             <SceneNode key={el.id} el={el} scale={px} selectedKey={selKey} hover={hover} onHover={setHover} flip={flip} />
@@ -241,7 +241,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
                 <g key={"h" + i} data-handle="station" data-id={String(i)} style={{ cursor: "move" }}>
                   {/* An invisible disc gives a comfortable grab target at any zoom. */}
                   <circle cx={s.x} cy={s.half_height_m} r={px(9)} fill="transparent" />
-                  <circle cx={s.x} cy={s.half_height_m} r={px(3.5)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke="var(--accent-500)" strokeWidth={px(1.2)} />
+                  <circle cx={s.x} cy={s.half_height_m} r={px(3.5)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke={on ? "var(--accent-500)" : "var(--glyph-navy)"} strokeWidth={px(1.2)} />
                 </g>
               );
             })}
@@ -254,18 +254,17 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
               return (
                 <g key={"s" + s.id} data-handle="slot" data-id={s.id} style={{ cursor: "ew-resize" }}>
                   <circle cx={s.x} cy={y} r={px(10)} fill="transparent" />
-                  <rect x={s.x - px(4)} y={y - px(4)} width={px(8)} height={px(8)} fill={on ? "var(--accent-300)" : "var(--surface-200)"} stroke="var(--accent-300)" strokeWidth={px(1.2)} />
+                  <rect x={s.x - px(4)} y={y - px(4)} width={px(8)} height={px(8)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke={on ? "var(--accent-500)" : "var(--glyph-navy)"} strokeWidth={px(1.2)} />
                 </g>
               );
             })}
         </g>
       </svg>
-      <div className="hullzoom muted mono">
+      <div className="hullzoom">
         {length ? `${length.toLocaleString(undefined, { maximumFractionDigits: 1 })} m` : "—"} · {pitch} m grid · {perMetre.toFixed(2)} px/m
         {userMoved.current && (
           <button
-            className="ghost"
-            style={{ marginLeft: 8, height: 20, padding: "0 6px", fontSize: 11 }}
+            className="btn btn-sm"
             onClick={() => {
               userMoved.current = false;
               fit();
@@ -276,6 +275,98 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
         )}
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {canvas}
+      {!readOnly && <StationRuler view={view} flip={flip} length={length} pitch={pitch} span={selectionSpan(hull, selection)} wrap={wrapRef.current} />}
+    </>
+  );
+}
+
+/** The station range a selection occupies, in metres from the bow. */
+function selectionSpan(hull: HullGeometry, sel: Selection): [number, number] | undefined {
+  if (!sel) return undefined;
+  if (sel.kind === "station") {
+    const s = hull.spine.stations[Number(sel.id)];
+    return s ? [s.x, s.x] : undefined;
+  }
+  if (sel.kind === "section") {
+    const s = (hull.sections ?? []).find((t) => t.id === sel.id);
+    return s ? [Math.min(s.x0, s.x1), Math.max(s.x0, s.x1)] : undefined;
+  }
+  if (sel.kind === "zone") {
+    const z = (hull.armor_zones ?? []).find((t) => t.id === sel.id);
+    return z ? [Math.min(z.x0, z.x1), Math.max(z.x0, z.x1)] : undefined;
+  }
+  if (sel.kind === "slot") {
+    const t = (hull.external_slots ?? []).find((u) => u.id === sel.id);
+    return t ? [t.x, t.x] : undefined;
+  }
+  const ap = (hull.appendages ?? []).find((u) => u.id === sel.id);
+  return ap ? [ap.station, ap.station] : undefined;
+}
+
+/**
+ * The station ruler (HullEditor plate): a strip on surface-sunk under the
+ * canvas, in screen pixels, following the canvas's pan and zoom. Major ticks
+ * in map-orbit with data-xs figures in ink-300, minor ticks in line-100, and
+ * the selection's span as an accent-500 bar with its range beneath in
+ * accent-300. The ruler is how placement is read; the canvas carries no
+ * coordinate labels of its own.
+ */
+function StationRuler({ view, flip, length, pitch, span, wrap }: { view: View; flip: boolean; length: number; pitch: number; span?: [number, number]; wrap: HTMLDivElement | null }) {
+  const ref = useRef<SVGSVGElement | null>(null);
+  // Every dimension below is a fraction of the strip's height, which is the
+  // --ruler-h token; nothing here is a free-standing pixel size.
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setH(el.clientHeight);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+  const cw = wrap?.clientWidth ?? 0;
+  const ch = wrap?.clientHeight ?? 0;
+  if (!cw || !ch || !length || !h) return <svg ref={ref} className="hullruler" aria-hidden />;
+  // Same mapping as the canvas: uniform scale, letterboxed and centred (xMidYMid meet).
+  const k = Math.min(cw / view.w, ch / view.h);
+  const off = (cw - view.w * k) / 2;
+  const sx = (x: number) => ((flip ? -x : x) - view.x) * k + off;
+  const top = h * 0.12; // selection bar depth
+  const minor = pitch > 0 && pitch * k >= h * 0.12 ? pitch : undefined;
+  // Label every n-th station so figures sit at least about 1.3 strip heights apart.
+  const step = Math.max(pitch || 1, Math.ceil((h * 1.33) / k / (pitch || 1)) * (pitch || 1));
+  const ticks: { x: number; major: boolean }[] = [];
+  const unit = minor ?? step;
+  for (let x = 0, i = 0; x <= length + 1e-9 && i < 2000; x += unit, i++) ticks.push({ x, major: Math.abs(x / step - Math.round(x / step)) < 1e-6 });
+  return (
+    <svg ref={ref} className="hullruler" aria-label="Station ruler">
+      {ticks.map((t) => (
+        <line key={t.x} x1={sx(t.x)} x2={sx(t.x)} y1={top} y2={top + h * (t.major ? 0.28 : 0.14)} stroke={t.major ? "var(--map-orbit)" : "var(--line-100)"} />
+      ))}
+      {ticks
+        .filter((t) => t.major)
+        .map((t) => (
+          <text key={"l" + t.x} x={sx(t.x)} y={top + h * 0.6} textAnchor="middle" className="ruler-label">
+            {Math.round(t.x)}
+          </text>
+        ))}
+      {span && (
+        <>
+          <rect x={Math.min(sx(span[0]), sx(span[1])) - (span[0] === span[1] ? top / 2 : 0)} y={0} width={Math.max(top, Math.abs(sx(span[1]) - sx(span[0])))} height={top} fill="var(--accent-500)" />
+          {(
+            <text x={(sx(span[0]) + sx(span[1])) / 2} y={h * 0.94} textAnchor="middle" className="ruler-sel">
+              {span[0] === span[1] ? `SELECTED — STA ${span[0].toFixed(1)} m` : `SELECTED — STA ${span[0].toFixed(1)}–${span[1].toFixed(1)} m`}
+            </text>
+          )}
+        </>
+      )}
+    </svg>
   );
 }
 

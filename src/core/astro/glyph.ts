@@ -255,12 +255,16 @@ export function motifFor(fields: Record<string, unknown>): Motif {
   return "apnean";
 }
 
+const hexColor = (v: unknown): string | undefined => (typeof v === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim()) ? v.trim() : undefined);
+
 export function glyphSpecFor(record: TypedRecord, extras: { tempK?: number; tundral?: boolean } = {}): GlyphSpec {
   const fields = record.fields;
   const motif = motifFor(fields);
   return {
     motif,
-    color: typeof fields.glyph_color === "string" && fields.glyph_color ? (fields.glyph_color as string) : typeof fields.star_color === "string" && fields.star_color ? (fields.star_color as string) : undefined,
+    // Hex only: the colour lands inside SVG markup, so anything else is dropped
+    // rather than trusted (and the vault palette applies instead).
+    color: hexColor(fields.glyph_color) ?? hexColor(fields.star_color),
     tempK: extras.tempK,
     rings: !!fields.has_rings,
     caps: extras.tundral,

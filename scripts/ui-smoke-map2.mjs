@@ -17,10 +17,10 @@ const b = await launch();
 const p = await b.newPage({ viewport: { width: 1500, height: 900 } });
 await p.goto("http://localhost:4173/");
 await p.getByText("Open the demo vault").click();
-await p.waitForSelector(".sidebar");
+await p.waitForSelector(".rail");
 await p.getByText("Body", { exact: true }).first().click();
 await p.getByText("Titan", { exact: true }).first().click();
-await p.waitForSelector(".card");
+await p.waitForSelector(".panel");
 await p.waitForTimeout(300);
 await p.screenshot({ path: "screenshots/body-titan-derived.png" });
 // map: drag Mars along its orbit, check saved angle changes
@@ -37,8 +37,8 @@ await p.mouse.move(box.x + box.width / 2 + 40, box.y + 80, { steps: 12 });
 await p.mouse.up();
 await p.waitForTimeout(600);
 await p.screenshot({ path: "screenshots/map-mars-dragged.png" });
-await p.locator(".mapinspector .editor .title").waitFor({ timeout: 5000 });
-console.log("selected after drag:", await p.inputValue(".mapinspector .editor .title"));
+await p.locator(".mapinspector .doc-title").waitFor({ timeout: 5000 });
+console.log("selected after drag:", await p.inputValue(".mapinspector .doc-title"));
 console.log("mars angle field:", await p.locator(".mapinspector input[type=number]").nth(5).inputValue());
 // Export SVG (browser: download)
 const [dl] = await Promise.all([p.waitForEvent("download"), p.getByText("Export SVG").click()]);

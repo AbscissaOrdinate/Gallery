@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "./state";
 import type { AssetRef, GalleryRecord } from "../core/types";
 import { slugify } from "../core/ids";
+import { Button, Group, Panel, Row, Select, TextField, caps } from "./kit";
 
 /** SVG (and other text) assets attached to a record, with inline preview. */
 export function AssetsPanel({ record, onChange }: { record: GalleryRecord; onChange: (assets: AssetRef[]) => void }) {
@@ -18,29 +19,29 @@ export function AssetsPanel({ record, onChange }: { record: GalleryRecord; onCha
   };
 
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}>Assets (SVG portraits, sketches)</h3>
+    <Panel title="ASSETS" meta={`${record.assets.length} attached`}>
       {record.assets.map((a, i) => (
-        <div key={a.path + i} style={{ marginBottom: 8 }}>
-          <div className="row">
-            <input type="text" value={a.role} style={{ maxWidth: 120 }} onChange={(e) => onChange(record.assets.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} />
-            <span className="mono grow" style={{ fontSize: 11 }}>
-              {a.path}
-            </span>
-            <input type="text" value={a.caption ?? ""} placeholder="caption" style={{ maxWidth: 200 }} onChange={(e) => onChange(record.assets.map((x, j) => (j === i ? { ...x, caption: e.target.value || undefined } : x)))} />
-            <button className="ghost" onClick={() => onChange(record.assets.filter((_, j) => j !== i))} title="Detach (file stays in assets/)">
-              ×
-            </button>
-          </div>
+        <Group key={a.path + i} title={caps(a.role || "asset")} meta={a.path}>
+          <Row label="ROLE">
+            <TextField className="w-rel" value={a.role} onChange={(e) => onChange(record.assets.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} />
+          </Row>
+          <Row label="CAPTION">
+            <TextField value={a.caption ?? ""} placeholder="caption" onChange={(e) => onChange(record.assets.map((x, j) => (j === i ? { ...x, caption: e.target.value || undefined } : x)))} />
+          </Row>
           {a.path.toLowerCase().endsWith(".svg") && <SvgPreview path={a.path} />}
-        </div>
+          <div className="row">
+            <Button size="sm" onClick={() => onChange(record.assets.filter((_, j) => j !== i))} title="Detach (the file stays in assets/)">
+              DETACH
+            </Button>
+          </div>
+        </Group>
       ))}
       <div className="row">
-        <select value={role} onChange={(e) => setRole(e.target.value)} style={{ maxWidth: 140 }}>
+        <Select className="w-rel" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role">
           {["portrait", "silhouette", "map", "sketch", "diagram", "attachment"].map((r) => (
             <option key={r}>{r}</option>
           ))}
-        </select>
+        </Select>
         <input
           type="file"
           accept=".svg,.txt,.md,.csv,.json,.yaml,.yml"
@@ -51,10 +52,10 @@ export function AssetsPanel({ record, onChange }: { record: GalleryRecord; onCha
           }}
         />
       </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+      <div className="help">
         Files are copied into <code>assets/</code>. Draw silhouettes in any SVG editor for now (Inkscape, Boxy SVG, Figma export); the built-in sketcher lands in a later phase.
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -71,7 +72,7 @@ function SvgPreview({ path }: { path: string }) {
       alive = false;
     };
   }, [path, repo]);
-  if (!svg) return <div className="muted mono" style={{ fontSize: 11 }}>(preview unavailable)</div>;
+  if (!svg) return <div className="help">Preview unavailable.</div>;
   return <div className="svgbox" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 

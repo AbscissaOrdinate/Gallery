@@ -148,6 +148,20 @@
   --detail-w: 420px;   /* advisory log detail pane */
   --label-col-w: 172px;   /* record field label column */
   --display-boot: 46px;   /* boot wordmark size (display is 34px elsewhere) */
+
+  /* Added in implementation (docs/STYLE.md §7): sizes the plates use or the app needs. */
+  --list-w: 296px;   /* record list pane between rail and document */
+  --doc-max-w: 960px;   /* record document column */
+  --dialog-w: 560px;   /* standard dialog/panel width (boot auth panel, welcome) */
+  --label-col-narrow-w: 128px;   /* field label column inside an inspector */
+  --menu-max-h: 260px;   /* dropdown / picker list before it scrolls */
+  --pip-size: 8px;   /* StatusBadge pip */
+  --check-size: 13px;   /* Input checkbox */
+  --tile-size: 14px;   /* catalog row class tile (HullEditor) */
+  --ruler-h: 36px;   /* hull station ruler strip */
+  --station-mark: 9px;   /* map station square (SystemMap) */
+  --text-control-sm: 500 11px/14px var(--font-sans);   /* Button label at control-sm */
+  --dur-spinner: 120ms;   /* one ASCII spinner frame */
 }
 
 /* ── Base ─────────────────────────────────────────────────── */

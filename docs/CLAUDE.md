@@ -22,7 +22,12 @@ standalone scripts run against a preview server:
 ```bash
 npm run build && npx vite preview     # then, in another shell:
 node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}, -hull, -ship
+node scripts/ui-smoke-screens.mjs     # the redesign screens, screenshots to screenshots/screens
+node scripts/ui-plates.mjs            # the design-book plates, rendered with src/theme.css
 ```
+
+Set `SMOKE_CHROME` to an installed Chromium (Edge works) when the Playwright browser is not
+downloaded. UI screens are compared against the matching `docs/design-book/components/*/preview.html`.
 
 Two more checks by eye: `npx tsx scripts/hull-style-probe.mts [out.html]` draws every part
 glyph beside its reference in `docs/refs/Weapons/` (no browser needed), and
