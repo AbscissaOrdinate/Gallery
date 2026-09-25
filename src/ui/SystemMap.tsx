@@ -13,33 +13,40 @@ import type { TypedRecord, GalleryRecord } from "../core/types";
 import { isNote } from "../core/types";
 import { layoutSystem, placeLabels, pointOnOrbit, type BodyNode, type HelioLocation, type LagrangeBody, type Layout, type LabelReq, type OrbitShape, type Satellite } from "../core/astro/layout";
 import { glyphMarkup } from "../core/astro/glyph";
+import { glyphPaletteFrom } from "../core/astro/tints";
+import { resolveThemeColors } from "./themeColors";
+import { Button, Group, NumberField, Panel, Row, Select, StatusRow, TextField, caps } from "./kit";
 import { formatKm, DISTANCE_UNITS, type DistanceUnit } from "../core/astro/units";
 import { AU_KM } from "../core/astro/worldsmith";
-import { bodyModes, locationModes, polityColor, rampColor, greenRamp, MAP_MODES, type MapMode, type BodyModes } from "../core/astro/modes";
+import { bodyModes, locationModes, polityColor, rampColor, greenRamp, UNCLAIMED_COLOR, MAP_MODES, type MapMode, type BodyModes } from "../core/astro/modes";
 import { RecordEditor } from "./RecordEditor";
 import { SchemaForm } from "./SchemaForm";
 import { SystemBuilder } from "./SystemBuilder";
 import { isTauri } from "../core/storage/tauri";
 
-/** Literal colours (not CSS vars) so exported SVGs look the same outside the app. */
+/**
+ * Canvas colours, all theme tokens (docs/STYLE.md §1, SystemMap README).
+ * `accent-500` is the selection and nothing else on the canvas (§8). Exported
+ * SVGs resolve these to literal colours (`resolveThemeColors`).
+ */
 const C = {
-  bg: "#141829",
-  orbit: "#3d4861",
-  orbitFaint: "#2c364c",
-  orbitLoc: "#6a7793",
-  hz: "#6fbf95",
-  frost: "#7fd0d8",
-  belt: "#8a7f70",
-  label: "#e9e9ed",
-  sublabel: "#8792a8",
-  loc: "#e6a684",
-  lagrange: "#6a7793",
-  lagrangeOn: "#d9865c",
-  select: "#c9663a",
-  hover: "#e6a684",
-  ring: "#8b7355",
+  bg: "var(--map-void)",
+  orbit: "var(--map-orbit)",
+  orbitFaint: "var(--map-grid)",
+  orbitLoc: "var(--line-200)",
+  hz: "var(--map-zone)",
+  frost: "var(--map-zone)",
+  belt: "var(--map-belt)",
+  label: "var(--ink-100)",
+  sublabel: "var(--ink-300)",
+  loc: "var(--glyph-navy)",
+  lagrange: "var(--ink-300)",
+  lagrangeOn: "var(--ink-100)",
+  select: "var(--accent-500)",
+  hover: "var(--line-300)",
+  ring: "var(--map-belt)",
 };
-const FONT = "Inter, system-ui, sans-serif";
+const FONT = "var(--font-sans)";
 
 /** Zoom thresholds (screen px per map px). */
 const Z = { neighbourhood: 1.8, moonLabels: 2.6, minor: 1.3 };
@@ -107,7 +114,8 @@ export function SystemMap({ id }: { id: string }) {
     return m;
   }, [layout, mode, records, repo]);
   const polities = useMemo(() => records.filter((r) => r.type === "polity"), [records]);
-  const colorOfPolity = (pid: string | undefined) => polityColor(pid ? repo?.typed(pid) : undefined, polities.findIndex((p) => p.id === pid));
+  const palette = useMemo(() => glyphPaletteFrom(repo?.tables), [repo, records]);
+  const colorOfPolity = (pid: string | undefined) => polityColor(pid ? repo?.typed(pid) : undefined, polities.findIndex((p) => p.id === pid), repo?.config.polityPalette);
 
   const fit = useCallback(
     (ext: number) => {
@@ -448,10 +456,10 @@ export function SystemMap({ id }: { id: string }) {
   const locColor = (rec: TypedRecord | undefined) => {
     if (!rec || mode === "plain") return C.loc;
     const lm = locationModes(rec, records);
-    if (mode === "political") return lm.polityId ? colorOfPolity(lm.polityId) : "#6a7793";
+    if (mode === "political") return lm.polityId ? colorOfPolity(lm.polityId) : UNCLAIMED_COLOR;
     if (mode === "economic") return rampColor(Math.min(1, lm.industry / 10 + Math.log10(1 + lm.populationK) / 8));
     if (mode === "military") return rampColor(Math.min(1, lm.military / 10));
-    return "#6a7793";
+    return UNCLAIMED_COLOR;
   };
 
   // ---- export -----------------------------------------------------------------------
@@ -464,7 +472,7 @@ export function SystemMap({ id }: { id: string }) {
     clone.setAttribute("width", String(size.w));
     clone.setAttribute("height", String(size.h));
     clone.insertAdjacentHTML("afterbegin", `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="${C.bg}"/>`);
-    const text = `<?xml version="1.0" encoding="UTF-8"?>\n` + new XMLSerializer().serializeToString(clone);
+    const text = `<?xml version="1.0" encoding="UTF-8"?>\n` + resolveThemeColors(new XMLSerializer().serializeToString(clone));
     const path = await repo.putTextAsset(`${system.slug}.map.svg`, text);
     if (!system.assets.some((a) => a.path === path)) {
       system.assets = [...system.assets, { role: "map", path }];
@@ -522,7 +530,7 @@ export function SystemMap({ id }: { id: string }) {
               {selected && <circle r={(s.r ?? 3) + 3.5} fill="none" stroke={C.select} strokeWidth={1.2} />}
               {hovered && !selected && <circle r={(s.r ?? 3) + 3} fill="none" stroke={C.hover} strokeWidth={0.8} opacity={0.7} />}
               {renderHalo(s.id, s.r ?? 3)}
-              <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph!, s.r ?? 3) }} />
+              <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph!, s.r ?? 3, palette) }} />
               {zoom >= Z.moonLabels && renderLabel(s.id, 8, s.sublabel)}
             </g>
             {/* the moon's own neighbourhood (its L-points etc.) is flattened into the host's list */}
@@ -544,7 +552,7 @@ export function SystemMap({ id }: { id: string }) {
           <g key={s.id} data-el={s.id} transform={`translate(${p.x} ${p.y})`} onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: s.record?.type === "body" ? "body" : "location", id: s.id }); }} onPointerEnter={hoverOn(s.id, s.name, [s.derived?.ewocs.full ?? String(s.record?.fields.kind ?? ""), ...lobjectLines(s.secondaryId, s.lpoint, s.distKm, host.name, host.distKm), ownerLine(s.record), modeLine(s.id)])} onPointerLeave={hoverOff} style={{ cursor: "pointer" }}>
             {selected && <circle r={(s.r ?? 5) + 3.5} fill="none" stroke={C.select} strokeWidth={1.2} />}
             {s.glyph ? renderHalo(s.id, s.r ?? 3) : null}
-            {s.glyph ? <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph, s.r ?? 3) }} /> : <g dangerouslySetInnerHTML={{ __html: locationSymbol(s.symbol ?? "base", locColor(s.record)) }} />}
+            {s.glyph ? <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph, s.r ?? 3, palette) }} /> : <g dangerouslySetInnerHTML={{ __html: locationSymbol(s.symbol ?? "base", locColor(s.record)) }} />}
             {renderLabel(s.id, s.glyph ? 7.5 : LOC_FONT, undefined, s.glyph ? C.label : C.loc)}
           </g>
         );
@@ -553,33 +561,63 @@ export function SystemMap({ id }: { id: string }) {
 
   return (
     <div className="mapview">
-      <div className="maptools row">
-        <button className="ghost" onClick={() => actions.back()} title="Back">←</button>
-        <b>{system.name}</b>
-        <span className="muted" style={{ fontSize: 11 }}>
+      <div className="toolbar">
+        <Button size="sm" onClick={() => actions.back()} title="Back (Alt+←)">
+          Back
+        </Button>
+        <span className="name">{caps(system.name)}</span>
+        <span className="meta grow">
           {Math.max(0, layout.bodies.length - 1)} bodies · {formatKm(layout.aMin * AU_KM, unit, 2)} – {formatKm(layout.aMax * AU_KM, unit, 3)}
         </span>
-        <span className="grow" />
-        <select value={mode} onChange={(e) => setMode(e.target.value as MapMode)} style={{ width: "auto" }} title="Display mode">
+        <Select className="auto" value={mode} onChange={(e) => setMode(e.target.value as MapMode)} title="Display mode" aria-label="Display mode">
           {MAP_MODES.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
           ))}
-        </select>
-        <select value={scaleValue} onChange={(e) => setScaleMode(e.target.value as "schematic" | "true")} style={{ width: "auto" }} title="Orbit spacing">
+        </Select>
+        <Select className="auto" value={scaleValue} onChange={(e) => setScaleMode(e.target.value as "schematic" | "true")} title="Orbit spacing" aria-label="Orbit spacing">
           <option value="schematic">Schematic</option>
           <option value="true">True scale</option>
-        </select>
-        <select value={unit} onChange={(e) => repo.saveConfig({ distanceUnit: e.target.value as DistanceUnit })} style={{ width: "auto" }} title="Distance units">
+        </Select>
+        <Select className="auto" value={unit} onChange={(e) => repo.saveConfig({ distanceUnit: e.target.value as DistanceUnit })} title="Distance units" aria-label="Distance units">
           {DISTANCE_UNITS.map((u) => (
-            <option key={u.id} value={u.id}>{u.label}</option>
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
           ))}
-        </select>
-        <button onClick={() => setAdding(adding === "body" ? null : "body")}>+ Body</button>
-        <button onClick={() => setAdding(adding === "location" ? null : "location")}>+ Location</button>
-        <button onClick={() => { setBuilder((b) => !b); setSel(null); }}>Skeleton…</button>
-        <button onClick={() => { userMoved.current = false; fit(layout.extent + 60); }} title="Fit">⤢</button>
-        <button onClick={exportSvg} title="Save an SVG of this view into assets/">Export SVG</button>
-        <button className="ghost" onClick={() => actions.navigate({ kind: "record", id: system.id })}>Record ↗</button>
+        </Select>
+        <Button size="sm" onClick={() => setAdding(adding === "body" ? null : "body")}>
+          + BODY
+        </Button>
+        <Button size="sm" onClick={() => setAdding(adding === "location" ? null : "location")}>
+          + LOCATION
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            setBuilder((b) => !b);
+            setSel(null);
+          }}
+        >
+          Skeleton…
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            userMoved.current = false;
+            fit(layout.extent + 60);
+          }}
+          title="Fit the whole system"
+        >
+          Fit
+        </Button>
+        <Button size="sm" onClick={exportSvg} title="Save an SVG of this view into assets/">
+          EXPORT SVG
+        </Button>
+        <Button size="sm" onClick={() => actions.navigate({ kind: "record", id: system.id })}>
+          Record
+        </Button>
       </div>
       <div className="mapbody">
         <div className="mapwrap" ref={wrapRef}>
@@ -587,7 +625,7 @@ export function SystemMap({ id }: { id: string }) {
             <rect data-ui="bg" x={view.x} y={view.y} width={view.w} height={view.h} fill={C.bg} onClick={() => { if (dragged.current) { dragged.current = false; return; } setSel(null); }} />
 
             {layout.zones.map((z) =>
-              z.kind === "frost" ? <circle key="frost" r={z.rInner} fill="none" stroke={C.frost} strokeDasharray={`${6 * inv} ${8 * inv}`} strokeWidth={inv} opacity={0.45} /> : <circle key="hz" r={(z.rInner + z.rOuter) / 2} fill="none" stroke={C.hz} strokeWidth={Math.max(2 * inv, z.rOuter - z.rInner)} opacity={0.1} />,
+              z.kind === "frost" ? <circle key="frost" pointerEvents="none" r={z.rInner} fill="none" stroke={C.frost} strokeDasharray={`${6 * inv} ${8 * inv}`} strokeWidth={inv} /> : <circle key="hz" pointerEvents="none" r={(z.rInner + z.rOuter) / 2} fill="none" stroke={C.hz} strokeWidth={Math.max(2 * inv, z.rOuter - z.rInner)} />,
             )}
 
             {layout.belts.map((belt) => {
@@ -672,7 +710,7 @@ export function SystemMap({ id }: { id: string }) {
                 <g key={b.id} data-el={b.id} transform={`translate(${p.x} ${p.y}) scale(${inv})`} onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: "body", id: b.id }); }} onPointerEnter={hoverOn(b.id, b.name, [b.detail, ...lobjectLines(b.lpoint.secondaryId, b.lpoint.point, undefined, primaryName, b.derived.heliocentricAU ? b.derived.heliocentricAU * AU_KM : undefined), modeLine(b.id)])} onPointerLeave={hoverOff} style={{ cursor: "pointer" }}>
                   {selected && <circle r={b.r + 4} fill="none" stroke={C.select} strokeWidth={1.4} />}
                   {renderHalo(b.id, b.r)}
-                  <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, b.r) }} />
+                  <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, b.r, palette) }} />
                   {renderLabel(b.id, 8, b.sublabel)}
                 </g>
               );
@@ -696,7 +734,7 @@ export function SystemMap({ id }: { id: string }) {
                     {selected && <circle r={r + 5} fill="none" stroke={C.select} strokeWidth={1.5} />}
                     {hovered && !selected && <circle r={r + 4} fill="none" stroke={C.hover} strokeWidth={0.9} opacity={0.7} />}
                     {renderHalo(b.id, r)}
-                    <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, r) }} />
+                    <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, r, palette) }} />
                     {renderLabel(b.id, isStar ? 12 : 10, b.sublabel, C.label, C.sublabel, isStar)}
                   </g>
                 </g>
@@ -711,7 +749,7 @@ export function SystemMap({ id }: { id: string }) {
               ))}
             </div>
           )}
-          <div className="mapzoom muted">zoom {zoom.toFixed(2)}× · {showNeighbourhood ? "moons & stations shown" : "zoom in for moons & stations"}</div>
+          <div className="mapzoom">zoom {zoom.toFixed(2)}× · {showNeighbourhood ? "moons & stations shown" : "zoom in for moons & stations"}</div>
         </div>
         <div className="mapside">
           {builder ? (
@@ -719,11 +757,12 @@ export function SystemMap({ id }: { id: string }) {
           ) : adding ? (
             <AddOnMap kind={adding} system={system} layout={layout} onDone={(rid) => { setAdding(null); if (rid) setSel({ kind: adding, id: rid }); }} />
           ) : sel?.kind === "annotation" ? (
-            <div className="card" style={{ marginTop: 0 }}>
-              <h3 style={{ marginTop: 0 }}>Annotation</h3>
-              <div className="muted">Edit annotations in the system record (Annotations table).</div>
-              <button style={{ marginTop: 8 }} onClick={() => actions.navigate({ kind: "record", id: system.id })}>Open system record</button>
-            </div>
+            <Panel title="ANNOTATION">
+              <p className="prose">Annotations are edited in the system record, in its Annotations table.</p>
+              <div className="row">
+                <Button onClick={() => actions.navigate({ kind: "record", id: system.id })}>Open system record</Button>
+              </div>
+            </Panel>
           ) : selRecord ? (
             <div className="mapinspector">
               <RecordEditor key={selRecord.id} id={selRecord.id} />
@@ -785,32 +824,32 @@ function MapLegend({ mode, polities, colorOfPolity }: { mode: MapMode; polities:
   if (mode === "plain") return null;
   const m = MAP_MODES.find((x) => x.id === mode)!;
   return (
-    <div className="card" style={{ marginTop: 0 }}>
-      <h3 style={{ marginTop: 0 }}>{m.label} mode</h3>
-      <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>{m.description}</div>
+    <Panel title={`${caps(m.label)} MODE`}>
+      <div className="help">{m.description}</div>
       {mode === "political" ? (
-        <div className="stack" style={{ gap: 3 }}>
+        <Group title="POLITIES" meta={String(polities.length)}>
           {polities.map((p) => (
-            <div key={p.id} className="row" style={{ gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 6, background: colorOfPolity(p.id), display: "inline-block" }} />
-              <span style={{ fontSize: 12 }}>{p.name}</span>
-            </div>
+            <Row key={p.id} label={<span className="row tight"><span className="legend-swatch" style={{ background: colorOfPolity(p.id) }} />{caps(p.name)}</span>} />
           ))}
-          <div className="row" style={{ gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 6, background: "#6a7793", display: "inline-block" }} />
-            <span className="muted" style={{ fontSize: 12 }}>unclaimed · split ring = contested</span>
-          </div>
-        </div>
+          <Row label={<span className="row tight"><span className="legend-swatch" style={{ background: UNCLAIMED_COLOR }} />UNCLAIMED</span>}>
+            <span className="help">split ring = contested</span>
+          </Row>
+        </Group>
       ) : (
-        <div>
-          <div style={{ height: 10, borderRadius: 4, background: mode === "habitability" ? `linear-gradient(90deg, ${greenRamp(0)}, ${greenRamp(1)})` : `linear-gradient(90deg, ${rampColor(0)}, ${rampColor(0.5)}, ${rampColor(1)})` }} />
-          <div className="row muted" style={{ fontSize: 10, justifyContent: "space-between" }}>
-            <span>{mode === "habitability" ? "0" : "none"}</span>
+        <Group title="SCALE">
+          {/* Discrete steps, not a gradient (docs/STYLE.md §1). */}
+          <div className="legend-ramp">
+            {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+              <span key={t} style={{ background: mode === "habitability" ? greenRamp(t) : rampColor(t) }} />
+            ))}
+          </div>
+          <div className="row t-data-sm ink-300">
+            <span className="grow">{mode === "habitability" ? "0" : "none"}</span>
             <span>{mode === "habitability" ? "1" : mode === "economic" ? "10 + population" : "strong"}</span>
           </div>
-        </div>
+        </Group>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -824,8 +863,8 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
   const keys = ["radius_mapping", "inner_px", "outer_px", "moon_scale_px", "show_lagrange", "show_zones", "show_labels"];
   const sub = { ...schema.fields, properties: Object.fromEntries(Object.entries(schema.fields.properties ?? {}).filter(([k]) => keys.includes(k))) };
   return (
-    <div>
-      <div className="card" style={{ marginTop: 0 }}>
+    <>
+      <Panel title="MAP SETTINGS">
         <SchemaForm
           schema={sub}
           value={fields}
@@ -840,25 +879,21 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
             }, 400);
           }}
         />
-      </div>
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>How to use</h3>
-        <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+      </Panel>
+      <Panel title="HOW TO USE">
+        <div className="prose">
           Scroll to zoom, drag the background to pan. Zoom in to reveal moons, orbital stations and minor bodies; planets keep their size while orbits scale. Hover anything for its full classification and distance; click to edit it here; drag a body or
           station along its orbit, or drop a station on a Lagrange dot to park it there. “Lagrange point of” names the smaller body of the pair (Luna for Earth–Moon points, Earth for Earth–star points).
         </div>
-      </div>
+      </Panel>
       {layout.warnings.length > 0 && (
-        <div className="card warn">
-          <h3 style={{ marginTop: 0 }}>Map warnings</h3>
-          <ul className="warn" style={{ paddingLeft: 18 }}>
-            {layout.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </div>
+        <Panel title="MAP WARNINGS" meta={String(layout.warnings.length)} bodyClassName="flush">
+          {layout.warnings.map((w, i) => (
+            <StatusRow key={i} severity="caution" id="LAYOUT" message={w} word={false} />
+          ))}
+        </Panel>
       )}
-    </div>
+    </>
   );
 }
 
@@ -901,31 +936,41 @@ function AddOnMap({ kind, system, layout, onDone }: { kind: "body" | "location";
     onDone(rec.id);
   };
   return (
-    <div className="card" style={{ marginTop: 0 }}>
-      <h3 style={{ marginTop: 0 }}>Add {kind}</h3>
-      <div className="stack">
-        <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-          <option value="">— blank —</option>
-          {presets.map((p) => (
-            <option key={p.id} value={p.id}>{p.title}</option>
-          ))}
-        </select>
-        <input type="text" placeholder="Name" value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
-        <label className="muted" style={{ fontSize: 11 }}>Orbits</label>
-        <select value={parent} onChange={(e) => setParent(e.target.value)}>
-          {layout.bodies.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}{b.id === layout.primary?.id ? " (primary)" : ""}</option>
-          ))}
-        </select>
-        <span className="row">
-          <input type="number" step="any" min={0} value={sma} onChange={(e) => setSma(Number(e.target.value))} />
-          <span className="unit">{parentIsStar ? "AU" : "km"}</span>
-        </span>
-        <div className="row">
-          <button className="primary" onClick={create}>Create</button>
-          <button className="ghost" onClick={() => onDone()}>Cancel</button>
-        </div>
+    <Panel title={`ADD ${caps(kind)}`}>
+      <Group>
+        <Row label="PRESET">
+          <Select value={preset} onChange={(e) => setPreset(e.target.value)}>
+            <option value="">— blank —</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </Select>
+        </Row>
+        <Row label="NAME">
+          <TextField placeholder="Name" value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
+        </Row>
+        <Row label="ORBITS">
+          <Select value={parent} onChange={(e) => setParent(e.target.value)}>
+            {layout.bodies.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+                {b.id === layout.primary?.id ? " (primary)" : ""}
+              </option>
+            ))}
+          </Select>
+        </Row>
+        <Row label="DISTANCE">
+          <NumberField step="any" min={0} value={sma} onValue={(v) => setSma(v ?? 0)} unit={parentIsStar ? "AU" : "km"} />
+        </Row>
+      </Group>
+      <div className="btn-group">
+        <Button variant="primary" onClick={create}>
+          CREATE
+        </Button>
+        <Button onClick={() => onDone()}>Cancel</Button>
       </div>
-    </div>
+    </Panel>
   );
 }

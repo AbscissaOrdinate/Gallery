@@ -1,0 +1,80 @@
+<!-- @dsCard group="Controls" height=280 width=900 subtitle="Primary bar, panel tabs and a segmented switch" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px}
+.sec{margin-bottom:22px;max-width:820px}
+.cap{color:var(--ink-300);margin-bottom:6px;display:block}
+.bar{display:flex;background:var(--surface-200);border:1px solid var(--line-200)}
+.tb{height:32px;padding:0 18px;display:flex;align-items:center;color:var(--ink-200);
+    border-right:1px solid var(--line-200);background:var(--surface-200)}
+.tb:last-child{border-right:0}
+.tb.on{background:var(--accent-700);color:var(--accent-300);box-shadow:inset 0 -3px 0 0 var(--accent-500)}
+.tb.hv{background:var(--surface-300);color:var(--ink-100)}
+.tb.dis{opacity:.4}
+.ptabs{display:flex;background:var(--surface-300);border:1px solid var(--line-200);border-bottom:0}
+.pt{height:26px;padding:0 14px;display:flex;align-items:center;gap:6px;color:var(--ink-200);border-right:1px solid var(--line-200)}
+.pt.on{background:var(--surface-200);color:var(--ink-100);box-shadow:inset 0 2px 0 0 var(--accent-500)}
+.body{background:var(--surface-200);border:1px solid var(--line-200);padding:12px;color:var(--ink-200)}
+.cnt{color:var(--ink-300)}
+.seg{display:inline-flex;border:1px solid var(--line-200)}
+.sg{height:26px;padding:0 12px;display:flex;align-items:center;color:var(--ink-200);background:var(--surface-300);border-right:1px solid var(--line-200)}
+.sg:last-child{border-right:0}
+.sg.on{background:var(--accent-500);color:var(--on-accent);font-weight:600}
+</style>
+<div class="sec">
+  <span class="lxs cap">PRIMARY BAR &mdash; control-lg, one active per workbench</span>
+  <div class="bar">
+    <div class="tb lmd on">RECORDS</div>
+    <div class="tb lmd hv">MAPS</div>
+    <div class="tb lmd">HULLS</div>
+    <div class="tb lmd">CRAFT</div>
+    <div class="tb lmd dis">INTEL</div>
+  </div>
+</div>
+
+<div class="sec">
+  <span class="lxs cap">PANEL TABS &mdash; control-md, counts in data-sm</span>
+  <div class="ptabs">
+    <div class="pt lmd on">Configuration</div>
+    <div class="pt lmd">Craft stats <span class="dsm cnt">24</span></div>
+    <div class="pt lmd">Advisories <span class="dsm" style="color:var(--status-amber)">3</span></div>
+    <div class="pt lmd">Backlinks <span class="dsm cnt">11</span></div>
+  </div>
+  <div class="body dmd">Fixed components &mdash; consistent across all instances of this craft.</div>
+</div>
+
+<div class="sec">
+  <span class="lxs cap">SEGMENTED SWITCH &mdash; mutually exclusive display modes</span>
+  <div class="seg">
+    <div class="sg lmd on">LIGHT-TIME</div>
+    <div class="sg lmd">AU</div>
+    <div class="sg lmd">KM</div>
+  </div>
+</div>

@@ -1,0 +1,68 @@
+<!-- @dsCard group="Foundations" height=330 width=900 subtitle="Top and bottom banner strips at all four levels, with the marking string broken down" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px}
+.wrap{max-width:820px}
+.bn{height:24px;display:flex;align-items:center;justify-content:center;text-align:center;width:100%}
+.ts{background:var(--class-top-secret);color:var(--on-accent)}
+.s{background:var(--class-secret);color:var(--ink-100)}
+.c{background:var(--class-confidential);color:var(--ink-100)}
+.u{background:var(--class-unclassified);color:var(--ink-100)}
+.doc{border-left:1px solid var(--line-200);border-right:1px solid var(--line-200);background:var(--surface-200);
+     padding:14px 16px;color:var(--ink-300)}
+.stack{margin-bottom:18px}
+.key{display:grid;grid-template-columns:120px 1fr;gap:2px 12px;margin-top:14px}
+.key .lxs{color:var(--ink-300)}
+.lvls{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+</style>
+<div class="wrap">
+  <div class="stack">
+    <div class="bn s ban">SECRET//SI//REL TO CMW &mdash; ONI-TECH-0412 &mdash; UJCN</div>
+    <div class="doc">
+      <p class="dmd">Record body. The reader must be able to see one banner without scrolling, at all times.</p>
+      <div class="key">
+        <span class="lxs">LEVEL</span><span class="dsm mut">SECRET</span>
+        <span class="lxs">CAVEATS</span><span class="dsm mut">SI &mdash; compartment markings, // separated</span>
+        <span class="lxs">RELEASABILITY</span><span class="dsm mut">REL TO CMW</span>
+        <span class="lxs">RECORD CODE</span><span class="dsm mut">ONI-TECH-0412</span>
+        <span class="lxs">PROGRAMME</span><span class="dsm mut">UJCN</span>
+      </div>
+    </div>
+    <div class="bn s ban">SECRET//SI//REL TO CMW &mdash; ONI-TECH-0412 &mdash; UJCN</div>
+  </div>
+
+  <span class="lxs met">THE FOUR GROUNDS</span>
+  <div class="lvls">
+    <div class="bn ts ban">COSMIC TOP SECRET//ORCON &mdash; ONI-SPEC-0001 &mdash; UJCN</div>
+    <div class="bn s ban">SECRET//SI//REL TO CMW &mdash; ONI-TECH-0412 &mdash; UJCN</div>
+    <div class="bn c ban">CONFIDENTIAL//NOFORN &mdash; ADM-LOG-2291 &mdash; CMW</div>
+    <div class="bn u ban">UNCLASSIFIED &mdash; PUB-GAZ-0044 &mdash; CMW</div>
+  </div>
+</div>
