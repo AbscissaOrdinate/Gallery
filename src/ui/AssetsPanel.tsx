@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useApp } from "./state";
 import type { AssetRef, GalleryRecord } from "../core/types";
 import { slugify } from "../core/ids";
+import { sanitizeSvg } from "../core/codec/svg";
 
 /** SVG (and other text) assets attached to a record, with inline preview. */
 export function AssetsPanel({ record, onChange }: { record: GalleryRecord; onChange: (assets: AssetRef[]) => void }) {
@@ -61,27 +62,17 @@ export function AssetsPanel({ record, onChange }: { record: GalleryRecord; onCha
 function SvgPreview({ path }: { path: string }) {
   const { repo } = useApp();
   const [svg, setSvg] = useState<string | null>(null);
+  const idPrefix = `asset-${useId()}-`;
   useEffect(() => {
     let alive = true;
     repo
       ?.readAsset(path)
-      .then((t) => alive && setSvg(sanitizeSvg(t)))
+      .then((t) => alive && setSvg(sanitizeSvg(t, { idPrefix })))
       .catch(() => alive && setSvg(null));
     return () => {
       alive = false;
     };
-  }, [path, repo]);
+  }, [path, repo, idPrefix]);
   if (!svg) return <div className="muted mono" style={{ fontSize: 11 }}>(preview unavailable)</div>;
   return <div className="svgbox" dangerouslySetInnerHTML={{ __html: svg }} />;
-}
-
-/** Strip scripts and event handlers before inlining an SVG. */
-function sanitizeSvg(text: string): string {
-  return text
-    .replace(/<\?xml[^>]*\?>/g, "")
-    .replace(/<!DOCTYPE[^>]*>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\son[a-z]+="[^"]*"/gi, "")
-    .replace(/\son[a-z]+='[^']*'/gi, "")
-    .replace(/href="javascript:[^"]*"/gi, "");
 }
