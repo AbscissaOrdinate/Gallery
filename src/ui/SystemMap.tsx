@@ -13,33 +13,39 @@ import type { TypedRecord, GalleryRecord } from "../core/types";
 import { isNote } from "../core/types";
 import { layoutSystem, placeLabels, pointOnOrbit, type BodyNode, type HelioLocation, type LagrangeBody, type Layout, type LabelReq, type OrbitShape, type Satellite } from "../core/astro/layout";
 import { glyphMarkup } from "../core/astro/glyph";
+import { glyphPaletteFrom } from "../core/astro/tints";
+import { resolveThemeColors } from "./themeColors";
 import { formatKm, DISTANCE_UNITS, type DistanceUnit } from "../core/astro/units";
 import { AU_KM } from "../core/astro/worldsmith";
-import { bodyModes, locationModes, polityColor, rampColor, greenRamp, MAP_MODES, type MapMode, type BodyModes } from "../core/astro/modes";
+import { bodyModes, locationModes, polityColor, rampColor, greenRamp, UNCLAIMED_COLOR, MAP_MODES, type MapMode, type BodyModes } from "../core/astro/modes";
 import { RecordEditor } from "./RecordEditor";
 import { SchemaForm } from "./SchemaForm";
 import { SystemBuilder } from "./SystemBuilder";
 import { isTauri } from "../core/storage/tauri";
 
-/** Literal colours (not CSS vars) so exported SVGs look the same outside the app. */
+/**
+ * Canvas colours, all theme tokens (docs/STYLE.md §1, SystemMap README).
+ * `accent-500` is the selection and nothing else on the canvas (§8). Exported
+ * SVGs resolve these to literal colours (`resolveThemeColors`).
+ */
 const C = {
-  bg: "#141829",
-  orbit: "#3d4861",
-  orbitFaint: "#2c364c",
-  orbitLoc: "#6a7793",
-  hz: "#6fbf95",
-  frost: "#7fd0d8",
-  belt: "#8a7f70",
-  label: "#e9e9ed",
-  sublabel: "#8792a8",
-  loc: "#e6a684",
-  lagrange: "#6a7793",
-  lagrangeOn: "#d9865c",
-  select: "#c9663a",
-  hover: "#e6a684",
-  ring: "#8b7355",
+  bg: "var(--map-void)",
+  orbit: "var(--map-orbit)",
+  orbitFaint: "var(--map-grid)",
+  orbitLoc: "var(--line-200)",
+  hz: "var(--map-zone)",
+  frost: "var(--map-zone)",
+  belt: "var(--map-belt)",
+  label: "var(--ink-100)",
+  sublabel: "var(--ink-300)",
+  loc: "var(--glyph-navy)",
+  lagrange: "var(--ink-300)",
+  lagrangeOn: "var(--ink-100)",
+  select: "var(--accent-500)",
+  hover: "var(--line-300)",
+  ring: "var(--map-belt)",
 };
-const FONT = "Inter, system-ui, sans-serif";
+const FONT = "var(--font-sans)";
 
 /** Zoom thresholds (screen px per map px). */
 const Z = { neighbourhood: 1.8, moonLabels: 2.6, minor: 1.3 };
@@ -107,7 +113,8 @@ export function SystemMap({ id }: { id: string }) {
     return m;
   }, [layout, mode, records, repo]);
   const polities = useMemo(() => records.filter((r) => r.type === "polity"), [records]);
-  const colorOfPolity = (pid: string | undefined) => polityColor(pid ? repo?.typed(pid) : undefined, polities.findIndex((p) => p.id === pid));
+  const palette = useMemo(() => glyphPaletteFrom(repo?.tables), [repo, records]);
+  const colorOfPolity = (pid: string | undefined) => polityColor(pid ? repo?.typed(pid) : undefined, polities.findIndex((p) => p.id === pid), repo?.config.polityPalette);
 
   const fit = useCallback(
     (ext: number) => {
@@ -448,10 +455,10 @@ export function SystemMap({ id }: { id: string }) {
   const locColor = (rec: TypedRecord | undefined) => {
     if (!rec || mode === "plain") return C.loc;
     const lm = locationModes(rec, records);
-    if (mode === "political") return lm.polityId ? colorOfPolity(lm.polityId) : "#6a7793";
+    if (mode === "political") return lm.polityId ? colorOfPolity(lm.polityId) : UNCLAIMED_COLOR;
     if (mode === "economic") return rampColor(Math.min(1, lm.industry / 10 + Math.log10(1 + lm.populationK) / 8));
     if (mode === "military") return rampColor(Math.min(1, lm.military / 10));
-    return "#6a7793";
+    return UNCLAIMED_COLOR;
   };
 
   // ---- export -----------------------------------------------------------------------
@@ -464,7 +471,7 @@ export function SystemMap({ id }: { id: string }) {
     clone.setAttribute("width", String(size.w));
     clone.setAttribute("height", String(size.h));
     clone.insertAdjacentHTML("afterbegin", `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="${C.bg}"/>`);
-    const text = `<?xml version="1.0" encoding="UTF-8"?>\n` + new XMLSerializer().serializeToString(clone);
+    const text = `<?xml version="1.0" encoding="UTF-8"?>\n` + resolveThemeColors(new XMLSerializer().serializeToString(clone));
     const path = await repo.putTextAsset(`${system.slug}.map.svg`, text);
     if (!system.assets.some((a) => a.path === path)) {
       system.assets = [...system.assets, { role: "map", path }];
@@ -522,7 +529,7 @@ export function SystemMap({ id }: { id: string }) {
               {selected && <circle r={(s.r ?? 3) + 3.5} fill="none" stroke={C.select} strokeWidth={1.2} />}
               {hovered && !selected && <circle r={(s.r ?? 3) + 3} fill="none" stroke={C.hover} strokeWidth={0.8} opacity={0.7} />}
               {renderHalo(s.id, s.r ?? 3)}
-              <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph!, s.r ?? 3) }} />
+              <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph!, s.r ?? 3, palette) }} />
               {zoom >= Z.moonLabels && renderLabel(s.id, 8, s.sublabel)}
             </g>
             {/* the moon's own neighbourhood (its L-points etc.) is flattened into the host's list */}
@@ -544,7 +551,7 @@ export function SystemMap({ id }: { id: string }) {
           <g key={s.id} data-el={s.id} transform={`translate(${p.x} ${p.y})`} onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: s.record?.type === "body" ? "body" : "location", id: s.id }); }} onPointerEnter={hoverOn(s.id, s.name, [s.derived?.ewocs.full ?? String(s.record?.fields.kind ?? ""), ...lobjectLines(s.secondaryId, s.lpoint, s.distKm, host.name, host.distKm), ownerLine(s.record), modeLine(s.id)])} onPointerLeave={hoverOff} style={{ cursor: "pointer" }}>
             {selected && <circle r={(s.r ?? 5) + 3.5} fill="none" stroke={C.select} strokeWidth={1.2} />}
             {s.glyph ? renderHalo(s.id, s.r ?? 3) : null}
-            {s.glyph ? <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph, s.r ?? 3) }} /> : <g dangerouslySetInnerHTML={{ __html: locationSymbol(s.symbol ?? "base", locColor(s.record)) }} />}
+            {s.glyph ? <g dangerouslySetInnerHTML={{ __html: glyphMarkup(s.glyph, s.r ?? 3, palette) }} /> : <g dangerouslySetInnerHTML={{ __html: locationSymbol(s.symbol ?? "base", locColor(s.record)) }} />}
             {renderLabel(s.id, s.glyph ? 7.5 : LOC_FONT, undefined, s.glyph ? C.label : C.loc)}
           </g>
         );
@@ -587,7 +594,7 @@ export function SystemMap({ id }: { id: string }) {
             <rect data-ui="bg" x={view.x} y={view.y} width={view.w} height={view.h} fill={C.bg} onClick={() => { if (dragged.current) { dragged.current = false; return; } setSel(null); }} />
 
             {layout.zones.map((z) =>
-              z.kind === "frost" ? <circle key="frost" r={z.rInner} fill="none" stroke={C.frost} strokeDasharray={`${6 * inv} ${8 * inv}`} strokeWidth={inv} opacity={0.45} /> : <circle key="hz" r={(z.rInner + z.rOuter) / 2} fill="none" stroke={C.hz} strokeWidth={Math.max(2 * inv, z.rOuter - z.rInner)} opacity={0.1} />,
+              z.kind === "frost" ? <circle key="frost" r={z.rInner} fill="none" stroke={C.frost} strokeDasharray={`${6 * inv} ${8 * inv}`} strokeWidth={inv} /> : <circle key="hz" r={(z.rInner + z.rOuter) / 2} fill="none" stroke={C.hz} strokeWidth={Math.max(2 * inv, z.rOuter - z.rInner)} />,
             )}
 
             {layout.belts.map((belt) => {
@@ -672,7 +679,7 @@ export function SystemMap({ id }: { id: string }) {
                 <g key={b.id} data-el={b.id} transform={`translate(${p.x} ${p.y}) scale(${inv})`} onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: "body", id: b.id }); }} onPointerEnter={hoverOn(b.id, b.name, [b.detail, ...lobjectLines(b.lpoint.secondaryId, b.lpoint.point, undefined, primaryName, b.derived.heliocentricAU ? b.derived.heliocentricAU * AU_KM : undefined), modeLine(b.id)])} onPointerLeave={hoverOff} style={{ cursor: "pointer" }}>
                   {selected && <circle r={b.r + 4} fill="none" stroke={C.select} strokeWidth={1.4} />}
                   {renderHalo(b.id, b.r)}
-                  <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, b.r) }} />
+                  <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, b.r, palette) }} />
                   {renderLabel(b.id, 8, b.sublabel)}
                 </g>
               );
@@ -696,7 +703,7 @@ export function SystemMap({ id }: { id: string }) {
                     {selected && <circle r={r + 5} fill="none" stroke={C.select} strokeWidth={1.5} />}
                     {hovered && !selected && <circle r={r + 4} fill="none" stroke={C.hover} strokeWidth={0.9} opacity={0.7} />}
                     {renderHalo(b.id, r)}
-                    <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, r) }} />
+                    <g dangerouslySetInnerHTML={{ __html: glyphMarkup(b.glyph, r, palette) }} />
                     {renderLabel(b.id, isStar ? 12 : 10, b.sublabel, C.label, C.sublabel, isStar)}
                   </g>
                 </g>
@@ -792,18 +799,23 @@ function MapLegend({ mode, polities, colorOfPolity }: { mode: MapMode; polities:
         <div className="stack" style={{ gap: 3 }}>
           {polities.map((p) => (
             <div key={p.id} className="row" style={{ gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 6, background: colorOfPolity(p.id), display: "inline-block" }} />
+              <span style={{ width: 12, height: 12, background: colorOfPolity(p.id), display: "inline-block" }} />
               <span style={{ fontSize: 12 }}>{p.name}</span>
             </div>
           ))}
           <div className="row" style={{ gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 6, background: "#6a7793", display: "inline-block" }} />
+            <span style={{ width: 12, height: 12, background: UNCLAIMED_COLOR, display: "inline-block" }} />
             <span className="muted" style={{ fontSize: 12 }}>unclaimed · split ring = contested</span>
           </div>
         </div>
       ) : (
         <div>
-          <div style={{ height: 10, borderRadius: 4, background: mode === "habitability" ? `linear-gradient(90deg, ${greenRamp(0)}, ${greenRamp(1)})` : `linear-gradient(90deg, ${rampColor(0)}, ${rampColor(0.5)}, ${rampColor(1)})` }} />
+          {/* Discrete steps, not a gradient (docs/STYLE.md §1). */}
+          <div className="row" style={{ gap: 0 }}>
+            {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+              <span key={t} style={{ flex: 1, height: 10, background: mode === "habitability" ? greenRamp(t) : rampColor(t) }} />
+            ))}
+          </div>
           <div className="row muted" style={{ fontSize: 10, justifyContent: "space-between" }}>
             <span>{mode === "habitability" ? "0" : "none"}</span>
             <span>{mode === "habitability" ? "1" : mode === "economic" ? "10 + population" : "strong"}</span>

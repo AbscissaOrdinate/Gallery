@@ -222,7 +222,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
         <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
           {/* Station grid, behind everything. */}
           {ticks.map((x) => (
-            <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-faded)" strokeWidth={px(0.5)} opacity={0.5} />
+            <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-100)" strokeWidth={px(0.5)} opacity={0.5} />
           ))}
           {scene.elements.map((el) => (
             <SceneNode key={el.id} el={el} scale={px} selectedKey={selKey} hover={hover} onHover={setHover} flip={flip} />
@@ -230,7 +230,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
 
           {/* Focused advisory: a full-height marker at the anchor station. */}
           {focus !== undefined && Number.isFinite(focus) && (
-            <line x1={focus} y1={b.y0} x2={focus} y2={b.y1} stroke="var(--warn)" strokeWidth={px(1.5)} strokeDasharray={`${px(6)} ${px(4)}`} pointerEvents="none" />
+            <line x1={focus} y1={b.y0} x2={focus} y2={b.y1} stroke="var(--status-amber-mark)" strokeWidth={px(1.5)} strokeDasharray={`${px(6)} ${px(4)}`} pointerEvents="none" />
           )}
 
           {!readOnly &&
@@ -241,7 +241,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
                 <g key={"h" + i} data-handle="station" data-id={String(i)} style={{ cursor: "move" }}>
                   {/* An invisible disc gives a comfortable grab target at any zoom. */}
                   <circle cx={s.x} cy={s.half_height_m} r={px(9)} fill="transparent" />
-                  <circle cx={s.x} cy={s.half_height_m} r={px(3.5)} fill={on ? "var(--accent)" : "var(--surface)"} stroke="var(--accent)" strokeWidth={px(1.2)} />
+                  <circle cx={s.x} cy={s.half_height_m} r={px(3.5)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke="var(--accent-500)" strokeWidth={px(1.2)} />
                 </g>
               );
             })}
@@ -254,7 +254,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
               return (
                 <g key={"s" + s.id} data-handle="slot" data-id={s.id} style={{ cursor: "ew-resize" }}>
                   <circle cx={s.x} cy={y} r={px(10)} fill="transparent" />
-                  <rect x={s.x - px(4)} y={y - px(4)} width={px(8)} height={px(8)} fill={on ? "var(--rust-300)" : "var(--surface)"} stroke="var(--rust-300)" strokeWidth={px(1.2)} />
+                  <rect x={s.x - px(4)} y={y - px(4)} width={px(8)} height={px(8)} fill={on ? "var(--accent-300)" : "var(--surface-200)"} stroke="var(--accent-300)" strokeWidth={px(1.2)} />
                 </g>
               );
             })}
@@ -303,7 +303,7 @@ function SceneNode({
   const hot = hover === el.id || (el.kind === "text" && el.owner !== undefined && hover === el.owner);
   const common = {
     fill: el.fill ? `var(--${el.fill})` : "none",
-    stroke: on ? "var(--accent)" : el.stroke ? `var(--${el.stroke})` : "none",
+    stroke: on ? "var(--accent-500)" : el.stroke ? `var(--${el.stroke})` : "none",
     strokeWidth: scale((el.strokeWidth ?? 1) * (on ? 2.2 : hot ? 1.6 : 1)),
     opacity: el.opacity,
     strokeDasharray: el.dashed ? `${scale(5)} ${scale(4)}` : undefined,
@@ -334,7 +334,7 @@ function SceneNode({
           // scene metres this group is drawn in, so it stays that many pixels
           // on the glass however far the view is zoomed.
           fontSize={scale((el.size ?? LABEL_PX.fallback) * (hot ? 1.35 : 1))}
-          fill={el.fill ? `var(--${el.fill})` : "var(--text-muted)"}
+          fill={el.fill ? `var(--${el.fill})` : "var(--ink-200)"}
           fontWeight={hot ? 600 : undefined}
           stroke="none"
           pointerEvents="none"

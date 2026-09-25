@@ -296,7 +296,7 @@ describe("SVG serialisation", () => {
 
   it("writes every colour as a theme variable, never a literal", () => {
     const svg = toSvg(renderHull(hull, { mode: "schematic", scaleFigures: true, cgStation: 90, shadowCone: { x: 150, half_angle_deg: 15 } }));
-    expect(svg).toMatch(/var\(--navy-800\)/);
+    expect(svg).toMatch(/var\(--surface-200\)/);
     // No hex, rgb() or named colours anywhere in the output.
     expect(svg).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(svg).not.toMatch(/\brgba?\(/);
