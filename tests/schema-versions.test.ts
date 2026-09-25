@@ -19,7 +19,7 @@ import { BUILTIN_SCHEMAS } from "../src/core/schema/builtin/schemas";
 // required fields, polity acronym; note and character gained their first explicit version.
 const PINNED: Record<string, [number, string]> = {
   note: [2, "3483b2fdd62a95b9"],
-  polity: [3, "0f7f86cc01aab5b6"],
+  polity: [4, "9beb1aaf4da9ef63"], // 4: affiliation (UI redesign step 5).
   location: [4, "0214814994d20a18"],
   body: [4, "a673f2149781b2d5"],
   system: [4, "b4148b28d52998dc"],

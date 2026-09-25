@@ -284,7 +284,9 @@ input.doc-title:focus { border-bottom-color: var(--line-300); }
 .picker .menu .opt { display: flex; align-items: baseline; gap: var(--space-4); padding: var(--space-2) var(--space-5); cursor: pointer; font: var(--text-data-md); }
 .picker .menu .opt small { margin-left: auto; font: var(--text-data-xs); color: var(--ink-300); }
 .picker .menu .opt.hi { background: var(--accent-700); color: var(--accent-300); }
-.ref-value { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; height: var(--control-md); padding: 0 var(--space-4); background: var(--surface-400); border: var(--border-1) solid var(--line-200); font: var(--text-data-md); }
+.picker > .row { flex-wrap: wrap; }   /* in a narrow inspector the commands drop under the value */
+.ref-value { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 var(--label-col-narrow-w); height: var(--control-md); padding: 0 var(--space-4); background: var(--surface-400); border: var(--border-1) solid var(--line-200); font: var(--text-data-md); }
+.ref-value .link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ref-value .kind { margin-left: auto; font: var(--text-data-xs); color: var(--ink-300); }
 
 /* Glyph preview inset (body portrait, asset previews). */
@@ -327,6 +329,16 @@ input.doc-title:focus { border-bottom-color: var(--line-300); }
 .maptip { position: absolute; z-index: 4; pointer-events: none; background: var(--surface-300); border: var(--border-1) solid var(--line-300); box-shadow: var(--elev-2); padding: var(--space-3) var(--space-4); max-width: var(--inspector-w); font: var(--text-data-sm); color: var(--ink-200); }
 .maptip .t { font: var(--text-label-md); font-weight: 600; color: var(--ink-100); }
 .mapzoom { position: absolute; left: var(--space-5); bottom: var(--space-4); font: var(--text-data-sm); color: var(--ink-300); pointer-events: none; }
+/* Bottom-right: the affiliation key at far zoom, the scale bar in true scale. */
+.mapfoot { position: absolute; right: var(--space-5); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-3); pointer-events: none; }
+.mapkey { display: flex; align-items: center; gap: var(--space-6); background: var(--surface-200); border: var(--border-1) solid var(--line-200); padding: var(--space-2) var(--space-5); font: var(--text-data-xs); color: var(--ink-200); }
+.mapkey-item { display: inline-flex; align-items: center; gap: var(--space-3); }
+.mapscale { display: flex; align-items: center; gap: var(--space-4); font: var(--text-data-sm); color: var(--ink-300); }
+.mapscale .b { position: relative; height: var(--border-1); background: var(--map-orbit); }
+.mapscale .b::before, .mapscale .b::after { content: ""; position: absolute; top: calc(var(--space-3) / -2); width: var(--border-1); height: var(--space-3); background: var(--map-orbit); }
+.mapscale .b::before { left: 0; }
+.mapscale .b::after { right: 0; }
+.mapinspector { display: flex; flex-direction: column; gap: var(--space-5); }
 .legend-swatch { width: var(--space-5); height: var(--space-5); display: inline-block; flex: none; }
 .legend-ramp { display: flex; height: var(--space-5); }
 .legend-ramp span { flex: 1; }

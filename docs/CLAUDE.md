@@ -23,6 +23,7 @@ standalone scripts run against a preview server:
 npm run build && npx vite preview     # then, in another shell:
 node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}, -hull, -ship
 node scripts/ui-smoke-screens.mjs     # the redesign screens, screenshots to screenshots/screens
+node scripts/ui-smoke-map-lod.mjs     # map restyle + far-zoom tactical symbols, to screenshots/map-lod
 node scripts/ui-plates.mjs            # the design-book plates, rendered with src/theme.css
 ```
 

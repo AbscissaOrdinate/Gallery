@@ -218,8 +218,12 @@ export interface VaultConfig {
   polityPalette?: string[];
   /** Closed vocabularies for record handling (STYLE.md §4.1). Vault data, seeded once. */
   handling?: HandlingVocab;
+  /** System map settings. `far_zoom_ratio`: below this fraction of the fit-to-system zoom the map switches to tactical symbols (default 0.75: two wheel steps out from fit). */
+  map?: { far_zoom_ratio?: number };
   version: 1;
 }
+
+export const DEFAULT_FAR_ZOOM_RATIO = 0.75;
 
 export const DEFAULT_VAULT_CONFIG: VaultConfig = {
   name: "Gallery",
