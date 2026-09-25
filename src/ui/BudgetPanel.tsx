@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useAdvisoryLog } from "./log";
+import type { Violation } from "../core/designer/violations";
 import { useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import { analyseShip } from "../core/designer/ship";
@@ -15,16 +17,24 @@ const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toLocaleString(undefin
  * section fill as ASCII bars, which numbers rest on a provisional figure, and
  * the advisories grouped by severity. Nothing here refuses a save.
  */
+const NONE: Violation[] = [];
+
 export function BudgetPanel({ craft }: { craft: TypedRecord }) {
   const { repo } = useApp();
-  if (!repo) return null;
-  const eff = repo.effectiveConstraints();
-  const { budget: b, advisories } = analyseShip(craft, {
-    typed: (id) => repo.typed(id),
-    tables: repo.tables,
-    values: eff.values,
-    provisionalParams: provisionalParams(eff),
-  });
+  const eff = repo?.effectiveConstraints();
+  const analysed = repo && eff
+    ? analyseShip(craft, {
+        typed: (id) => repo.typed(id),
+        tables: repo.tables,
+        values: eff.values,
+        provisionalParams: provisionalParams(eff),
+      })
+    : undefined;
+  // The session log: each advisory once, when it is raised; cleared when it no longer is.
+  const subject = useMemo(() => ({ id: craft.id, name: craft.name }), [craft.id, craft.name]);
+  useAdvisoryLog("craft", subject, analysed?.advisories ?? NONE);
+  if (!repo || !analysed) return null;
+  const { budget: b, advisories } = analysed;
   /** `mark` puts the provisional marker on the figure itself, not only in the note below. */
   const S = ({ k, v, unit, bad, mark, extra }: { k: string; v: string | undefined; unit?: string; bad?: boolean; mark?: boolean; extra?: ReactNode }) => (
     <Row label={k}>

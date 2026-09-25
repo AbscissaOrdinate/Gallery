@@ -9,11 +9,11 @@ import type { ReactNode } from "react";
 import { cx } from "./cx";
 import { asciiBar, asciiMeter, ratioSeverity, type UiSeverity } from "./severity";
 
-/** `[#######---] 71%` — bar and figure coloured together by severity. Ten cells always. */
-export function AsciiBar({ fraction, severity, figure }: { fraction: number | undefined; severity?: UiSeverity; figure?: ReactNode }) {
+/** `[#######---] 71%` — bar and figure coloured together by severity. Ten cells, unless a screen's one bar reads across a column (boot). */
+export function AsciiBar({ fraction, severity, figure, cells }: { fraction: number | undefined; severity?: UiSeverity; figure?: ReactNode; cells?: number }) {
   const sev = severity ?? ratioSeverity(fraction);
   const measured = fraction !== undefined && Number.isFinite(fraction);
-  const bar = asciiBar(fraction);
+  const bar = asciiBar(fraction, cells);
   return (
     <span className={cx("ascii-bar", `sev-text-${measured ? sev : "pending"}`)}>
       {/* Brackets stay uncoloured (README: do not colour the frame). */}

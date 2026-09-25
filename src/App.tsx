@@ -8,9 +8,11 @@ import { Settings } from "./ui/Settings";
 import { ImportDialog } from "./ui/ImportDialog";
 import { SystemMap } from "./ui/SystemMap";
 import { HullEditor } from "./ui/hull/HullEditor";
+import { AdvisoryLog } from "./ui/AdvisoryLog";
+import { Boot } from "./ui/Boot";
 import { isTauri } from "./core/storage/tauri";
 import type { Repository } from "./core/repo";
-import { Button, Panel, StatusRow, caps } from "./ui/kit";
+import { Button, Panel, StatusRow } from "./ui/kit";
 
 export function App() {
   const app = useApp();
@@ -31,11 +33,17 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!app.repo) return <Welcome />;
+  if (!app.repo)
+    return (
+      <>
+        <Welcome />
+        <Boot />
+      </>
+    );
 
   const v = app.view;
   // A record page takes the full width between the rail and the edge (RecordPage plate); the list pane is for browsing.
-  const wide = v.kind === "map" || v.kind === "hull" || v.kind === "record";
+  const wide = v.kind === "map" || v.kind === "hull" || v.kind === "record" || v.kind === "log";
   return (
     <div className={"app" + (wide ? " wide" : "")}>
       {/* Application bar: wordmark, breadcrumb, search, and no more than two commands (RecordPage plate). */}
@@ -69,9 +77,11 @@ export function App() {
         {v.kind === "hull" && <HullEditor key={v.id} id={v.id} />}
         {v.kind === "settings" && <Settings />}
         {v.kind === "import" && <ImportDialog />}
+        {v.kind === "log" && <AdvisoryLog key={v.query ?? ""} initialQuery={v.query} />}
         {(v.kind === "list" || v.kind === "welcome") && <Overview />}
       </main>
       {app.toast && <div className="toast">{app.toast}</div>}
+      <Boot />
     </div>
   );
 }
@@ -89,6 +99,7 @@ function Crumbs({ repo, view }: { repo: Repository; view: View }) {
   if (view.kind === "hull") parts.push("Hull", repo.record(view.id)?.name ?? view.id, "editor");
   if (view.kind === "settings") parts.push("Settings");
   if (view.kind === "import") parts.push("Import");
+  if (view.kind === "log") parts.push("Session log");
   return (
     <span className="crumbs" title={repo.fs.label}>
       {parts.map((p, i) => (
@@ -141,14 +152,17 @@ function Overview() {
           </tbody>
         </table>
       </Panel>
+      {/* Load problems live in the session log now (AdvisoryLog subsumes the old list); this row points there. */}
       {(problems.length > 0 || repo.registry.problems.length > 0) && (
         <Panel title="LOAD PROBLEMS" meta={String(problems.length + repo.registry.problems.length)} bodyClassName="flush">
-          {repo.registry.problems.map((p, i) => (
-            <StatusRow key={"r" + i} severity="caution" id="SCHEMA" message={p} word={false} />
-          ))}
-          {problems.map((p) => (
-            <StatusRow key={p.path} severity="caution" id={caps(p.path.split("/")[0] ?? "")} message={p.problems.join("; ")} detail={p.path} word={false} />
-          ))}
+          <StatusRow
+            severity="caution"
+            id="VAULT"
+            message={`${problems.length + repo.registry.problems.length} files did not load cleanly`}
+            detail="Each is a CAUTION line in the session log, with its file. Click to open it."
+            word={false}
+            onClick={() => actions.navigate({ kind: "log", query: "severity:caution" })}
+          />
         </Panel>
       )}
     </div>

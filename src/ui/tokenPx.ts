@@ -47,3 +47,11 @@ export function mapSizes(el?: Element): MapSizes {
     scaleBar: tokenPx("--scale-bar-w", el),
   };
 }
+
+/** A duration token (`--dur-idle-frame: 900ms`) in milliseconds; 0 when unreadable. */
+export function tokenMs(name: string, el?: Element): number {
+  if (typeof window === "undefined" || typeof getComputedStyle !== "function") return 0;
+  const v = getComputedStyle(el ?? document.documentElement).getPropertyValue(name).trim();
+  const m = /^(\d*\.?\d+)(ms|s)$/.exec(v);
+  return m ? Number(m[1]) * (m[2] === "s" ? 1000 : 1) : 0;
+}

@@ -50,6 +50,8 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
   ldf.fields.color = "#6fbf95";
   ldf.fields.affiliation = "neutral";
   for (const p of [uesc, ujcn, ldf]) await save(p);
+  // Who the boot screen names (display only). The demo keeps the default brief boot.
+  await repo.saveConfig({ operator: { name: "DEMO OPERATOR / UESC-R1", clearance: "LEVEL 4", level: "top-secret", caveats: ["ORCON"], programme: "UESC" } });
 
   // ---- system & star --------------------------------------------------------
   const system = repo.create("system", "Heliaris system");

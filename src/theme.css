@@ -166,6 +166,7 @@
   --scale-bar-w: 120px;   /* SystemMap scale bar target length */
   --text-control-sm: 500 11px/14px var(--font-sans);   /* Button label at control-sm */
   --dur-spinner: 120ms;   /* one ASCII spinner frame */
+  --dur-idle-frame: 900ms;   /* one boot orbital-idle frame (BootSequence) */
 }
 
 /* ── Base ─────────────────────────────────────────────────── */

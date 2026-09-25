@@ -33,6 +33,7 @@ import { RecordEditor } from "./RecordEditor";
 import { SchemaForm } from "./SchemaForm";
 import { SystemBuilder } from "./SystemBuilder";
 import { isTauri } from "../core/storage/tauri";
+import { logEvent } from "./log";
 
 /**
  * Canvas colours, all theme tokens (docs/STYLE.md §1, SystemMap README).
@@ -204,6 +205,18 @@ export function SystemMap({ id }: { id: string }) {
     return () => svg.removeEventListener("wheel", onWheel);
   }, [toMap, !!layout]);
 
+  // The session log: the map opened, and anything its layout could not resolve.
+  const logged = useRef<string | null>(null);
+  useEffect(() => {
+    if (!layout || !system || logged.current === id) return;
+    logged.current = id;
+    const subject = { subject: system.name, subjectId: system.id };
+    const stations = layout.locations.length + layout.bodies.reduce((n, b) => n + b.neighbourhood.filter((s) => s.kind === "station" || (s.kind === "lobject" && !s.glyph)).length, 0);
+    logEvent({ severity: "info", source: "map", message: `${system.name} opened — ${Math.max(0, layout.bodies.length - 1)} bodies, ${stations} stations`, detail: subject });
+    if (layout.warnings.length) for (const w of layout.warnings) logEvent({ severity: "caution", source: "map", message: w, detail: subject });
+    else logEvent({ severity: "nominal", source: "map", message: "All orbits resolved against parent bodies", detail: subject });
+  }, [id, !!layout]);
+
   if (!repo || !system || !layout) return <div className="muted">System not found.</div>;
 
   // ---- helpers ---------------------------------------------------------------
@@ -343,6 +356,7 @@ export function SystemMap({ id }: { id: string }) {
             rec.fields.lagrange = snap.point;
             if (rec.type === "location") delete rec.fields.orbit_km;
             actions.toast(`Parked at ${snap.name}`);
+            logEvent({ severity: "info", source: "map", message: `${rec.name} parked at ${snap.name}`, detail: { subject: rec.name, subjectId: rec.id } });
           } else rec.fields.map_angle_deg = Math.round(drag.angle * 10) / 10;
           await repo.save(rec);
         }
@@ -552,6 +566,7 @@ export function SystemMap({ id }: { id: string }) {
     clone.insertAdjacentHTML("afterbegin", `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="${C.bg}"/>`);
     const text = `<?xml version="1.0" encoding="UTF-8"?>\n` + resolveThemeColors(new XMLSerializer().serializeToString(clone));
     const path = await repo.putTextAsset(`${system.slug}.map.svg`, text);
+    logEvent({ severity: "info", source: "export", message: `${system.name} exported to SVG — ${Math.max(1, Math.round(text.length / 1024))} KB`, detail: { subject: system.name, subjectId: system.id, path } });
     if (!system.assets.some((a) => a.path === path)) {
       system.assets = [...system.assets, { role: "map", path }];
       await repo.save(system);
