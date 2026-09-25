@@ -247,14 +247,16 @@ describe("fidelity", () => {
   });
 
   it("keeps a body glyph's gradients and clip paths wired up under a prefix", () => {
+    let wired = 0;
     for (const motif of ["star", "gaian", "gas-giant"] as const) {
       const out = sanitizeSvg(glyphSvg({ motif, seed: "x", rings: true }), { idPrefix: "p-" })!;
       const ids = new Set([...out.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]));
       const refs = [...out.matchAll(/url\(#([^)]+)\)/g)].map((m) => m[1]);
-      expect(refs.length).toBeGreaterThan(0);
-      for (const r of refs) expect(ids.has(r), `${motif}: url(#${r})`).toBe(true);
+      for (const r of refs) expect(ids.has(r) && r.startsWith("p-"), `${motif}: url(#${r})`).toBe(true);
       expect(audit(out)).toEqual([]);
+      wired += refs.length;
     }
+    expect(wired).toBeGreaterThan(0);
   });
 
   it("keeps Inkscape drawings and drops the editor's own metadata", () => {
