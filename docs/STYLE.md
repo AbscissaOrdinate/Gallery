@@ -197,6 +197,14 @@ visual language.
   and must not swallow clicks meant for what lies under them.
 - **Record glyph colours** (`glyph_color`, `star_color`) are accepted as hex only, because they land
   inside SVG markup; anything else falls back to the vault palette.
+- **Redaction in an editor**: clicking a redaction bar reveals its field so the gap can be filled; a bar
+  stands only where the value was missing when the record opened (clearing a field mid-edit keeps
+  its input). The map's inspector uses the compact editor — no banners, no side column — because a
+  banner marks a record page, never a panel.
+- **Handling is edited** in the record page's side column (HANDLING panel: marking, badge, provenance),
+  from the closed vocabularies in `gallery.config.yaml`; a value off the list is kept and shown.
+- **Record code**: `handling.code`, else the type schema's `handling.code_prefix` and the slug
+  (`HULL-SWORD-HULL`). **Programme**: the polity's new `acronym` field, else its name, uppercase.
 
 ---
 
@@ -215,6 +223,10 @@ Owner decisions on conflicts §2 did not cover. They carry the same weight as §
 | Map overlays (economic, habitability, military) are not in the book | Composed from the palette, no new language: sequential ramp `glyph-navy-deep → glyph-navy → ink-100` (`color-mix`), habitability `map-zone → ink-100`. The legend is five discrete steps, not a gradient. Not accent (selection only on the canvas), not status (severity only). |
 | Exports of token-drawn SVG | Map and hull **Export SVG** resolve every `var(--…)` and `color-mix` to a literal colour from the live theme at export time (`src/ui/themeColors.ts`), so the file renders outside the app. |
 | `info` advisories: editors group violation → caution → nominal; §4.3 marks INFO "log only"; the book allows no fifth severity | **Editors show INFO** as a third group after CAUTION (before NOMINAL), with the §4.3 INFO row (no wash, `line-200` rule, the word INFO). It stays there once the log exists. |
+| RecordPage REVISIONS panel; the vault kept no history | **Logged on save**: the repository appends `{at, change}` to an optional envelope `revisions` list (e.g. `fields: length_m, beam_m`), widening the last entry within a 30-minute editing session, capped at 20. Records from before start with their creation date. |
+| RecordPage has no list pane | **The list pane hides on a record page**; the record takes the width between the rail and the edge. The list is one rail click away. |
+| Closed vocabularies for handling | **Seeded from the plates** into `gallery.config.yaml` (`handling`): clearance LEVEL 1–6; caveats SI, TK, NOFORN, ORCON, REL TO CMW; ACS disruption (DARK, VLAM, KENEQ, EKHI, AMIDA) and risk (NOTICE, CAUTION, WARNING, DANGER, CRITICAL) classes, each with a severity. |
+| Redaction and completeness need `required` fields | **Core fields marked required** in the built-in schemas (bumped, backed up per convention): polity kind, government; location kind, owner; character role, affiliation; hull hull_class; bus core_diameter_m, station_pitch_m; style construction; craft kind, hull_class, role, hull, operator, status; body kind, system; system primary; module unchanged. A type with none shows completeness as `—`. |
 
 ## 9. Verification
 

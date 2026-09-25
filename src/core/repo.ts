@@ -13,6 +13,8 @@ import { derivedColumns } from "./astro/derive";
 import { loadTables, TableSet } from "./designer/tables";
 import { migrateRecord } from "./schema/migrate";
 import { seedBodyTints } from "./astro/tints";
+import { nextRevisions } from "./handling";
+import { HANDLING_VOCAB_SEED } from "./schema/builtin/handlingVocab";
 import { POLITY_PALETTE_SEED } from "./schema/builtin/polityPalette";
 import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSelection, type ConstraintSet, type EffectiveConstraints } from "./designer/constraints";
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
@@ -37,6 +39,8 @@ export class Repository {
   /** Records the migrator brought forward on the last load, newest load only. */
   migrationReport: { id: string; name: string; notes: string[] }[] = [];
   private byId = new Map<string, LoadedRecord>();
+  /** Each record as last read or written, so a save can say what changed even when the caller edited the stored object in place. */
+  private saved = new Map<string, GalleryRecord>();
   private listeners = new Set<() => void>();
 
   constructor(public readonly fs: StorageAdapter) {}
@@ -56,13 +60,16 @@ export class Repository {
   async init(): Promise<void> {
     const cfgPath = VAULT.configFile;
     if (!(await this.fs.exists(cfgPath))) {
-      await this.fs.writeText(cfgPath, YAML.stringify({ ...this.config, polityPalette: [...POLITY_PALETTE_SEED] }));
+      await this.fs.writeText(cfgPath, YAML.stringify({ ...this.config, polityPalette: [...POLITY_PALETTE_SEED], handling: structuredClone(HANDLING_VOCAB_SEED) }));
     } else {
       // Seed vault data added after the vault was made; never overwrite a value.
       try {
         const raw = YAML.parse(await this.fs.readText(cfgPath)) as Partial<VaultConfig> | null;
-        if (raw && typeof raw === "object" && !Array.isArray(raw.polityPalette)) {
-          await this.fs.writeText(cfgPath, YAML.stringify({ ...raw, polityPalette: [...POLITY_PALETTE_SEED] }));
+        if (raw && typeof raw === "object") {
+          const add: Partial<VaultConfig> = {};
+          if (!Array.isArray(raw.polityPalette)) add.polityPalette = [...POLITY_PALETTE_SEED];
+          if (!raw.handling || typeof raw.handling !== "object") add.handling = structuredClone(HANDLING_VOCAB_SEED);
+          if (Object.keys(add).length) await this.fs.writeText(cfgPath, YAML.stringify({ ...raw, ...add }));
         }
       } catch {
         // An unreadable config is load()'s to report, not init's to rewrite.
@@ -139,6 +146,7 @@ export class Repository {
       }
     }
     this.byId = next;
+    this.saved = new Map([...next].map(([id, lr]) => [id, structuredClone(lr.record)]));
     this.migrationReport = [...next.values()].filter((r) => r.migrated).map((r) => ({ id: r.record.id, name: r.record.name, notes: r.migrated! }));
     this.emit();
     const byType: Record<string, number> = {};
@@ -266,7 +274,12 @@ export class Repository {
 
   /** Persist a record (new or existing). Renames the file if slug/type changed. */
   async save(r: GalleryRecord, opts: { touch?: boolean } = {}): Promise<LoadedRecord> {
-    if (opts.touch !== false) r.updated = nowIso();
+    if (opts.touch !== false) {
+      r.updated = nowIso();
+      // The revision log (STYLE.md §4, RecordPage): one entry per editing session.
+      const revisions = nextRevisions(this.saved.get(r.id), r, r.updated);
+      if (revisions) r.revisions = revisions;
+    }
     const existing = this.byId.get(r.id);
     let path = existing?.location.path ?? this.pathFor(r);
     // keep the existing format unless the type/slug changed
@@ -291,6 +304,7 @@ export class Repository {
     await this.fs.writeText(path, text);
     const loaded: LoadedRecord = { record: r, location: { path, format: fmt === "opml" ? "opml" : fmt } };
     this.byId.set(r.id, loaded);
+    this.saved.set(r.id, structuredClone(r));
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return loaded;
@@ -301,6 +315,7 @@ export class Repository {
     if (!lr) return;
     await this.fs.remove(lr.location.path);
     this.byId.delete(id);
+    this.saved.delete(id);
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
   }

@@ -34,7 +34,8 @@ export function App() {
   if (!app.repo) return <Welcome />;
 
   const v = app.view;
-  const wide = v.kind === "map" || v.kind === "hull";
+  // A record page takes the full width between the rail and the edge (RecordPage plate); the list pane is for browsing.
+  const wide = v.kind === "map" || v.kind === "hull" || v.kind === "record";
   return (
     <div className={"app" + (wide ? " wide" : "")}>
       {/* Application bar: wordmark, breadcrumb, search, and no more than two commands (RecordPage plate). */}

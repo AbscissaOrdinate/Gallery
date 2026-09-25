@@ -84,6 +84,39 @@ await page.waitForSelector(".hullsvg");
 await page.waitForTimeout(400);
 await page.screenshot({ path: shot("06-hull-editor") });
 
+// ---- the record document layer (STYLE.md §4) ---------------------------------
+// A new polity: kind has a default, government is required and empty, so the
+// page shows a redaction bar, a pending count, the badge and both banners.
+await page.getByRole("button", { name: /\+ NEW RECORD/ }).click();
+await page.locator(".rail-form select").first().selectOption("polity");
+await page.locator(".rail-form").getByPlaceholder("Name").fill("Smoke polity");
+await page.getByRole("button", { name: "CREATE", exact: true }).click();
+await page.waitForSelector(".recordpage");
+await page.waitForTimeout(300);
+const banners = await page.locator(".banner").allInnerTexts();
+if (banners.length !== 2 || banners[0] !== banners[1]) errors.push(`banners: expected two identical, got ${JSON.stringify(banners)}`);
+if (!/^UNCLASSIFIED — POL-SMOKE-POLITY$/.test(banners[0] ?? "")) errors.push(`unmarked banner reads ${JSON.stringify(banners[0])}`);
+if ((await page.locator(".redact").count()) === 0) errors.push("no redaction bar for the empty required government field");
+if ((await page.locator(".group-meta", { hasText: /FIELDS? PENDING/ }).count()) === 0) errors.push("no pending count in a group header");
+const survey = await page.locator(".cbadge-row", { hasText: "SURVEY" }).innerText();
+if (!/50% COMPLETE/.test(survey)) errors.push(`badge survey reads ${JSON.stringify(survey)}`);
+await page.locator(".redact").first().hover();
+await page.screenshot({ path: shot("07-record-page") });
+// Mark it, and the banners follow; the save is logged.
+const handling = page.locator(".rp-side .panel", { hasText: "HANDLING" });
+await handling.locator(".frow", { has: page.locator(".flabel", { hasText: /^LEVEL$/ }) }).locator("select").selectOption("secret");
+await handling.locator(".check", { hasText: /^SI$/ }).click();
+await page.waitForTimeout(1500); // autosave
+const marked = await page.locator(".banner").first().innerText();
+if (marked !== "SECRET//SI — POL-SMOKE-POLITY") errors.push(`marked banner reads ${JSON.stringify(marked)}`);
+if (!(await page.locator(".banner").first().getAttribute("class"))?.includes("lvl-secret")) errors.push("banner ground did not follow the level");
+const revisions = await page.locator(".rp-side .revision").allInnerTexts();
+if (!revisions.some((r) => /handling/.test(r))) errors.push(`revision log has no handling entry: ${JSON.stringify(revisions)}`);
+// A bar reveals its field on click, so the gap can be filled.
+await page.locator(".redact").first().click();
+if ((await page.locator(".redact").count()) !== 0) errors.push("clicking the redaction bar did not reveal the field");
+await page.screenshot({ path: shot("08-record-marked") });
+
 await browser.close();
 console.log(`screens → ${OUT}`);
 if (errors.length) {

@@ -765,7 +765,7 @@ export function SystemMap({ id }: { id: string }) {
             </Panel>
           ) : selRecord ? (
             <div className="mapinspector">
-              <RecordEditor key={selRecord.id} id={selRecord.id} />
+              <RecordEditor key={selRecord.id} id={selRecord.id} compact />
             </div>
           ) : (
             <>

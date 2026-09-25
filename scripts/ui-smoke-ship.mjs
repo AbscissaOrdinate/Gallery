@@ -96,6 +96,8 @@ if (advisories === 0) fail("the DDL reports no advisories at all");
 console.log("advisories:", advisories);
 
 // ---- a clean fit is clean --------------------------------------------------
+// A record page takes the full width; the list is one rail click away.
+await page.locator(".rail-item", { hasText: "Craft" }).click();
 await page.locator(".listpane .rec", { hasText: "Halberd-class (DD)" }).first().click();
 await page.waitForSelector(".budget-panel");
 await page.waitForTimeout(200);
