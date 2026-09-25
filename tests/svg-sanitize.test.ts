@@ -38,9 +38,9 @@ function audit(markup: string): string[] {
   return bad;
 }
 
-/** Sanitize, require the benign `#keep` rect to survive, and audit the live result. */
+/** Sanitize with raw ids, require the benign `#keep` rect to survive, and audit the live result. */
 function clean(input: string): string {
-  const out = sanitizeSvg(input);
+  const out = sanitizeSvg(input, { idPrefix: "" });
   expect(out).not.toBeNull();
   expect(out).toContain('<rect id="keep"');
   expect(audit(out!)).toEqual([]);
@@ -205,17 +205,19 @@ describe("ids", () => {
     expect(audit(out)).toEqual([]);
   });
 
-  it("gives two previews of the same file disjoint ids", () => {
+  it("gives two previews of the same file disjoint ids by default", () => {
     const file = svg(`<defs><radialGradient id="linearGradient1"/></defs><circle r="1" fill="url(#linearGradient1)"/>`);
     const ids = (s: string) => [...s.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
-    const a = ids(sanitizeSvg(file, { idPrefix: "a-" })!);
-    const b = ids(sanitizeSvg(file, { idPrefix: "b-" })!);
+    const first = sanitizeSvg(file)!;
+    const a = ids(first);
+    const b = ids(sanitizeSvg(file)!);
     expect(a.length).toBe(2);
     expect(a.filter((id) => b.includes(id))).toEqual([]);
+    expect(first).toContain(`fill="url(#${a[0]})"`);
   });
 
   it("drops ids that are not plain names", () => {
-    expect(sanitizeSvg(`<svg ${NS}><rect id="a b"/><rect id="x)y"/><rect id="ok"/></svg>`)).toBe(`<svg><rect></rect><rect></rect><rect id="ok"></rect></svg>`);
+    expect(sanitizeSvg(`<svg ${NS}><rect id="a b"/><rect id="x)y"/><rect id="ok"/></svg>`, { idPrefix: "" })).toBe(`<svg><rect></rect><rect></rect><rect id="ok"></rect></svg>`);
   });
 });
 
@@ -273,7 +275,7 @@ describe("fidelity", () => {
     <text xml:space="preserve" style="font-size:4.9px;font-family:'DejaVu Sans';fill:#000000" x="10" y="50" id="text1"><tspan sodipodi:role="line" id="tspan1" x="10" y="50">SWORD</tspan></text>
   </g>
 </svg>`;
-    const out = sanitizeSvg(file)!;
+    const out = sanitizeSvg(file, { idPrefix: "" })!;
     expect(out).not.toMatch(/inkscape|sodipodi|rdf|metadata|namedview|xmlns/);
     expect(out).toContain('<linearGradient xlink:href="#linearGradient1" id="linearGradient3" x1="10" y1="10" x2="90" y2="10" gradientUnits="userSpaceOnUse">');
     expect(out).toContain('style="fill:url(#linearGradient3);fill-opacity:1;stroke:#000000;stroke-width:0.264583px;stroke-linecap:round"');

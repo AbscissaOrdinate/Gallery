@@ -21,9 +21,9 @@
  * - The output is serialized here, element by element, with every value escaped, so
  *   the HTML parser that receives it sees exactly the tree that was checked.
  *
- * `idPrefix` namespaces every id (and every `#ref` to it), so two assets drawn in the
- * same editor do not share `linearGradient1`, and no asset can reach an app element by
- * id or shadow one on `window`.
+ * Every id (and every `#ref` to it) is namespaced with a prefix fresh to each call, so
+ * two assets drawn in the same editor do not share `linearGradient1`, and no asset can
+ * reach an app element by id or shadow one on `window`.
  *
  * Framework-free. Parsing needs a `DOMParser`: the webview's own by default, jsdom's
  * in tests. With none available the result is `null`, never unsanitized markup.
@@ -34,7 +34,10 @@ export interface SvgParser {
 }
 
 export interface SanitizeSvgOptions {
-  /** Prepended to every id and to every local reference to one. */
+  /**
+   * Prepended to every id and to every local reference to one. Defaults to a fresh
+   * `svgN-` per call; `""` keeps the file's own ids.
+   */
   idPrefix?: string;
   /** Defaults to a new global `DOMParser`. */
   parser?: SvgParser;
@@ -100,6 +103,8 @@ const LOCAL_HREF = /^\s*#([A-Za-z_][\w.-]*)\s*$/;
 const LOCAL_URL = /url\(\s*(["']?)#([A-Za-z_][\w.-]*)\1\s*\)/gi;
 const CALL = /([A-Za-z_-][\w-]*)\s*\(/g;
 
+let calls = 0;
+
 /**
  * Rebuild `text` from the allowlist. Returns `null` when it is not a well-formed SVG
  * document or no parser is available.
@@ -112,7 +117,8 @@ export function sanitizeSvg(text: string, opts: SanitizeSvgOptions = {}): string
     const root = doc.documentElement;
     if (!root || doc.getElementsByTagName("parsererror").length > 0) return null;
     if (root.localName !== "svg" || !inSvg(root)) return null;
-    return element(root, (opts.idPrefix ?? "").replace(/[^\w-]/g, ""), false);
+    const prefix = (opts.idPrefix ?? `svg${(calls++).toString(36)}-`).replace(/[^\w-]/g, "");
+    return element(root, prefix, false);
   } catch {
     return null; // parser failure, or a document nested deep enough to exhaust the stack
   }
