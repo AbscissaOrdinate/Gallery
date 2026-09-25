@@ -12,6 +12,10 @@ import { indexCsv, typeCsv } from "./codec/csv";
 import { derivedColumns } from "./astro/derive";
 import { loadTables, TableSet } from "./designer/tables";
 import { migrateRecord } from "./schema/migrate";
+import { seedBodyTints } from "./astro/tints";
+import { nextRevisions } from "./handling";
+import { HANDLING_VOCAB_SEED } from "./schema/builtin/handlingVocab";
+import { POLITY_PALETTE_SEED } from "./schema/builtin/polityPalette";
 import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSelection, type ConstraintSet, type EffectiveConstraints } from "./designer/constraints";
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
@@ -21,6 +25,31 @@ export interface VaultStats {
   records: number;
   byType: Record<string, number>;
   problems: { path: string; problems: string[] }[];
+}
+
+/**
+ * What load() is doing, for the boot screen (docs/STYLE.md §2: its log lines are the real load
+ * steps). Every hook is optional; load() behaves the same without a reporter.
+ */
+export interface LoadReporter {
+  /** The config has been read. */
+  config?(config: VaultConfig): void;
+  /** Schemas and presets are loaded. */
+  schemas?(kinds: number, problems: number): void;
+  /** Reference tables and constraint sets are loaded. */
+  tables?(problems: number): void;
+  /** Record files read so far, of the total found. */
+  records?(done: number, total: number): void;
+}
+
+/** Read the config without loading anything else, for decisions made before load() (the boot mode). */
+export async function peekConfig(fs: StorageAdapter): Promise<Partial<VaultConfig> | undefined> {
+  try {
+    const raw = YAML.parse(await fs.readText(VAULT.configFile)) as Partial<VaultConfig> | null;
+    return raw && typeof raw === "object" ? raw : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export class Repository {
@@ -35,6 +64,8 @@ export class Repository {
   /** Records the migrator brought forward on the last load, newest load only. */
   migrationReport: { id: string; name: string; notes: string[] }[] = [];
   private byId = new Map<string, LoadedRecord>();
+  /** Each record as last read or written, so a save can say what changed even when the caller edited the stored object in place. */
+  private saved = new Map<string, GalleryRecord>();
   private listeners = new Set<() => void>();
 
   constructor(public readonly fs: StorageAdapter) {}
@@ -54,7 +85,20 @@ export class Repository {
   async init(): Promise<void> {
     const cfgPath = VAULT.configFile;
     if (!(await this.fs.exists(cfgPath))) {
-      await this.fs.writeText(cfgPath, YAML.stringify(this.config));
+      await this.fs.writeText(cfgPath, YAML.stringify({ ...this.config, polityPalette: [...POLITY_PALETTE_SEED], handling: structuredClone(HANDLING_VOCAB_SEED) }));
+    } else {
+      // Seed vault data added after the vault was made; never overwrite a value.
+      try {
+        const raw = YAML.parse(await this.fs.readText(cfgPath)) as Partial<VaultConfig> | null;
+        if (raw && typeof raw === "object") {
+          const add: Partial<VaultConfig> = {};
+          if (!Array.isArray(raw.polityPalette)) add.polityPalette = [...POLITY_PALETTE_SEED];
+          if (!raw.handling || typeof raw.handling !== "object") add.handling = structuredClone(HANDLING_VOCAB_SEED);
+          if (Object.keys(add).length) await this.fs.writeText(cfgPath, YAML.stringify({ ...raw, ...add }));
+        }
+      } catch {
+        // An unreadable config is load()'s to report, not init's to rewrite.
+      }
     }
     await this.registry.seed(this.fs);
     for (const t of this.registry.types()) await this.fs.mkdirAll(t.folder);
@@ -62,6 +106,7 @@ export class Repository {
     await this.fs.mkdirAll(VAULT.constraintsDir);
     await this.fs.mkdirAll(VAULT.tablesDir);
     await seedConstraints(this.fs);
+    await seedBodyTints(this.fs);
     await this.fs.mkdirAll(VAULT.exportsDir);
   }
 
@@ -70,23 +115,28 @@ export class Repository {
   }
 
   /** Load config, registry and every record. Safe to call again to refresh. */
-  async load(): Promise<VaultStats> {
+  async load(report: LoadReporter = {}): Promise<VaultStats> {
     try {
       const raw = YAML.parse(await this.fs.readText(VAULT.configFile)) as Partial<VaultConfig>;
       this.config = { ...DEFAULT_VAULT_CONFIG, ...raw, version: 1 };
     } catch {
       this.config = { ...DEFAULT_VAULT_CONFIG };
     }
+    report.config?.(this.config);
     await this.registry.load(this.fs);
+    report.schemas?.(this.registry.types().length, this.registry.problems.length);
     this.tables = await loadTables(this.fs);
     const constraints = await loadConstraints(this.fs);
     this.constraintSets = constraints.sets;
     this.designProblems = [...this.tables.problems, ...constraints.problems];
+    report.tables?.(this.designProblems.length);
 
     const files = await walk(this.fs, "");
     const next = new Map<string, LoadedRecord>();
     const problems: VaultStats["problems"] = [];
+    let done = 0;
     for (const path of files) {
+      report.records?.(done++, files.length);
       const top = path.split("/")[0];
       if (top.startsWith("_") || top === VAULT.assetsDir || path === VAULT.configFile) continue;
       const fmt = formatFromPath(path);
@@ -125,7 +175,9 @@ export class Repository {
         problems.push({ path, problems: [(err as Error).message] });
       }
     }
+    report.records?.(files.length, files.length);
     this.byId = next;
+    this.saved = new Map([...next].map(([id, lr]) => [id, structuredClone(lr.record)]));
     this.migrationReport = [...next.values()].filter((r) => r.migrated).map((r) => ({ id: r.record.id, name: r.record.name, notes: r.migrated! }));
     this.emit();
     const byType: Record<string, number> = {};
@@ -253,7 +305,12 @@ export class Repository {
 
   /** Persist a record (new or existing). Renames the file if slug/type changed. */
   async save(r: GalleryRecord, opts: { touch?: boolean } = {}): Promise<LoadedRecord> {
-    if (opts.touch !== false) r.updated = nowIso();
+    if (opts.touch !== false) {
+      r.updated = nowIso();
+      // The revision log (STYLE.md §4, RecordPage): one entry per editing session.
+      const revisions = nextRevisions(this.saved.get(r.id), r, r.updated);
+      if (revisions) r.revisions = revisions;
+    }
     const existing = this.byId.get(r.id);
     let path = existing?.location.path ?? this.pathFor(r);
     // keep the existing format unless the type/slug changed
@@ -278,6 +335,7 @@ export class Repository {
     await this.fs.writeText(path, text);
     const loaded: LoadedRecord = { record: r, location: { path, format: fmt === "opml" ? "opml" : fmt } };
     this.byId.set(r.id, loaded);
+    this.saved.set(r.id, structuredClone(r));
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return loaded;
@@ -288,6 +346,7 @@ export class Repository {
     if (!lr) return;
     await this.fs.remove(lr.location.path);
     this.byId.delete(id);
+    this.saved.delete(id);
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
   }

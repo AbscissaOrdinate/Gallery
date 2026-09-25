@@ -23,6 +23,35 @@ export interface AssetRef {
   caption?: string;
 }
 
+/** Classification level, highest first. A record with no `handling` is unclassified. */
+export type HandlingLevel = "top-secret" | "secret" | "confidential" | "unclassified";
+export const HANDLING_LEVELS: HandlingLevel[] = ["top-secret", "secret", "confidential", "unclassified"];
+
+/**
+ * The record's document marking (docs/STYLE.md §4.1). Every part is optional;
+ * the banner reads UNCLASSIFIED when the block is absent. Vocabularies for
+ * caveats, clearance, disruption and risk are closed, in gallery.config.yaml.
+ */
+export interface Handling {
+  level?: HandlingLevel;
+  caveats?: string[];
+  /** Record code; blank derives one from the type's code prefix and the slug. */
+  code?: string;
+  /** Originating programme: a polity id, shown as its acronym. */
+  programme?: string;
+  /** ClassificationBadge rows. Clearance first. */
+  badge?: { clearance?: string; disruption?: string; risk?: string };
+  originator?: string;
+  declassify_on?: string;
+  derived_from?: string[];
+}
+
+/** One line of a record's revision log: when, and what changed, in a few words. */
+export interface Revision {
+  at: string; // ISO 8601
+  change: string;
+}
+
 /** Common envelope shared by every record regardless of type. */
 export interface RecordEnvelope {
   id: string;
@@ -40,6 +69,10 @@ export interface RecordEnvelope {
   updated: string; // ISO 8601
   /** Name of the preset this record was created from, if any. */
   preset?: string;
+  /** Document marking (STYLE.md §4.1). Optional on every type. */
+  handling?: Handling;
+  /** Newest last; appended by the repository on save, capped (see core/handling.ts). */
+  revisions?: Revision[];
 }
 
 /** A typed record: envelope + schema-driven fields. */
@@ -139,6 +172,8 @@ export interface TypeSchema {
   icon?: string;
   /** JSON-Schema-ish description of `fields`. */
   fields: FieldSchema; // must be type: "object"
+  /** Document handling for records of this type: the prefix a derived record code starts with. */
+  handling?: { code_prefix?: string };
   /** Default `links[].rel` values offered in the link picker. */
   rels?: string[];
   /** Field names to surface as CSV index columns (dot paths into fields). */
@@ -157,6 +192,19 @@ export interface Preset {
   body?: string;
 }
 
+/** A closed vocabulary value that carries a severity (disruption and risk classes). */
+export interface VocabEntry {
+  value: string;
+  severity: "nominal" | "caution" | "critical";
+}
+
+export interface HandlingVocab {
+  clearance: string[];
+  caveats: string[];
+  disruption: VocabEntry[];
+  risk: VocabEntry[];
+}
+
 /** Vault-level configuration, stored at `<root>/gallery.config.yaml`. */
 export interface VaultConfig {
   name: string;
@@ -166,8 +214,40 @@ export interface VaultConfig {
   writeCsv: boolean;
   /** How distances are displayed: light-time (default), AU/km, or million km. Records always store AU and km. */
   distanceUnit: "light" | "au" | "mkm";
+  /** Political-map colours for polities whose record sets no `color`. Vault data, seeded once (docs/STYLE.md §8). */
+  polityPalette?: string[];
+  /** Closed vocabularies for record handling (STYLE.md §4.1). Vault data, seeded once. */
+  handling?: HandlingVocab;
+  /** System map settings. `far_zoom_ratio`: below this fraction of the fit-to-system zoom the map switches to tactical symbols (default 0.75: two wheel steps out from fit). */
+  map?: { far_zoom_ratio?: number };
+  /**
+   * The boot screen (docs/STYLE.md §2), cosmetic and never gating: `full` shows the log, the orbital
+   * idle and the authorisation panel, and any key or click dismisses it once the vault has loaded;
+   * `brief` shows the log and progress and is gone the moment loading finishes; `off` shows nothing.
+   */
+  boot?: BootMode;
+  /** Who the boot screen names. Display only: nothing is checked, nothing is locked. */
+  operator?: OperatorConfig;
   version: 1;
 }
+
+export type BootMode = "full" | "brief" | "off";
+export const BOOT_MODES: BootMode[] = ["full", "brief", "off"];
+export const DEFAULT_BOOT_MODE: BootMode = "brief";
+
+export interface OperatorConfig {
+  /** e.g. "T.WADDELL / ONI-R4". */
+  name?: string;
+  /** Shown as read; e.g. "LEVEL 4". */
+  clearance?: string;
+  /** The highest level the operator is cleared for: the boot banners' level. */
+  level?: HandlingLevel;
+  caveats?: string[];
+  /** Programme on the boot banners, as text: e.g. "UJCN". */
+  programme?: string;
+}
+
+export const DEFAULT_FAR_ZOOM_RATIO = 0.75;
 
 export const DEFAULT_VAULT_CONFIG: VaultConfig = {
   name: "Gallery",

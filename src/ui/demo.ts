@@ -39,14 +39,19 @@ export async function demoVault(fs: StorageAdapter): Promise<void> {
   uesc.summary = "Chartered colonial trading company; Lord Proprietor, Governor-General, Court of Directors.";
   uesc.tags = ["earth", "company"];
   uesc.fields.color = "#c9663a";
+  uesc.fields.affiliation = "friend";
   const ujcn = repo.create("polity", "United Jovian Confederacy", P("polity", "nation"));
   ujcn.summary = "Outer-system confederation; operates the UJCN.";
   ujcn.fields.color = "#4f8fd6";
+  ujcn.fields.affiliation = "hostile";
   const ldf = repo.create("polity", "Lunar Defense Force", P("polity", "alliance"));
   ldf.fields.kind = "condominium";
   ldf.fields.government = "International Mandates of Luna — condominium";
   ldf.fields.color = "#6fbf95";
+  ldf.fields.affiliation = "neutral";
   for (const p of [uesc, ujcn, ldf]) await save(p);
+  // Who the boot screen names (display only). The demo keeps the default brief boot.
+  await repo.saveConfig({ operator: { name: "DEMO OPERATOR / UESC-R1", clearance: "LEVEL 4", level: "top-secret", caveats: ["ORCON"], programme: "UESC" } });
 
   // ---- system & star --------------------------------------------------------
   const system = repo.create("system", "Heliaris system");

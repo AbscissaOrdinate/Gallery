@@ -1,87 +1,192 @@
-/*
- * Gallery theme — modelled on Claude Design's "Nocturne" system (dark, compact,
- * single accent, outlined-not-filled primary actions, faded table rules,
- * Inter, ~0.7× spacing) with the hue family swapped: the neutral ramp is
- * navy-ink instead of violet-grey, and the accent ramp is rust orange instead
- * of iris purple.
- *
- * Reference Nocturne values this was matched against (secondhand):
- *   surface #232532 · surface-card-muted #292b31 · text #e9e9ed · muted #b2b6ca
- *   accent #9184d9 · accent-700 #5d5294
- *
- * Edit this file to retune; components only use the semantic tokens below.
- */
+/* Gallery theme — generated from the Claude Design book "Gallery" (tokens.json v2).
+   Single source of truth for every colour, size and type style in the app.
+   Rules: docs/STYLE.md. Do not hardcode a value that exists here; add a token instead. */
+
+/* Mono face: Consolas is proprietary (Microsoft) — resolved locally, never bundled. */
+@font-face {
+  font-family: "Gallery Mono";
+  src: local("Consolas"), local("Consolas Regular");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
-  /* Navy neutral ramp (dark → light) */
-  --navy-950: #0f1220;
-  --navy-900: #141829;
-  --navy-800: #1a2033;
-  --navy-700: #222a3d;
-  --navy-600: #2c364c;
-  --navy-500: #3d4861;
-  --navy-400: #5b6780;
-  --navy-300: #8792a8;
-  --navy-200: #b3bccd;
-  --navy-100: #dde2ec;
+  /* ── Colour ─────────────────────────────────────────────── */
+  --surface-000: #0e1116;
+  --surface-100: #16181c;
+  --surface-200: #1c1f24;
+  --surface-300: #23272d;
+  --surface-400: #2b3037;
+  --surface-sunk: #121519;
+  --line-100: #2e343b;
+  --line-200: #3d444d;
+  --line-300: #545c66;
+  --ink-100: #e2e6ea;
+  --ink-200: #a9b1ba;
+  --ink-300: #7e8791;
+  --ink-400: #565e67;
+  --accent-300: #e08a5a;
+  --accent-500: #cc6328;
+  --accent-600: #b3541f;
+  --accent-700: #6e3413;
+  --on-accent: #17120e;
+  --status-red: #d4645c;
+  --status-red-mark: #b84a42;
+  --status-red-wash: #2d1614;
+  --status-amber: #d9a441;
+  --status-amber-mark: #a87a2a;
+  --status-amber-wash: #2c2416;
+  --status-green: #6fae74;
+  --status-green-mark: #3f7a48;
+  --status-green-wash: #16251a;
+  --glyph-navy: #5a7fb5;
+  --glyph-navy-deep: #2c3f5e;
+  --glyph-navy-wash: #18202d;
+  --map-void: #0d1014;
+  --map-orbit: #343b45;
+  --map-grid: #1e242c;
+  --map-zone: #1f4446;
+  --map-belt: #6b5a3a;
+  --redact: #0b0d10;
+  --class-top-secret: var(--accent-500);
+  --class-secret: var(--status-red-mark);
+  --class-confidential: var(--glyph-navy-deep);
+  --class-unclassified: var(--status-green-mark);
+  --focus: var(--accent-300);
 
-  /* Rust accent ramp (light → dark) */
-  --rust-100: #f9e7dc;
-  --rust-200: #f1c8b1;
-  --rust-300: #e6a684;
-  --rust-400: #d9865c;
-  --rust-500: #c9663a;
-  --rust-600: #a9532e;
-  --rust-700: #874325;
-  --rust-800: #64321c;
-  --rust-900: #402012;
+  /* ── Families ───────────────────────────────────────────── */
+  --font-mono: "Gallery Mono", ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  --font-sans: system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 
-  /* Semantic */
-  --bg: var(--navy-900);
-  --surface: var(--navy-800);
-  --surface-2: var(--navy-700);
-  --surface-muted: #1e2536;
-  --line: #2e374b;
-  --line-faded: color-mix(in srgb, var(--line) 60%, transparent);
-  --line-strong: var(--navy-500);
-  --text: #e9e9ed;
-  --text-muted: #aeb4c6;
-  --text-faint: #7d879d;
-  --text-inverse: var(--navy-950);
-  --accent: var(--rust-500);
-  --accent-hover: var(--rust-400);
-  --accent-strong: var(--rust-300);
-  --accent-deep: var(--rust-700);
-  --accent-tint: color-mix(in srgb, var(--rust-500) 14%, transparent);
-  --accent-tint-2: color-mix(in srgb, var(--rust-500) 26%, transparent);
-  --selection: color-mix(in srgb, var(--rust-500) 18%, var(--navy-800));
-  --ok: #6fbf95;
-  --warn: #e0806f;
-  --focus: color-mix(in srgb, var(--rust-400) 55%, transparent);
+  /* ── Type styles: use as  font: var(--text-x); letter-spacing: var(--track-x);  ── */
+  --text-label-xs: 600 10px/14px var(--font-sans);
+  --track-label-xs: 0.09em;
+  --text-label-sm: 600 11px/16px var(--font-sans);
+  --track-label-sm: 0.06em;
+  --text-label-md: 500 13px/18px var(--font-sans);
+  --track-label-md: normal;
+  --text-body: 400 14px/20px var(--font-sans);
+  --track-body: normal;
+  --text-title-sm: 600 15px/20px var(--font-sans);
+  --track-title-sm: 0.02em;
+  --text-title-md: 600 18px/24px var(--font-sans);
+  --track-title-md: normal;
+  --text-title-lg: 600 24px/28px var(--font-sans);
+  --track-title-lg: normal;
+  --text-display: 600 34px/36px var(--font-sans);
+  --track-display: -0.01em;
+  --text-data-xs: 400 10px/14px var(--font-mono);
+  --track-data-xs: normal;
+  --text-data-sm: 400 11px/16px var(--font-mono);
+  --track-data-sm: normal;
+  --text-data-md: 400 12px/18px var(--font-mono);
+  --track-data-md: normal;
+  --text-data-lg: 400 14px/20px var(--font-mono);
+  --track-data-lg: normal;
+  --text-data-xl: 500 20px/24px var(--font-mono);
+  --track-data-xl: normal;
+  --text-banner: 700 12px/16px var(--font-mono);
+  --track-banner: 0.14em;
+  --text-stamp: 700 11px/14px var(--font-mono);
+  --track-stamp: 0.18em;
+  --text-ascii: 400 12px/12px var(--font-mono);
+  --track-ascii: normal;
+  --text-code: 400 12px/20px var(--font-mono);
+  --track-code: normal;
 
-  /* Type */
-  --font-sans: "Inter Variable", Inter, system-ui, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-lg: 15px;
-  --fs-xl: 20px;
+  /* ── Spacing ── */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 48px;
 
-  /* Spacing (0.7× of an 8-pt base) */
-  --sp-1: 3px;
-  --sp-2: 6px;
-  --sp-3: 8px;
-  --sp-4: 11px;
-  --sp-5: 14px;
-  --sp-6: 17px;
-  --sp-8: 22px;
+  /* ── Radius ── */
+  --radius-0: 0;
+  --radius-1: 1px;
+  --radius-2: 2px;
+  --radius-pill: 999px;
 
-  /* Shape */
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 8px;
-  --control-h: 28px;
-  --shadow: 0 8px 24px rgba(8, 10, 20, 0.45);
+  /* ── Border ── */
+  --border-1: 1px;
+  --border-2: 2px;
+  --border-3: 3px;
+
+  /* ── Shadow ── */
+  --elev-0: none;
+  --elev-1: inset 0 1px 0 0 #2e343b;
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --elev-3: 0 6px 20px rgba(0, 0, 0, 0.55);
+
+  /* ── Opacity ── */
+  --opacity-disabled: 0.4;
+  --opacity-muted: 0.65;
+  --opacity-scrim: 0.72;
+
+  /* ── Size ── */
+  --control-sm: 22px;
+  --control-md: 26px;
+  --control-lg: 32px;
+  --banner-h: 24px;
+  --rail-w: 204px;
+  --inspector-w: 320px;
+
+  /* Layout sizes used by the book's screen plates but absent from tokens.json */
+  --appbar-h: 34px;   /* application bar */
+  --budgetbar-h: 56px;   /* hull editor budget bar */
+  --catalog-w: 340px;   /* editor catalog pane */
+  --inspector-wide-w: 380px;   /* editor inspector */
+  --detail-w: 420px;   /* advisory log detail pane */
+  --label-col-w: 172px;   /* record field label column */
+  --display-boot: 46px;   /* boot wordmark size (display is 34px elsewhere) */
+
+  /* Added in implementation (docs/STYLE.md §7): sizes the plates use or the app needs. */
+  --list-w: 296px;   /* record list pane between rail and document */
+  --doc-max-w: 960px;   /* record document column */
+  --dialog-w: 560px;   /* standard dialog/panel width (boot auth panel, welcome) */
+  --label-col-narrow-w: 128px;   /* field label column inside an inspector */
+  --menu-max-h: 260px;   /* dropdown / picker list before it scrolls */
+  --pip-size: 8px;   /* StatusBadge pip */
+  --check-size: 13px;   /* Input checkbox */
+  --tile-size: 14px;   /* catalog row class tile (HullEditor) */
+  --ruler-h: 36px;   /* hull station ruler strip */
+  --station-mark: 9px;   /* map station square (SystemMap) */
+  --tac-frame-w: 30px;   /* tactical friend frame, far-zoom map (TacticalSymbols) */
+  --tac-frame-h: 20px;   /* tactical frame height; hostile, neutral and unknown frames take it as their size */
+  --opacity-halo: 0.12;   /* SystemMap selection halo */
+  --scale-bar-w: 120px;   /* SystemMap scale bar target length */
+  --text-control-sm: 500 11px/14px var(--font-sans);   /* Button label at control-sm */
+  --dur-spinner: 120ms;   /* one ASCII spinner frame */
+  --dur-idle-frame: 900ms;   /* one boot orbital-idle frame (BootSequence) */
+}
+
+/* ── Base ─────────────────────────────────────────────────── */
+html, body {
+  background: var(--surface-100);
+  color: var(--ink-100);
+  font: var(--text-body);
+  -webkit-font-smoothing: antialiased;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Focus: solid 2px ring, 1px offset, never removed. */
+:focus-visible {
+  outline: var(--border-2) solid var(--focus);
+  outline-offset: var(--space-1);
+}
+
+::selection { background: var(--accent-700); color: var(--ink-100); }
+
+/* Only the spinner and the boot orbital idle animate; both honour reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }

@@ -30,6 +30,8 @@ const strs = (title: string) => ({ type: "array" as const, title, items: { type:
 
 export const NOTE_SCHEMA: TypeSchema = {
   id: "note",
+  version: 2, // 2: first explicit version (none meant re-seeding on every open); handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "NOTE" },
   title: "Note",
   description: "Free-form outline (Dynalist-style). Stored as .opml.",
   folder: "notes",
@@ -40,7 +42,8 @@ export const NOTE_SCHEMA: TypeSchema = {
 
 export const POLITY_SCHEMA: TypeSchema = {
   id: "polity",
-  version: 2,
+  version: 4, // 4: affiliation, the far-zoom map's tactical frame (UI redesign step 5, 2026-09-25). 3: handling code prefix and core required fields (step 4).
+  handling: { code_prefix: "POL" },
   title: "Polity",
   description: "Nations, corporations, alliances, colonies, religious factions — anything with agency and territory.",
   folder: "polities",
@@ -49,12 +52,18 @@ export const POLITY_SCHEMA: TypeSchema = {
   indexColumns: ["kind", "government", "population_m"],
   fields: {
     type: "object",
+    required: ["kind", "government"],
     properties: {
+      acronym: str("Acronym", { description: "Short form for classification banners and programme markings, e.g. UJCN. Blank uses the name." }),
       kind: str("Kind", {
         enum: ["nation", "alliance", "corporation", "colony", "condominium", "religious", "movement", "criminal", "other"],
         default: "nation",
       }),
       government: str("Government", { description: "e.g. federal republic, chartered company, theocracy" }),
+      affiliation: str("Affiliation", {
+        enum: ["friend", "hostile", "neutral", "unknown"],
+        description: "The side this polity is on, from the point of view of the vault's operator. Frames its bodies and stations on the far-zoom map. Blank draws them unframed.",
+      }),
       color: str("Map colour", { description: "Hex colour used by the political map mode, e.g. #c9663a. Auto-assigned if empty." }),
       ideology: str("Ideology / outlook"),
       capital: ref("Capital", ["location"], "capital"),
@@ -72,7 +81,8 @@ export const POLITY_SCHEMA: TypeSchema = {
 
 export const LOCATION_SCHEMA: TypeSchema = {
   id: "location",
-  version: 3,
+  version: 4, // 4: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "LOC" },
   title: "Location",
   description: "Cities, stations, bases, regions, megastructures — a place you can point at on a map.",
   folder: "locations",
@@ -81,6 +91,7 @@ export const LOCATION_SCHEMA: TypeSchema = {
   indexColumns: ["kind", "body", "owner", "population_k"],
   fields: {
     type: "object",
+    required: ["kind", "owner"],
     properties: {
       kind: str("Kind", {
         enum: ["city", "settlement", "station", "base", "depot", "shipyard", "region", "megastructure", "skyhook", "ring", "elevator", "site", "other"],
@@ -110,6 +121,8 @@ export const LOCATION_SCHEMA: TypeSchema = {
 
 export const CHARACTER_SCHEMA: TypeSchema = {
   id: "character",
+  version: 2, // 2: first explicit version (none meant re-seeding on every open); handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "CHAR" },
   title: "Character",
   description: "People (and uplifts, AIs, …).",
   folder: "characters",
@@ -118,6 +131,7 @@ export const CHARACTER_SCHEMA: TypeSchema = {
   indexColumns: ["role", "affiliation", "born"],
   fields: {
     type: "object",
+    required: ["role", "affiliation"],
     properties: {
       role: str("Role / rank"),
       affiliation: ref("Affiliation", ["polity"], "affiliated-with"),
@@ -133,7 +147,8 @@ export const CHARACTER_SCHEMA: TypeSchema = {
 
 export const MODULE_SCHEMA: TypeSchema = {
   id: "module",
-  version: 3,
+  version: 4, // 4: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "MOD" },
   title: "Module",
   description:
     "A component class that goes on a craft: drives, reactors, radiators, weapons, point defense, sensors, armor, habitats, tanks. Numbers feed the craft budget roll-up.",
@@ -243,7 +258,8 @@ export const MODULE_SCHEMA: TypeSchema = {
 
 export const HULL_SCHEMA: TypeSchema = {
   id: "hull",
-  version: 4, // 3: slot facing/tilt/count, internal density. 4: slot subtype (flight decks)
+  version: 5, // 3: slot facing/tilt/count, internal density. 4: slot subtype (flight decks). 5: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "HULL" },
   title: "Hull",
   description:
     "A reusable hull: the spine and its stations, the volumetric sections, the external slot inventory, armour zones and appendages. This is the frozen contract \u2014 a ship built on the hull fills it but never reshapes it.",
@@ -253,6 +269,7 @@ export const HULL_SCHEMA: TypeSchema = {
   indexColumns: ["hull_class", "spine.length_m", "structural_mass_t"],
   fields: {
     type: "object",
+    required: ["hull_class"],
     properties: {
       hull_class: str("Hull class code", { description: "e.g. DD, CL, FF, PC, SC" }),
       environment: str("Environment", {
@@ -429,7 +446,8 @@ export const HULL_SCHEMA: TypeSchema = {
 
 export const BUS_SCHEMA: TypeSchema = {
   id: "bus",
-  version: 1,
+  version: 2, // 2: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "BUS" },
   title: "Bus standard",
   description:
     "The shared dimensions a yard builds to: core diameters, tank barrel lengths, truss pitch, docking-ring sizes, mount interface sizes. This is what makes a nation's tug, oiler and frigate visibly share parts.",
@@ -439,6 +457,7 @@ export const BUS_SCHEMA: TypeSchema = {
   indexColumns: ["core_diameter_m", "ring_size"],
   fields: {
     type: "object",
+    required: ["core_diameter_m", "station_pitch_m"],
     properties: {
       core_diameter_m: num("Core diameter", "m", { minimum: 0 }),
       tank_barrel_m: num("Tank barrel length", "m", { minimum: 0 }),
@@ -453,7 +472,8 @@ export const BUS_SCHEMA: TypeSchema = {
 
 export const STYLE_SCHEMA: TypeSchema = {
   id: "style",
-  version: 2, // 2: radiator_aspect
+  version: 3, // 2: radiator_aspect. 3: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "STYLE" },
   title: "Style kit",
   description:
     "A polity's kit of parts and proportions. New hulls for that polity start from it; anything off-kit is listed as a deviation and never blocked, since a captured or export hull should be able to violate it.",
@@ -463,6 +483,7 @@ export const STYLE_SCHEMA: TypeSchema = {
   indexColumns: ["construction"],
   fields: {
     type: "object",
+    required: ["construction"],
     properties: {
       construction: str("Construction", { enum: ["truss", "monocoque", "mixed"], default: "mixed" }),
       ld_ratio_min: num("Slenderness, min", undefined, { minimum: 0, "x-group": "Proportions" }),
@@ -506,7 +527,8 @@ export const STYLE_SCHEMA: TypeSchema = {
 
 export const CRAFT_SCHEMA: TypeSchema = {
   id: "craft",
-  version: 3, // 3: the watch bill (watch_sections, watches_manned) replaced watch_factor on 2026-09-20 without a bump; bumped 2026-09-24 so vaults pick it up
+  version: 4, // 3: the watch bill (watch_sections, watches_manned) replaced watch_factor on 2026-09-20 without a bump; bumped 2026-09-24 so vaults pick it up. 4: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "CRAFT" },
   title: "Craft",
   description:
     "Ships, stations, strike craft, missiles, drones: what fills a hull. Slot assignments, the internal manifest, tank fill, magazines, crew and operating modes. Geometry belongs to the hull and is never changed here.",
@@ -516,7 +538,7 @@ export const CRAFT_SCHEMA: TypeSchema = {
   indexColumns: ["kind", "hull_class", "role", "operator", "status"],
   fields: {
     type: "object",
-    required: ["kind"],
+    required: ["kind", "hull_class", "role", "hull", "operator", "status"],
     properties: {
       kind: str("Kind", { enum: ["ship", "station", "strikecraft", "missile", "drone", "torpedo", "silocraft"], default: "ship" }),
       hull_class: str("Hull classification", { description: "e.g. DDL, CLCN, CV, BM" }),

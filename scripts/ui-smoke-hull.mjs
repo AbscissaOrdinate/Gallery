@@ -43,7 +43,7 @@ const fail = (msg) => {
 
 await page.goto(BASE);
 await page.getByText("Open the demo vault").click();
-await page.waitForSelector(".sidebar");
+await page.waitForSelector(".rail");
 
 // ---- open a hull -----------------------------------------------------------
 await page.getByText("Hull", { exact: true }).first().click();
@@ -59,12 +59,12 @@ const outline = await page.locator(".hullsvg path").count();
 if (outline === 0) fail("no hull outline drawn");
 
 // The budget rail must carry real numbers, not em dashes.
-const railLength = await page.locator(".hullrail .stat", { hasText: "Length" }).locator(".v").innerText();
+const railLength = await page.locator(".budgetbar .bcell", { has: page.locator(".k", { hasText: /^LENGTH$/ }) }).locator(".v").innerText();
 if (!/\d/.test(railLength)) fail(`budget rail shows no length (got ${JSON.stringify(railLength)})`);
 console.log("length:", railLength.replace(/\s+/g, " "));
 
 // ---- reshape the spine by dragging a station -------------------------------
-const before = await page.locator(".hullrail .stat", { hasText: "Gross vol" }).locator(".v").innerText();
+const before = await page.locator(".budgetbar .bcell", { has: page.locator(".k", { hasText: /^GROSS VOL$/ }) }).locator(".v").innerText();
 const handle = page.locator('[data-handle="station"]').nth(1);
 if ((await handle.count()) === 0) fail("no station handles to drag");
 else {
@@ -74,18 +74,18 @@ else {
   await page.mouse.move(box.x + box.width / 2, box.y - 60, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(250);
-  const after = await page.locator(".hullrail .stat", { hasText: "Gross vol" }).locator(".v").innerText();
+  const after = await page.locator(".budgetbar .bcell", { has: page.locator(".k", { hasText: /^GROSS VOL$/ }) }).locator(".v").innerText();
   if (after === before) fail(`dragging a station did not change the volume (${before} → ${after})`);
   else console.log("gross volume:", before, "→", after);
 }
 await page.screenshot({ path: shot("reshaped") });
 
 // ---- select a section from the outliner ------------------------------------
-const sectionRow = page.locator(".hullpane .hullrow").first();
+const sectionRow = page.locator(".hullpane .crow:not(.is-empty)").first();
 if ((await sectionRow.count()) > 0) {
   await sectionRow.click();
   await page.waitForTimeout(150);
-  const heading = await page.locator(".hullside .card h3").first().innerText();
+  const heading = await page.locator(".hullside .sel-head .t, .hullside .panel-title").first().innerText();
   console.log("inspector:", heading);
 }
 
@@ -127,22 +127,23 @@ else {
 }
 
 // ---- overlays --------------------------------------------------------------
-for (const label of ["Schematic", "Sections", "Slots", "Scale", "Beam"]) {
-  const btn = page.getByRole("button", { name: label, exact: true });
-  if ((await btn.count()) > 0) await btn.click();
+// Rendering is a segmented switch; overlays are checkboxes (Tabs and Input primitives).
+await page.getByRole("radio", { name: "SILHOUETTE" }).click();
+for (const label of ["Sections", "Slots", "Scale", "Beam"]) {
+  await page.locator(".toolbar .check", { hasText: new RegExp(`^${label}$`) }).click();
   await page.waitForTimeout(80);
 }
 await page.screenshot({ path: shot("silhouette") });
-for (const label of ["Schematic", "Sections", "Slots", "Scale", "Beam"]) {
-  const btn = page.getByRole("button", { name: label, exact: true });
-  if ((await btn.count()) > 0) await btn.click();
+await page.getByRole("radio", { name: "SCHEMATIC" }).click();
+for (const label of ["Sections", "Slots", "Scale", "Beam"]) {
+  await page.locator(".toolbar .check", { hasText: new RegExp(`^${label}$`) }).click();
 }
 await page.waitForTimeout(200);
 
 // ---- advisories: make one, then click it ------------------------------------
 // Shrinking the hull to nothing is the one edit guaranteed to raise an error
 // advisory whatever the record started as.
-const lengthField = page.locator(".hullside .field").filter({ has: page.getByText("Length", { exact: true }) }).locator("input");
+const lengthField = page.locator(".hullside .frow").filter({ has: page.getByText("LENGTH", { exact: true }) }).locator("input");
 await page.locator(".hullsvg").click({ position: { x: 5, y: 5 } }); // clear the selection, back to the spine panel
 await page.waitForTimeout(150);
 if ((await lengthField.count()) === 0) fail("spine panel has no Length field");
@@ -151,7 +152,7 @@ else {
   await lengthField.fill("0");
   await lengthField.blur();
   await page.waitForTimeout(300);
-  const adv = page.locator(".hulladv");
+  const adv = page.locator(".hullside .adv-list .srow");
   if ((await adv.count()) === 0) fail("a hull with no length raised no advisory");
   else {
     console.log("advisory:", (await adv.first().innerText()).replace(/\s+/g, " ").slice(0, 70));
@@ -162,12 +163,12 @@ else {
   await lengthField.fill(original);
   await lengthField.blur();
   await page.waitForTimeout(300);
-  const back = await page.locator(".hullrail .stat", { hasText: "Length" }).locator(".v").innerText();
+  const back = await page.locator(".budgetbar .bcell", { has: page.locator(".k", { hasText: /^LENGTH$/ }) }).locator(".v").innerText();
   if (!back.startsWith(original.split(".")[0])) fail(`length did not come back (${original} → ${back})`);
 }
 
 // The migrated hull must not be drowning in advisories it did not earn.
-const advisoryCount = await page.locator(".hulladv").count();
+const advisoryCount = await page.locator(".hullside .adv-list .srow").count();
 console.log("advisories on the migrated hull:", advisoryCount);
 if (advisoryCount > 20) fail(`${advisoryCount} advisories on an untouched hull — the pane is unreadable`);
 
@@ -200,7 +201,8 @@ console.log("fleet strip plates:", plates);
 // Last, and deliberately: the migrated Sword hull carries no armour zones, so
 // this needs the UJCN pattern hull, and everything above is about the migrated
 // one. Opening a second hull here disturbs nothing.
-await page.getByRole("button", { name: "←" }).click();
+// Back to the hulls list through the rail: a record page hides the list pane.
+await page.locator(".rail-item", { hasText: "Hull" }).click();
 await page.waitForSelector(".listpane .rec");
 const halberd = page.locator(".listpane .rec", { hasText: "Halberd" }).first();
 if ((await halberd.count()) === 0) fail("no Halberd hull in the demo vault to test armour zones on");
@@ -212,19 +214,19 @@ else {
 
   // The outliner lists zones at all — they used to be reachable only by
   // hitting a 2 px belt stroke on the canvas.
-  const zoneRow = page.locator(".hullpane .hullrow").filter({ hasText: "composite" }).first();
+  const zoneRow = page.locator(".hullpane .crow").filter({ hasText: "composite" }).first();
   if ((await zoneRow.count()) === 0) fail("armour zones missing from the outliner");
   else {
     await zoneRow.click();
     await page.waitForTimeout(200);
-    const card = page.locator(".hullside .card").first();
-    const heading = await card.locator("h3").innerText();
+    const card = page.locator(".hullside .panel").first();
+    const heading = await card.locator(".sel-head .t").innerText();
     if (!/armour/i.test(heading)) fail(`outliner zone row opened ${JSON.stringify(heading)}, not the armour inspector`);
     // The four authored fields, and the three derived from them.
-    for (const label of ["From", "To", "Material", "Thickness", "Areal density", "Belt area", "Zone mass"]) {
-      if ((await card.locator(".field", { hasText: label }).count()) === 0) fail(`armour inspector has no ${label} field`);
+    for (const label of ["FROM", "TO", "MATERIAL", "THICKNESS", "AREAL DENSITY", "BELT AREA", "ZONE MASS"]) {
+      if ((await card.locator(".frow", { has: page.locator(".flabel", { hasText: new RegExp(`^${label}$`) }) }).count()) === 0) fail(`armour inspector has no ${label} field`);
     }
-    const mass = (await card.locator(".field", { hasText: "Zone mass" }).locator(".mono").innerText()).trim();
+    const mass = (await card.locator(".frow", { hasText: "ZONE MASS" }).locator(".val").innerText()).trim();
     // The demo vault seeds only propellants and munitions, so there is no
     // `armor` row to take a density from and the mass is honestly blank. What
     // it must not do is leave a bare dash with no reason given — an empty
@@ -257,7 +259,7 @@ else {
   else {
     await page.mouse.click(onBelt.x, onBelt.y);
     await page.waitForTimeout(200);
-    const body = (await page.locator(".hullside .card").first().innerText()).replace(/\s+/g, " ");
+    const body = (await page.locator(".hullside .panel").first().innerText()).replace(/\s+/g, " ");
     if (!/armour/i.test(body)) fail(`clicking the armour belt gave ${JSON.stringify(body.slice(0, 60))}, not the armour inspector`);
     else console.log("belt click:", body.slice(0, 60));
   }
@@ -267,23 +269,23 @@ else {
 // ---- a new hull starts from a class ------------------------------------------
 // `gallery/09` §2: a blank hull must never leave a person facing an empty
 // spine. The editor offers the classes, and picking one fills the geometry.
-await page.getByRole("button", { name: "+ New" }).click();
-await page.locator(".sidebar .card select").first().selectOption("hull");
-await page.locator(".sidebar").getByPlaceholder("Name").fill("Smoke blank hull");
-await page.getByRole("button", { name: "Create" }).click();
+await page.getByRole("button", { name: /\+ NEW RECORD/ }).click();
+await page.locator(".rail-form select").first().selectOption("hull");
+await page.locator(".rail-form").getByPlaceholder("Name").fill("Smoke blank hull");
+await page.getByRole("button", { name: "CREATE", exact: true }).click();
 await page.getByRole("button", { name: /Open hull editor/ }).click();
 await page.waitForSelector(".hullsvg, .hullwrap");
 await page.waitForTimeout(300);
-const picker = page.locator(".hullside .card", { hasText: "Start from a class" });
+const picker = page.locator(".hullside .panel", { hasText: "START FROM A CLASS" });
 if ((await picker.count()) === 0) fail("a blank hull offers no classes to start from");
 else {
-  const offered = await picker.locator("button.classpick").count();
+  const offered = await picker.locator(".crow").count();
   if (offered !== 11) fail(`class picker offers ${offered} classes, not 11`);
-  await picker.locator("button.classpick", { hasText: "CG" }).click();
+  await picker.locator(".crow", { hasText: "CG ·" }).click();
   await page.waitForTimeout(400);
-  const len = await page.locator(".hullrail .stat", { hasText: "Length" }).locator(".v").innerText();
+  const len = await page.locator(".budgetbar .bcell", { has: page.locator(".k", { hasText: /^LENGTH$/ }) }).locator(".v").innerText();
   if (!len.startsWith("183")) fail(`picking the CG gave a ${len} hull, not 183 m`);
-  if ((await page.locator(".hullside .card", { hasText: "Start from a class" }).count()) !== 0) fail("the class picker stayed up after a class filled the spine");
+  if ((await page.locator(".hullside .panel", { hasText: "START FROM A CLASS" }).count()) !== 0) fail("the class picker stayed up after a class filled the spine");
   console.log(`class picker: ${offered} classes; CG → ${len.replace(/\s+/g, " ")}`);
   await page.screenshot({ path: shot("class") });
 }

@@ -22,7 +22,14 @@ standalone scripts run against a preview server:
 ```bash
 npm run build && npx vite preview     # then, in another shell:
 node scripts/ui-smoke.mjs             # also ui-smoke-map{,2,3,4,5}, -hull, -ship
+node scripts/ui-smoke-screens.mjs     # the redesign screens, screenshots to screenshots/screens
+node scripts/ui-smoke-map-lod.mjs     # map restyle + far-zoom tactical symbols, to screenshots/map-lod
+node scripts/ui-smoke-log-boot.mjs    # session log + full boot, to screenshots/log-boot
+node scripts/ui-plates.mjs            # the design-book plates, rendered with src/theme.css
 ```
+
+Set `SMOKE_CHROME` to an installed Chromium (Edge works) when the Playwright browser is not
+downloaded. UI screens are compared against the matching `docs/design-book/components/*/preview.html`.
 
 Two more checks by eye: `npx tsx scripts/hull-style-probe.mts [out.html]` draws every part
 glyph beside its reference in `docs/refs/Weapons/` (no browser needed), and
@@ -133,3 +140,25 @@ Both are named in `_tables/README.md`; each silently scales a whole budget.
 The working vault is the OneDrive folder
 `Documents/Worldbuilding/Gallery Fleet Builder/gallery-vault`.
 Tests do not use it — they build vaults with `MemoryAdapter` plus `demoVault()`.
+
+## Visual system
+
+Read `docs/STYLE.md` before touching any UI. It governs; its §2 overrides the design book
+in `docs/design-book/`. The rules below are its §1, repeated here so they are always loaded.
+
+- Every colour, size, radius, border, shadow and type style comes from a `var(--…)` in
+  `src/theme.css`. No hex, px font sizes or ad-hoc spacing in components or SVG renderers. If a
+  value is missing, add a token to `theme.css` and note it in `docs/STYLE.md`.
+- The only colours not from the palette are **record data**: body tints (`body` records) and
+  polity colours (`polity.color`). Renderers read them from the record, never invent them.
+- Uppercase is written in the copy, never `text-transform`.
+- Mono (`--text-data-*`, `banner`, `stamp`, `ascii`, `code`) for every value, code, timestamp,
+  coordinate and log line; sans for every label, control, heading and sentence.
+- Units always shown, right-aligned in columns. Unknown = `—` in `ink-300`. Missing required
+  value = redaction bar (STYLE.md §4.2).
+- Radius is `0` everywhere except the classification badge (`radius-2`) and tag chips
+  (`radius-pill`). No gradients, glows, neon, panel shadows, or coloured-left-edge cards.
+- Nothing animates except the ASCII spinner, the indeterminate ASCII bar and the boot orbital
+  idle; all three stop under `prefers-reduced-motion`.
+- Hull/craft SVGs stay generated from the record at render time (existing rule) — theming them is
+  a renderer change, never an edited asset.

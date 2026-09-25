@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { actions, useApp } from "./state";
+import { Button, TextField } from "./kit";
 
 /** Type-ahead picker for record references. Value is a record id (or ""). */
 export function RefPicker({
@@ -42,27 +43,24 @@ export function RefPicker({
 
   return (
     <div className="picker" ref={box}>
-      <div className="row">
+      <div className="row tight">
         {current && !open ? (
           <>
-            <span className="chip grow" style={{ justifyContent: "space-between" }}>
+            <span className="ref-value">
               <span className="link" onClick={() => actions.navigate({ kind: "record", id: current.id })} title="Open">
                 {current.name}
               </span>
-              <span className="muted" style={{ fontSize: 10 }}>
-                {current.type}
-              </span>
+              <span className="kind">{current.type}</span>
             </span>
-            <button className="ghost" title="Change" onClick={() => setOpen(true)}>
-              ✎
-            </button>
-            <button className="ghost" title="Clear" onClick={() => onChange("")}>
-              ×
-            </button>
+            <Button size="sm" onClick={() => setOpen(true)}>
+              Change
+            </Button>
+            <Button size="sm" onClick={() => onChange("")}>
+              CLEAR
+            </Button>
           </>
         ) : (
-          <input
-            type="text"
+          <TextField
             placeholder={placeholder ?? (value && !current ? `unknown id ${value}` : `Search ${types.join(" / ") || "records"}…`)}
             value={q}
             onFocus={() => setOpen(true)}
@@ -100,7 +98,7 @@ export function RefPicker({
               <small>{o.record.type}</small>
             </div>
           ))}
-          {options.length === 0 && <div className="opt muted">No matches</div>}
+          {options.length === 0 && <div className="opt muted">No matches.</div>}
         </div>
       )}
     </div>
