@@ -33,6 +33,23 @@ describe("theme tokens", () => {
     expect(missing).toEqual([]);
   });
 
+  it("no literal colour in src/ outside theme.css and vault seed data", () => {
+    // Seed data is written into the vault and read back from there; it is not
+    // a palette any renderer draws from directly (docs/STYLE.md §1, §8).
+    const SEED = /(schema[\\/]builtin[\\/](bodyTints|polityPalette|bodyPresets)\.ts|ui[\\/]demo\.ts)$/;
+    const found: string[] = [];
+    for (const file of walk(join(ROOT, "src"))) {
+      if (SEED.test(file)) continue;
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          if (/^\s*(\/\/|\*|\/\*)/.test(line) || /description:/.test(line)) return;
+          if (/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b(?![-\w])|\brgba?\(|\bhsla?\(/.test(line)) found.push(`${file.slice(ROOT.length + 1)}:${i + 1}`);
+        });
+    }
+    expect(found).toEqual([]);
+  });
+
   it("every hull render Token is defined in theme.css", () => {
     const src = readFileSync(join(ROOT, "src/core/designer/hull/render.ts"), "utf8");
     const union = /export type Token =([^;]+);/.exec(src)?.[1] ?? "";
