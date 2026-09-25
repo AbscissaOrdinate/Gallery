@@ -1,0 +1,168 @@
+<!-- @dsCard group="Screens" height=1080 width=1920 subtitle="Advisory and session log, 1920x1080 — timestamped terminal stream with severity filters and detail" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+html,body{width:1920px;height:1080px;overflow:hidden}
+.scr{width:1920px;height:1080px;display:flex;flex-direction:column;background:var(--surface-100)}
+.appbar{height:34px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;padding:0 12px;gap:16px}
+.brand{letter-spacing:.14em;color:var(--ink-100);font:600 13px/18px var(--font-sans)}
+.meta{color:var(--ink-300)}
+.abtn{height:24px;padding:0 10px;border:1px solid var(--line-200);background:var(--surface-200);color:var(--ink-200);display:flex;align-items:center;font:500 13px/18px var(--font-sans)}
+.tools{height:38px;background:var(--surface-200);border-bottom:1px solid var(--line-200);display:flex;align-items:center;gap:10px;padding:0 12px}
+.filt{display:inline-flex;border:1px solid var(--line-200)}
+.fb{height:24px;padding:0 10px;display:flex;align-items:center;gap:6px;background:var(--surface-300);border-right:1px solid var(--line-200);color:var(--ink-200)}
+.fb:last-child{border-right:0}
+.fb.off{opacity:.4}
+.fb .pip{width:7px;height:7px;border-radius:1px}
+.srch{width:400px;height:24px;background:var(--surface-400);border:1px solid var(--line-200);display:flex;align-items:center;padding:0 8px;color:var(--ink-300)}
+.mid{flex:1;display:flex;min-height:0}
+.logpane{flex:1;min-width:0;background:var(--surface-sunk);display:flex;flex-direction:column}
+.cols{height:22px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:grid;
+      grid-template-columns:132px 82px 92px 120px 1fr 96px;align-items:center;gap:10px;padding:0 12px;color:var(--ink-300)}
+.stream{flex:1;overflow:hidden}
+.l{display:grid;grid-template-columns:132px 82px 92px 120px 1fr 96px;align-items:center;gap:10px;padding:0 12px;height:24px;
+   border-left:3px solid transparent;color:var(--ink-100)}
+.l + .l{border-top:1px solid var(--line-100)}
+.l .ts{color:var(--ink-300)}
+.l .src{color:var(--glyph-navy)}
+.l .code{color:var(--ink-300)}
+.l .dur{color:var(--ink-300);text-align:right}
+.l.v{background:var(--status-red-wash);border-left-color:var(--status-red-mark)}
+.l.c{background:var(--status-amber-wash);border-left-color:var(--status-amber-mark)}
+.l.n{background:var(--status-green-wash);border-left-color:var(--status-green-mark)}
+.l.i{background:transparent;border-left-color:var(--line-200)}
+.l.sel{outline:2px solid var(--accent-500);outline-offset:-2px}
+.sev{letter-spacing:.18em;font:700 11px/14px var(--font-mono)}
+.grpsep{height:22px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--surface-200);
+        border-top:1px solid var(--line-200);border-bottom:1px solid var(--line-200);color:var(--ink-300)}
+.side{width:420px;background:var(--surface-200);border-left:1px solid var(--line-200);display:flex;flex-direction:column}
+.ph{height:26px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:var(--ink-200)}
+.pb{padding:12px;display:flex;flex-direction:column;gap:10px}
+.grp{background:var(--surface-300);border:1px solid var(--line-200);padding:8px 10px}
+.gh{color:var(--ink-200);display:block;margin-bottom:6px}
+.fr{display:grid;grid-template-columns:132px 1fr;align-items:center;gap:10px;height:22px}
+.fr + .fr{border-top:1px solid var(--line-100)}
+.fr .lsm{color:var(--ink-200)}
+.fv{color:var(--ink-100)}
+.trace{background:var(--surface-sunk);border:1px solid var(--line-200);padding:8px 10px;color:var(--ink-200);white-space:pre}
+.foot{height:26px;background:var(--surface-200);border-top:1px solid var(--line-200);display:flex;align-items:center;gap:20px;padding:0 12px;color:var(--ink-300)}
+.act{color:var(--accent-300)}
+</style>
+<div class="scr">
+  <div class="appbar">
+    <span class="brand">GALLERY</span>
+    <span class="dsm meta">vault &rsaquo; <span style="color:var(--ink-100)">session log</span></span>
+    <div class="abtn" style="margin-left:auto">EXPORT</div><div class="abtn">CLEAR VIEW</div>
+  </div>
+
+  <div class="tools">
+    <div class="filt">
+      <div class="fb lmd"><span class="pip" style="background:var(--status-red-mark)"></span>VIOLATION <span class="dsm" style="color:var(--status-red)">4</span></div>
+      <div class="fb lmd"><span class="pip" style="background:var(--status-amber-mark)"></span>CAUTION <span class="dsm" style="color:var(--status-amber)">7</span></div>
+      <div class="fb lmd"><span class="pip" style="background:var(--status-green-mark)"></span>NOMINAL <span class="dsm" style="color:var(--status-green)">9</span></div>
+      <div class="fb off lmd"><span class="pip" style="background:var(--ink-300)"></span>INFO <span class="dsm met">128</span></div>
+    </div>
+    <div class="srch dsm">source:hull severity:&gt;=caution since:06:00</div>
+    <span class="dsm meta">20 of 148 lines &middot; follow <span class="act">ON</span></span>
+    <div class="abtn" style="margin-left:auto">WRAP: OFF</div>
+    <div class="abtn">TIME: ABSOLUTE</div>
+  </div>
+
+  <div class="mid">
+    <div class="logpane">
+      <div class="cols lxs">
+        <span>TIMESTAMP</span><span>SEVERITY</span><span>SOURCE</span><span>CODE</span><span>MESSAGE</span><span style="text-align:right">ELAPSED</span>
+      </div>
+      <div class="stream">
+        <div class="grpsep lxs">05 SEP 497 &mdash; SESSION 0041 &mdash; OPERATOR T.WADDELL / ONI-R4</div>
+
+        <div class="l i"><span class="dsm ts">06:00:44.118</span><span class="sev met">INFO</span><span class="dsm src">vault</span><span class="dsm code">VLT-0001</span><span class="dmd">Vault mounted &mdash; 58 records, 12 kinds</span><span class="dsm dur">1.92 s</span></div>
+        <div class="l c"><span class="dsm ts">06:00:44.402</span><span class="sev amb">CAUTION</span><span class="dsm src">vault</span><span class="dsm code">VLT-0117</span><span class="dmd">4 records carry unresolved backlinks</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l i"><span class="dsm ts">06:02:11.006</span><span class="sev met">INFO</span><span class="dsm src">map</span><span class="dsm code">MAP-0020</span><span class="dmd">Heliaris system opened &mdash; 9 bodies, 8 stations</span><span class="dsm dur">0.31 s</span></div>
+        <div class="l n"><span class="dsm ts">06:02:11.344</span><span class="sev grn">NOMINAL</span><span class="dsm src">map</span><span class="dsm code">MAP-0044</span><span class="dmd">All orbits resolved against parent bodies</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l c"><span class="dsm ts">06:04:58.771</span><span class="sev amb">CAUTION</span><span class="dsm src">map</span><span class="dsm code">MAP-0131</span><span class="dmd">Pallas Fleetyard parked at L4 without a stability note</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l i"><span class="dsm ts">06:09:02.510</span><span class="sev met">INFO</span><span class="dsm src">record</span><span class="dsm code">REC-0008</span><span class="dmd">Opened ONI-TECH-0412 &mdash; Vauxhall-class Light Cruiser</span><span class="dsm dur">0.08 s</span></div>
+        <div class="l c"><span class="dsm ts">06:09:02.688</span><span class="sev amb">CAUTION</span><span class="dsm src">record</span><span class="dsm code">REC-0212</span><span class="dmd">4 fields withheld &mdash; survey 72% complete</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l i"><span class="dsm ts">06:14:33.902</span><span class="sev met">INFO</span><span class="dsm src">hull</span><span class="dsm code">HUL-0002</span><span class="dmd">Editor opened &mdash; CL-140 CDF Mark The Time</span><span class="dsm dur">0.44 s</span></div>
+        <div class="l n"><span class="dsm ts">06:14:34.118</span><span class="sev grn">NOMINAL</span><span class="dsm src">hull</span><span class="dsm code">HUL-0116</span><span class="dmd">Crew complement fully berthed &mdash; 374 / 374</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l c"><span class="dsm ts">06:16:07.245</span><span class="sev amb">CAUTION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0115</span><span class="dmd">Two reactor failsafes unreferenced &mdash; MOD2, MOD4</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l v sel"><span class="dsm ts">06:16:07.302</span><span class="sev red">VIOLATION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0114</span><span class="dmd">Power budget exceeded by 142 kW &mdash; MOD1, MOD3</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l v"><span class="dsm ts">06:16:07.339</span><span class="sev red">VIOLATION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0118</span><span class="dmd">Magazine volume over capacity &mdash; CMP7, 340 / 320 m&sup3;</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l c"><span class="dsm ts">06:16:07.401</span><span class="sev amb">CAUTION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0121</span><span class="dmd">Station 14 has no frame member &mdash; derived, not surveyed</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l i"><span class="dsm ts">06:18:44.900</span><span class="sev met">INFO</span><span class="dsm src">hull</span><span class="dsm code">HUL-0031</span><span class="dmd">MOD1 moved to stations 07&ndash;09</span><span class="dsm dur">0.02 s</span></div>
+        <div class="l n"><span class="dsm ts">06:18:44.930</span><span class="sev grn">NOMINAL</span><span class="dsm src">hull</span><span class="dsm code">HUL-0090</span><span class="dmd">MOD1 clearance nominal at new station range</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l c"><span class="dsm ts">06:19:12.077</span><span class="sev amb">CAUTION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0124</span><span class="dmd">Radar signature 43,600 m&sup2; above class mean</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l v"><span class="dsm ts">06:21:03.660</span><span class="sev red">VIOLATION</span><span class="dsm src">hull</span><span class="dsm code">HUL-0009</span><span class="dmd">Commit blocked &mdash; 2 open violations</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l i"><span class="dsm ts">06:22:40.184</span><span class="sev met">INFO</span><span class="dsm src">export</span><span class="dsm code">EXP-0003</span><span class="dmd">Heliaris system exported to SVG &mdash; 214 KB</span><span class="dsm dur">0.77 s</span></div>
+        <div class="l v"><span class="dsm ts">06:23:19.441</span><span class="sev red">VIOLATION</span><span class="dsm src">vault</span><span class="dsm code">VLT-0401</span><span class="dmd">Write refused &mdash; record marked SECRET, session cleared to CONFIDENTIAL</span><span class="dsm dur">&mdash;</span></div>
+        <div class="l n"><span class="dsm ts">06:23:52.118</span><span class="sev grn">NOMINAL</span><span class="dsm src">vault</span><span class="dsm code">VLT-0055</span><span class="dmd">Session re-authorised at LEVEL 4</span><span class="dsm dur">1.20 s</span></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="ph"><span class="tsm">DETAIL</span><span class="stmp" style="color:var(--status-red)">VIOLATION</span></div>
+      <div class="pb">
+        <div class="grp">
+          <span class="lsm gh">HUL-0114</span>
+          <div class="fr"><span class="lsm">RAISED</span><span class="dsm fv">06:16:07.302</span></div>
+          <div class="fr"><span class="lsm">SOURCE</span><span class="dsm fv">hull / budget</span></div>
+          <div class="fr"><span class="lsm">SUBJECT</span><span class="dsm fv">CL-140</span></div>
+          <div class="fr"><span class="lsm">COMPONENTS</span><span class="dsm fv">MOD1, MOD3</span></div>
+          <div class="fr"><span class="lsm">STATE</span><span class="dsm fv" style="color:var(--status-red)">OPEN &mdash; BLOCKS COMMIT</span></div>
+          <div class="fr"><span class="lsm">FIRST SEEN</span><span class="dsm fv">497-09-11 &middot; 6 sessions</span></div>
+        </div>
+        <div class="grp">
+          <span class="lsm gh">MESSAGE</span>
+          <p class="bd" style="color:var(--ink-100)">Power budget exceeded by 142 kW.</p>
+          <p class="bd mut" style="margin-top:6px">Fitted draw is 1,842 kW against 1,700 kW of reactor output. Add an FR3300 Micro Reactor, or drop the FM580 &lsquo;Raider&rsquo; drive and accept 16.4 m/s top speed.</p>
+        </div>
+        <div class="grp">
+          <span class="lsm gh">EVALUATION TRACE</span>
+          <pre class="code trace">hull.budget(power)
+&#9500;&#9472; supply   1,700 kW
+&#9474;  &#9500;&#9472; MOD2 FR3300     850 kW
+&#9474;  &#9492;&#9472; MOD4 FR3300     850 kW
+&#9492;&#9472; demand   1,842 kW
+   &#9500;&#9472; MOD1 FM230      612 kW
+   &#9500;&#9472; MOD3 FM580      884 kW
+   &#9492;&#9472; &#187; 9 others      346 kW</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="dsm">SESSION 0041</span>
+    <span class="dsm">148 lines</span>
+    <span class="dsm" style="color:var(--status-red)">4 violations</span>
+    <span class="dsm" style="color:var(--status-amber)">7 cautions</span>
+    <span class="dsm act">FOLLOWING TAIL <span class="asc">|</span></span>
+    <span class="dsm" style="margin-left:auto">NODE 3 &middot; 05 SEP 497 06:24</span>
+  </div>
+</div>

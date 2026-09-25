@@ -8,6 +8,7 @@
  * record replaces the glyph when present (planet-map renders land here later).
  */
 import type { TypedRecord } from "../types";
+import { EMPTY_PALETTE, TINT_FALLBACK, starTint, type GlyphPalette, type MotifTint } from "./tints";
 
 export type Motif =
   | "star"
@@ -35,9 +36,9 @@ export type Motif =
 
 export interface GlyphSpec {
   motif: Motif;
-  /** Base colour override (hex). */
+  /** Base colour override from the record (hex). */
   color?: string;
-  /** Star temperature for colour ramp. */
+  /** Star temperature, for the body-tints star rows. */
   tempK?: number;
   rings?: boolean;
   /** Polar caps (tundral/glacial). */
@@ -59,17 +60,6 @@ function rng(seed: string): () => number {
 }
 
 const f = (n: number) => Number(n.toFixed(2));
-
-/** Blackbody-ish colour by temperature. */
-export function starColor(tempK: number | undefined): string {
-  const t = tempK ?? 5800;
-  if (t < 3700) return "#ff8a4c";
-  if (t < 5200) return "#ffb56b";
-  if (t < 6000) return "#fff1a8";
-  if (t < 7500) return "#fdfbe8";
-  if (t < 10000) return "#d9e8ff";
-  return "#a9c5ff";
-}
 
 /** Random blobs (continents, maria, spots) clipped to the disc. */
 function blobs(rand: () => number, r: number, n: number, fill: string, opacity = 1, scale = 1): string {
@@ -99,7 +89,7 @@ function bands(r: number, colors: string[], opacity = 0.9): string {
   return out;
 }
 
-function caps(r: number, color = "#ffffff", size = 0.35): string {
+function caps(r: number, color: string, size = 0.35): string {
   return `<ellipse cx="0" cy="${f(-r * 0.86)}" rx="${f(r * size)}" ry="${f(r * 0.14)}" fill="${color}" opacity="0.9"/><ellipse cx="0" cy="${f(r * 0.86)}" rx="${f(r * size)}" ry="${f(r * 0.14)}" fill="${color}" opacity="0.9"/>`;
 }
 
@@ -133,54 +123,65 @@ function cracks(rand: () => number, r: number, n: number, color: string, width: 
 
 let clipCounter = 0;
 
-/** SVG markup for a body glyph centred at the origin with radius r. */
-export function glyphMarkup(spec: GlyphSpec, r: number): string {
+/**
+ * SVG markup for a body glyph centred at the origin with radius r.
+ *
+ * Colours come from the record (`spec.color`) or the vault's body-tints table
+ * (`palette`), never from this module (docs/STYLE.md §1, §2). Fills are flat:
+ * no shading gradient and no star glow. What neither source supplies falls
+ * back to an ink token.
+ */
+export function glyphMarkup(spec: GlyphSpec, r: number, palette: GlyphPalette = EMPTY_PALETTE): string {
   const rand = rng(spec.seed ?? spec.motif);
   const id = `g${(clipCounter++).toString(36)}${Math.floor(rand() * 1e6).toString(36)}`;
+  const t: MotifTint = palette.motifs[spec.motif] ?? {};
+  const base = spec.color ?? t.base ?? TINT_FALLBACK.base;
+  const detail = t.detail ?? TINT_FALLBACK.detail;
+  const detail2 = t.detail_2 ?? TINT_FALLBACK.light;
+  const cloud = t.cloud ?? TINT_FALLBACK.light;
+  const cap = t.cap ?? TINT_FALLBACK.light;
+  const bandsOf = (n: number): string[] => (t.bands?.length ? t.bands : Array.from({ length: n }, (_, i) => (i % 2 ? detail : base)));
+  const ringColor = spec.color ?? palette.ring ?? TINT_FALLBACK.ring;
   const clip = `<clipPath id="${id}"><circle r="${f(r)}"/></clipPath>`;
-  const shade = `<circle r="${f(r)}" fill="url(#${id}s)"/>`;
-  const shadeDef = `<radialGradient id="${id}s" cx="0.35" cy="0.3" r="0.9"><stop offset="0" stop-color="#fff" stop-opacity="0.25"/><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.55"/></radialGradient>`;
-  const rings = spec.rings ? `<ellipse rx="${f(r * 2.1)}" ry="${f(r * 0.45)}" fill="none" stroke="${spec.color ?? "#d9c9a8"}" stroke-width="${f(Math.max(1, r * 0.22))}" opacity="0.55" transform="rotate(-18)"/>` : "";
-  const ringsFront = spec.rings ? `<path d="M${f(-r * 2.1)} 0 A${f(r * 2.1)} ${f(r * 0.45)} 0 0 0 ${f(r * 2.1)} 0" fill="none" stroke="${spec.color ?? "#d9c9a8"}" stroke-width="${f(Math.max(1, r * 0.22))}" opacity="0.8" transform="rotate(-18)"/>` : "";
-  const wrap = (inner: string, base: string) => `<defs>${clip}${shadeDef}</defs>${rings}<g clip-path="url(#${id})"><circle r="${f(r)}" fill="${base}"/>${inner}${shade}</g>${ringsFront}`;
+  const rings = spec.rings ? `<ellipse rx="${f(r * 2.1)}" ry="${f(r * 0.45)}" fill="none" stroke="${ringColor}" stroke-width="${f(Math.max(1, r * 0.22))}" opacity="0.55" transform="rotate(-18)"/>` : "";
+  const ringsFront = spec.rings ? `<path d="M${f(-r * 2.1)} 0 A${f(r * 2.1)} ${f(r * 0.45)} 0 0 0 ${f(r * 2.1)} 0" fill="none" stroke="${ringColor}" stroke-width="${f(Math.max(1, r * 0.22))}" opacity="0.8" transform="rotate(-18)"/>` : "";
+  const wrap = (inner: string) => `<defs>${clip}</defs>${rings}<g clip-path="url(#${id})"><circle r="${f(r)}" fill="${base}"/>${inner}</g>${ringsFront}`;
 
   switch (spec.motif) {
-    case "star": {
-      const c = spec.color ?? starColor(spec.tempK);
-      return `<defs><radialGradient id="${id}g"><stop offset="0" stop-color="${c}" stop-opacity="0.9"/><stop offset="0.5" stop-color="${c}" stop-opacity="0.25"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient><radialGradient id="${id}c" cx="0.4" cy="0.35" r="0.8"><stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="${c}"/><stop offset="1" stop-color="${c}" stop-opacity="0.85"/></radialGradient></defs><circle r="${f(r * 1.9)}" fill="url(#${id}g)"/><circle r="${f(r)}" fill="url(#${id}c)"/>`;
-    }
+    case "star":
+      return `<circle r="${f(r)}" fill="${spec.color ?? starTint(palette, spec.tempK)}"/>`;
     case "gaian":
-      return wrap(blobs(rand, r, 5, "#4f8a3c", 0.95) + blobs(rand, r, 3, "#8a7a4a", 0.6, 0.6) + blobs(rand, r, 4, "#ffffff", 0.45, 0.7) + (spec.caps !== false ? caps(r) : ""), spec.color ?? "#2d6fb8");
+      return wrap(blobs(rand, r, 5, detail, 0.95) + blobs(rand, r, 3, detail2, 0.6, 0.6) + blobs(rand, r, 4, cloud, 0.45, 0.7) + (spec.caps !== false ? caps(r, cap) : ""));
     case "ocean":
-      return wrap(blobs(rand, r, 4, "#ffffff", 0.4, 0.8) + blobs(rand, r, 1, "#3f7f5f", 0.7, 0.4) + (spec.caps ? caps(r) : ""), spec.color ?? "#1f5fa8");
+      return wrap(blobs(rand, r, 4, cloud, 0.4, 0.8) + blobs(rand, r, 1, detail, 0.7, 0.4) + (spec.caps ? caps(r, cap) : ""));
     case "amuno-gaian":
-      return wrap(blobs(rand, r, 5, "#6d7a3a", 0.95) + blobs(rand, r, 3, "#e8f1e6", 0.45, 0.7) + (spec.caps !== false ? caps(r, "#eef6ef") : ""), spec.color ?? "#2f8a8a");
+      return wrap(blobs(rand, r, 5, detail, 0.95) + blobs(rand, r, 3, cloud, 0.45, 0.7) + (spec.caps !== false ? caps(r, cap) : ""));
     case "cytherean":
-      return wrap(bands(r, ["#f2d9a4", "#e8c58a", "#f4dfb3", "#e3bd7f", "#f1d6a0", "#e6c38b"], 0.9) + blobs(rand, r, 3, "#fff5dc", 0.35, 0.9), spec.color ?? "#e9c98f");
+      return wrap(bands(r, bandsOf(6), 0.9) + blobs(rand, r, 3, cloud, 0.35, 0.9));
     case "arean":
-      return wrap(blobs(rand, r, 4, "#7a3d22", 0.6) + blobs(rand, r, 2, "#d9a06a", 0.5, 0.6) + (spec.caps !== false ? caps(r, "#f5f0e6", 0.25) : ""), spec.color ?? "#c2652f");
+      return wrap(blobs(rand, r, 4, detail, 0.6) + blobs(rand, r, 2, detail2, 0.5, 0.6) + (spec.caps !== false ? caps(r, cap, 0.25) : ""));
     case "chionian":
-      return wrap(blobs(rand, r, 3, "#d8b8a8", 0.7) + blobs(rand, r, 2, "#f7eee6", 0.8, 0.8) + caps(r, "#ffffff", 0.3), spec.color ?? "#e6c9b6");
+      return wrap(blobs(rand, r, 3, detail, 0.7) + blobs(rand, r, 2, detail2, 0.8, 0.8) + caps(r, cap, 0.3));
     case "apnean":
-      return wrap(craters(rand, r, 9, "#4a4a52", "#c9c9d1"), spec.color ?? "#8c8c96");
+      return wrap(craters(rand, r, 9, detail, detail2));
     case "europan":
-      return wrap(cracks(rand, r, 7, "#a5663a", Math.max(0.6, r * 0.05)), spec.color ?? "#e9e3d2");
+      return wrap(cracks(rand, r, 7, detail, Math.max(0.6, r * 0.05)));
     case "ganymedean":
-      return wrap(blobs(rand, r, 5, "#6b5f52", 0.7) + craters(rand, r, 5, "#4d453c", "#d8d0c4"), spec.color ?? "#a99d8c");
+      return wrap(blobs(rand, r, 5, detail, 0.7) + craters(rand, r, 5, detail2, cloud));
     case "calidian":
-      return wrap(blobs(rand, r, 3, "#c97a2a", 0.5, 0.8) + `<circle r="${f(r)}" fill="#f0a94a" opacity="0.45"/>`, spec.color ?? "#d98c3a");
+      return wrap(blobs(rand, r, 3, detail, 0.5, 0.8) + `<circle r="${f(r)}" fill="${cloud}" opacity="0.45"/>`);
     case "gas-giant":
-      return wrap(bands(r, ["#d9c3a3", "#b8946b", "#e8d8bf", "#a6784f", "#dcc7a8", "#c0a077", "#e4d3b6", "#ab8358"], 0.95) + `<ellipse cx="${f(r * 0.3)}" cy="${f(r * 0.25)}" rx="${f(r * 0.28)}" ry="${f(r * 0.14)}" fill="#c25a3a" opacity="0.85"/>`, spec.color ?? "#cbb08a");
+      return wrap(bands(r, bandsOf(8), 0.95) + `<ellipse cx="${f(r * 0.3)}" cy="${f(r * 0.25)}" rx="${f(r * 0.28)}" ry="${f(r * 0.14)}" fill="${detail}" opacity="0.85"/>`);
     case "ice-giant":
-      return wrap(bands(r, ["#7fd0d8", "#6cc0cc", "#8ad8de", "#66b8c6", "#83d2da"], 0.6), spec.color ?? "#74c6d0");
+      return wrap(bands(r, bandsOf(5), 0.6));
     case "hot-jupiter":
-      return wrap(bands(r, ["#5a1f24", "#8a2f2a", "#4a181c", "#a63f2c", "#5e2024", "#8f3128"], 0.95) + `<circle r="${f(r)}" fill="#ff7a3a" opacity="0.15"/>`, spec.color ?? "#6b2327");
+      return wrap(bands(r, bandsOf(6), 0.95) + `<circle r="${f(r)}" fill="${cloud}" opacity="0.15"/>`);
     case "lava":
-      return wrap(cracks(rand, r, 8, "#ff7a2a", Math.max(0.8, r * 0.06)) + blobs(rand, r, 2, "#ffb04a", 0.5, 0.4), spec.color ?? "#2a2024");
+      return wrap(cracks(rand, r, 8, detail, Math.max(0.8, r * 0.06)) + blobs(rand, r, 2, detail2, 0.5, 0.4));
     case "carbon":
-      return wrap(bands(r, ["#2a2a2e", "#3a3a40", "#26262a", "#404048"], 0.8) + blobs(rand, r, 2, "#6a6a75", 0.35, 0.6), spec.color ?? "#303036");
+      return wrap(bands(r, bandsOf(4), 0.8) + blobs(rand, r, 2, detail, 0.35, 0.6));
     case "tholin":
-      return wrap(bands(r, ["#c78a4a", "#b07238", "#d19a5c", "#a86a34"], 0.7) + `<circle r="${f(r)}" fill="#e0a45e" opacity="0.3"/>`, spec.color ?? "#bf8043");
+      return wrap(bands(r, bandsOf(4), 0.7) + `<circle r="${f(r)}" fill="${cloud}" opacity="0.3"/>`);
     case "asteroid": {
       const pts: string[] = [];
       const n = 9;
@@ -189,25 +190,26 @@ export function glyphMarkup(spec: GlyphSpec, r: number): string {
         const rr = r * (0.7 + rand() * 0.35);
         pts.push(`${f(Math.cos(a) * rr)},${f(Math.sin(a) * rr)}`);
       }
-      return `<polygon points="${pts.join(" ")}" fill="${spec.color ?? "#8f8578"}" stroke="#3a342e" stroke-width="${f(Math.max(0.5, r * 0.06))}"/>${craters(rand, r * 0.8, 3, "#5a5148", "#c8bfb2")}`;
+      return `<polygon points="${pts.join(" ")}" fill="${base}" stroke="var(--line-100)" stroke-width="${f(Math.max(0.5, r * 0.06))}"/>${craters(rand, r * 0.8, 3, detail, detail2)}`;
     }
     case "comet":
-      return `<path d="M0 0 L${f(r * 4)} ${f(-r * 1.2)} L${f(r * 4.2)} ${f(r * 0.6)} Z" fill="${spec.color ?? "#9fd3ff"}" opacity="0.35"/><circle r="${f(r)}" fill="#e6f2ff"/><circle r="${f(r * 0.5)}" fill="#8fb8d8"/>`;
+      return `<path d="M0 0 L${f(r * 4)} ${f(-r * 1.2)} L${f(r * 4.2)} ${f(r * 0.6)} Z" fill="${base}" opacity="0.35"/><circle r="${f(r)}" fill="${cloud}"/><circle r="${f(r * 0.5)}" fill="${detail}"/>`;
+    // Map structure rather than bodies: drawn in map tokens unless the record says otherwise.
     case "belt":
-      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "#8a7f70"}" stroke-width="${f(r * 0.5)}" stroke-dasharray="${f(r * 0.3)} ${f(r * 0.2)}" opacity="0.7"/>`;
+      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "var(--map-belt)"}" stroke-width="${f(r * 0.5)}" stroke-dasharray="${f(r * 0.3)} ${f(r * 0.2)}" opacity="0.7"/>`;
     case "ring":
-      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "#8b7355"}" stroke-width="${f(Math.max(2, r * 0.35))}"/>`;
+      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "var(--map-belt)"}" stroke-width="${f(Math.max(2, r * 0.35))}"/>`;
     case "barycenter":
-      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "#aeb4c6"}" stroke-width="1" stroke-dasharray="2 2"/><path d="M${f(-r)} 0H${f(r)}M0 ${f(-r)}V${f(r)}" stroke="${spec.color ?? "#aeb4c6"}" stroke-width="1"/>`;
+      return `<circle r="${f(r)}" fill="none" stroke="${spec.color ?? "var(--ink-300)"}" stroke-width="1" stroke-dasharray="2 2"/><path d="M${f(-r)} 0H${f(r)}M0 ${f(-r)}V${f(r)}" stroke="${spec.color ?? "var(--ink-300)"}" stroke-width="1"/>`;
     default:
-      return wrap("", spec.color ?? "#8c8c96");
+      return wrap("");
   }
 }
 
 /** Standalone <svg> for previews. */
-export function glyphSvg(spec: GlyphSpec, size = 64): string {
+export function glyphSvg(spec: GlyphSpec, size = 64, palette: GlyphPalette = EMPTY_PALETTE): string {
   const r = size * 0.36;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-size / 2} ${-size / 2} ${size} ${size}" width="${size}" height="${size}">${glyphMarkup(spec, r)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-size / 2} ${-size / 2} ${size} ${size}" width="${size}" height="${size}">${glyphMarkup(spec, r, palette)}</svg>`;
 }
 
 /** Pick a motif from a body's classification fields. */
@@ -253,12 +255,16 @@ export function motifFor(fields: Record<string, unknown>): Motif {
   return "apnean";
 }
 
+const hexColor = (v: unknown): string | undefined => (typeof v === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim()) ? v.trim() : undefined);
+
 export function glyphSpecFor(record: TypedRecord, extras: { tempK?: number; tundral?: boolean } = {}): GlyphSpec {
   const fields = record.fields;
   const motif = motifFor(fields);
   return {
     motif,
-    color: typeof fields.glyph_color === "string" && fields.glyph_color ? (fields.glyph_color as string) : typeof fields.star_color === "string" && fields.star_color ? (fields.star_color as string) : undefined,
+    // Hex only: the colour lands inside SVG markup, so anything else is dropped
+    // rather than trusted (and the vault palette applies instead).
+    color: hexColor(fields.glyph_color) ?? hexColor(fields.star_color),
     tempK: extras.tempK,
     rings: !!fields.has_rings,
     caps: extras.tundral,
