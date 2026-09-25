@@ -15,18 +15,20 @@ import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
 import { BUILTIN_SCHEMAS } from "../src/core/schema/builtin/schemas";
 
+// Step 4 of the UI redesign (2026-09-25) bumped every schema: handling code prefix, core
+// required fields, polity acronym; note and character gained their first explicit version.
 const PINNED: Record<string, [number, string]> = {
-  note: [0, "0598fd26186bc0c2"],
-  polity: [2, "c9059b77ad9fe277"],
-  location: [3, "52ff3d53e09cb1fb"],
-  body: [3, "8afdd88a9dc8e998"],
-  system: [3, "fa74ae3afb8a37fc"],
-  character: [0, "df6cc0e3bdc2c8a8"],
-  module: [3, "fcda53e7d46bf045"],
-  hull: [4, "27391f87b5cfd50a"],
-  bus: [1, "c768416bdd6f78cd"],
-  style: [2, "12e6bc49c8b9ca5d"],
-  craft: [3, "1075bcd566c1f361"],
+  note: [2, "3483b2fdd62a95b9"],
+  polity: [4, "9beb1aaf4da9ef63"], // 4: affiliation (UI redesign step 5).
+  location: [4, "0214814994d20a18"],
+  body: [4, "a673f2149781b2d5"],
+  system: [4, "b4148b28d52998dc"],
+  character: [2, "c0c3ad1ffd2ece15"],
+  module: [4, "7e58e48e5e77cccc"],
+  hull: [5, "22ffd83281a597d4"],
+  bus: [2, "b41a29e7c2bdbb61"],
+  style: [3, "45506aaa906599a8"],
+  craft: [4, "a9c6f557f21e108c"],
 };
 
 const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 16);

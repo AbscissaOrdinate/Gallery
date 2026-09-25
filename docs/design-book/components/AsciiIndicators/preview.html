@@ -1,0 +1,81 @@
+<!-- @dsCard group="Indicators" height=340 width=900 subtitle="ASCII progress bars, discrete meters, spinner frames and tree glyphs" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px}
+.wrap{max-width:820px;display:grid;grid-template-columns:1fr 1fr;gap:18px 28px}
+.blk{border:1px solid var(--line-200);background:var(--surface-200);padding:10px}
+.bh{color:var(--ink-300);display:block;margin-bottom:8px}
+.ln{display:grid;grid-template-columns:120px 1fr auto;gap:10px;align-items:center;height:20px}
+.ln .lsm{color:var(--ink-200)}
+.frames{display:flex;gap:18px;align-items:center}
+.fr{display:flex;flex-direction:column;align-items:center;gap:4px}
+.fr .dxs{color:var(--ink-300)}
+.tree{color:var(--ink-200)}
+.tree b{color:var(--ink-100);font-weight:400}
+</style>
+<div class="wrap">
+  <div class="blk">
+    <span class="lxs bh">DETERMINATE &mdash; [####------] pct right-aligned</span>
+    <div class="ln"><span class="lsm">MAGAZINE</span><span class="asc grn">[##########]</span><span class="dsm grn">100%</span></div>
+    <div class="ln"><span class="lsm">POWER</span><span class="asc amb">[#######---]</span><span class="dsm amb">71%</span></div>
+    <div class="ln"><span class="lsm">CREW</span><span class="asc red">[###-------]</span><span class="dsm red">28%</span></div>
+    <div class="ln"><span class="lsm">SURVEY</span><span class="asc met">[----------]</span><span class="dsm met">&mdash;</span></div>
+  </div>
+
+  <div class="blk">
+    <span class="lxs bh">DISCRETE &mdash; one glyph per unit</span>
+    <div class="ln"><span class="lsm">VLS CELLS</span><span class="asc nav">&#9646;&#9646;&#9646;&#9646;&#9647;&#9647;</span><span class="dsm met">4 / 6</span></div>
+    <div class="ln"><span class="lsm">HARDPOINTS</span><span class="asc nav">&#9646;&#9646;&#9647;&#9647;&#9647;&#9647;&#9647;&#9647;</span><span class="dsm met">2 / 8</span></div>
+    <div class="ln"><span class="lsm">DC TEAMS</span><span class="asc grn">&#9646;&#9646;&#9646;</span><span class="dsm met">3 / 3</span></div>
+    <div class="ln"><span class="lsm">CHANNELS</span><span class="asc amb">&#9646;&#9646;&#9646;&#9647;&#9647;</span><span class="dsm met">3 / 5</span></div>
+  </div>
+
+  <div class="blk">
+    <span class="lxs bh">SPINNER &mdash; four frames, 120 ms each</span>
+    <div class="frames">
+      <div class="fr"><span class="asc acc" style="font-size:18px">|</span><span class="dxs">f1</span></div>
+      <div class="fr"><span class="asc acc" style="font-size:18px">/</span><span class="dxs">f2</span></div>
+      <div class="fr"><span class="asc acc" style="font-size:18px">&mdash;</span><span class="dxs">f3</span></div>
+      <div class="fr"><span class="asc acc" style="font-size:18px">\</span><span class="dxs">f4</span></div>
+      <div class="fr" style="margin-left:8px"><span class="dsm mut">MOUNTING VAULT</span><span class="dxs">label, sentence rest</span></div>
+    </div>
+    <div class="ln" style="margin-top:10px"><span class="lsm">SCANNING</span><span class="asc met">[--&#9632;&#9632;&#9632;-----]</span><span class="dsm met">&#8734;</span></div>
+  </div>
+
+  <div class="blk">
+    <span class="lxs bh">TREE AND CONTINUATION</span>
+    <pre class="code tree">Heliaris system
+&#9500;&#9472; Earth              <b>3 sat</b>
+&#9474;  &#9500;&#9472; Luna
+&#9474;  &#9492;&#9472; Nerio Castle     <b>L4</b>
+&#9500;&#9472; Mars               <b>2 sat</b>
+&#9492;&#9472; Main belt          <b>&#187; 1,204 bodies</b></pre>
+  </div>
+</div>

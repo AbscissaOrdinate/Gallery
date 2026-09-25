@@ -7,6 +7,7 @@
  * unknown head elements. Outline attributes (Dynalist `_note`, `collapsed`,
  * `complete`, `heading`) are preserved verbatim.
  */
+import { compactHandling, parseHandling, parseRevisions } from "../handling";
 import { XMLParser } from "fast-xml-parser";
 import type { NoteRecord, OutlineNode, Link, AssetRef } from "../types";
 import { newId, nowIso, slugify } from "../ids";
@@ -133,6 +134,10 @@ export function parseNoteOpml(text: string, fallbackName = "Untitled"): { record
     updated: typeof m.updated === "string" ? m.updated : nowIso(),
     outline: p.outline,
   };
+  const handling = parseHandling(m.handling);
+  if (handling) record.handling = handling;
+  const revisions = parseRevisions(m.revisions);
+  if (revisions) record.revisions = revisions;
   if (!p.meta?.id) problems.push("missing id (generated)");
   return { record, problems };
 }
@@ -186,6 +191,8 @@ export function serializeNoteOpml(r: NoteRecord, extraHead: Record<string, strin
     assets: r.assets,
     created: r.created,
     updated: r.updated,
+    ...(compactHandling(r.handling) ? { handling: compactHandling(r.handling) } : {}),
+    ...(r.revisions?.length ? { revisions: r.revisions } : {}),
   };
   const out: string[] = [];
   out.push(`<?xml version="1.0" encoding="utf-8"?>`);

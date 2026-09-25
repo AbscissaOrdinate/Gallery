@@ -21,7 +21,7 @@
  * ## Colour
  *
  * Nothing here names a colour. Every element carries a `token` naming a CSS
- * custom property from `src/theme.css`, and `toSvg` emits `var(--token)`. The
+ * custom property from `src/theme.css`, and `toSvg` emits `var(--<token>)`. The
  * palette stays in one place and the drawing follows the app's theme, including
  * anywhere a second palette would otherwise creep in.
  *
@@ -40,25 +40,23 @@ export type RenderMode = "silhouette" | "schematic";
 
 /** A theme token from `src/theme.css`. No literal colours anywhere in this module. */
 export type Token =
-  | "navy-200"
-  | "navy-300"
-  | "navy-600"
-  | "navy-700"
-  | "navy-800"
-  | "navy-900"
-  | "rust-300"
-  | "rust-500"
-  | "accent"
-  | "accent-tint"
-  | "line"
-  | "line-faded"
-  | "line-strong"
-  | "ok"
-  // Type, not structure. Labels were drawn in navy-200/300, which are surface
-  // tints and sit at too low a contrast to read as annotation over a tinted
-  // section (`gallery/09` §3.1).
-  | "text"
-  | "text-muted";
+  | "surface-100"
+  | "surface-200"
+  | "surface-300"
+  | "surface-400"
+  | "line-100"
+  | "line-200"
+  | "line-300"
+  | "accent-300"
+  | "accent-500"
+  | "accent-700"
+  | "status-green"
+  // Type, not structure. Labels are ink, not surface tints: a surface tint sits
+  // at too low a contrast to read as annotation over a tinted section
+  // (`gallery/09` §3.1).
+  | "ink-100"
+  | "ink-200"
+  | "ink-300";
 
 export interface SceneStyle {
   fill?: Token;
@@ -247,7 +245,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   // --- parent ghost, behind everything -------------------------------------
   if (options.ghost) {
     const d = outlinePath(options.ghost, samples, plan);
-    if (d) elements.push({ kind: "path", id: "ghost", role: "ghost", d, fill: undefined, stroke: "line-faded", strokeWidth: 1, dashed: true, opacity: 0.6 });
+    if (d) elements.push({ kind: "path", id: "ghost", role: "ghost", d, fill: undefined, stroke: "line-100", strokeWidth: 1, dashed: true, opacity: 0.6 });
     for (const x of breakpoints(options.ghost.spine)) maxY = Math.max(maxY, halfHeightAt(options.ghost.spine, x), beamAt(options.ghost.spine, x) / 2);
   }
 
@@ -257,7 +255,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   if (options.showBeam ?? schematic) {
     const d = outlinePath(hull, samples, !plan);
     const id = plan ? "height" : "beam";
-    if (d) elements.push({ kind: "path", id, role: id, d, fill: "navy-700", stroke: "line-faded", strokeWidth: 1, opacity: 0.45, dashed: true });
+    if (d) elements.push({ kind: "path", id, role: id, d, fill: "surface-300", stroke: "line-100", strokeWidth: 1, opacity: 0.45, dashed: true });
   }
 
   // --- the hull itself ------------------------------------------------------
@@ -268,15 +266,15 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
       id: "hull",
       role: "hull",
       d: hullPath,
-      fill: schematic ? "navy-800" : "navy-200",
-      stroke: schematic ? "line-strong" : "line",
+      fill: schematic ? "surface-200" : "ink-200",
+      stroke: schematic ? "line-300" : "line-200",
       strokeWidth: schematic ? 1.5 : 1,
     });
   }
 
   // --- mirror line ----------------------------------------------------------
   if (schematic && length > 0) {
-    elements.push({ kind: "line", id: "axis", role: "axis", x1: 0, y1: 0, x2: length, y2: 0, stroke: "line-faded", strokeWidth: 0.5, dashed: true });
+    elements.push({ kind: "line", id: "axis", role: "axis", x1: 0, y1: 0, x2: length, y2: 0, stroke: "line-100", strokeWidth: 0.5, dashed: true });
   }
 
   // --- sections -------------------------------------------------------------
@@ -296,8 +294,8 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
           [x1, -yTop],
           [x0, -yTop],
         ],
-        fill: section.pressurised ? "accent-tint" : "navy-600",
-        stroke: "line-faded",
+        fill: section.pressurised ? "accent-700" : "surface-400",
+        stroke: "line-100",
         strokeWidth: 0.5,
         opacity: 0.35,
       });
@@ -312,7 +310,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
         anchor: "middle",
         size: LABEL_PX.section,
         owner: `section-${section.id}`,
-        fill: "text-muted",
+        fill: "ink-200",
       });
     }
   }
@@ -326,7 +324,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
       if (xs.length < 2) continue;
       for (const sign of [1, -1]) {
         const d = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${round(x)} ${round(sign * extent(x))}`).join(" ");
-        elements.push({ kind: "path", id: `armor-${zone.id}-${sign > 0 ? "top" : "bottom"}`, role: "armor", d, stroke: "rust-500", strokeWidth: 2, fill: undefined });
+        elements.push({ kind: "path", id: `armor-${zone.id}-${sign > 0 ? "top" : "bottom"}`, role: "armor", d, stroke: "accent-500", strokeWidth: 2, fill: undefined });
       }
     }
   }
@@ -341,8 +339,8 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
       id: `appendage-${placed.id}${placed.mirrored ? "-m" : ""}`,
       role: `appendage:${placed.kind}`,
       points: placed.outline,
-      fill: schematic ? "navy-600" : "navy-300",
-      stroke: "line",
+      fill: schematic ? "surface-400" : "ink-300",
+      stroke: "line-200",
       strokeWidth: 1,
     });
     for (const [, y] of placed.outline) maxY = Math.max(maxY, Math.abs(y));
@@ -359,8 +357,8 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
   for (const part of options.fitted ?? []) {
     for (const placed of placeAppendage(spine, part)) {
       const style: SceneStyle = part.far
-        ? { fill: undefined, stroke: "line-strong", strokeWidth: 1, dashed: true, opacity: 0.9 }
-        : { fill: schematic ? "navy-700" : "navy-200", stroke: "line-strong", strokeWidth: 1 };
+        ? { fill: undefined, stroke: "line-300", strokeWidth: 1, dashed: true, opacity: 0.9 }
+        : { fill: schematic ? "surface-300" : "ink-200", stroke: "line-300", strokeWidth: 1 };
       elements.push({
         kind: "polygon",
         id: `fitted-${placed.id}${placed.mirrored ? "-m" : ""}`,
@@ -380,7 +378,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
       // any of them selects the slot; only the first carries the label.
       for (const member of ringMembers(slot)) {
         const at = slotAnchor(hull, member, view);
-        elements.push({ kind: "circle", id: `slot-${member.id}`, role: `slot:${slot.type}`, cx: slot.x, cy: at.y, r: 1.2, fill: "rust-300", stroke: "line-strong", strokeWidth: 0.5 });
+        elements.push({ kind: "circle", id: `slot-${member.id}`, role: `slot:${slot.type}`, cx: slot.x, cy: at.y, r: 1.2, fill: "accent-300", stroke: "line-300", strokeWidth: 0.5 });
       }
       if (schematic) {
         elements.push({
@@ -393,7 +391,7 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
           anchor: "middle",
           size: LABEL_PX.slot,
           owner: `slot-${slot.id}`,
-          fill: "text-muted",
+          fill: "ink-200",
         });
       }
     }
@@ -417,27 +415,27 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
     if (edge !== far) points.push([far, rEdge]);
     points.push([far, -rEdge]);
     if (edge !== far) points.push([edge, -rEdge]);
-    elements.push({ kind: "polygon", id: "shadow-cone", role: "overlay:radiation", points, fill: "ok", opacity: 0.12, stroke: "ok", strokeWidth: 0.5, dashed: true });
+    elements.push({ kind: "polygon", id: "shadow-cone", role: "overlay:radiation", points, fill: "status-green", opacity: 0.12, stroke: "status-green", strokeWidth: 0.5, dashed: true });
     maxY = Math.max(maxY, rEdge);
   }
 
   // --- centre of gravity ----------------------------------------------------
   if (typeof options.cgStation === "number" && Number.isFinite(options.cgStation)) {
     const x = options.cgStation;
-    elements.push({ kind: "circle", id: "cg", role: "overlay:cg", cx: x, cy: 0, r: 1.6, fill: "accent", stroke: "line-strong", strokeWidth: 0.6 });
-    elements.push({ kind: "text", id: "cg-label", role: "overlay:cg", x, y: -4, text: "CG", anchor: "middle", size: LABEL_PX.cg, owner: "cg", fill: "accent" });
+    elements.push({ kind: "circle", id: "cg", role: "overlay:cg", cx: x, cy: 0, r: 1.6, fill: "accent-500", stroke: "line-300", strokeWidth: 0.6 });
+    elements.push({ kind: "text", id: "cg-label", role: "overlay:cg", x, y: -4, text: "CG", anchor: "middle", size: LABEL_PX.cg, owner: "cg", fill: "accent-500" });
   }
 
   // --- station ruler --------------------------------------------------------
   if (options.stations ?? schematic) {
     const pitch = spine.station_pitch_m && spine.station_pitch_m > 0 ? spine.station_pitch_m : 3;
     const rulerY = -(maxY + 4);
-    elements.push({ kind: "line", id: "ruler", role: "ruler", x1: 0, y1: rulerY, x2: length, y2: rulerY, stroke: "line", strokeWidth: 0.6 });
+    elements.push({ kind: "line", id: "ruler", role: "ruler", x1: 0, y1: rulerY, x2: length, y2: rulerY, stroke: "line-200", strokeWidth: 0.6 });
     const step = Math.max(pitch, Math.ceil(length / 40 / pitch) * pitch); // never more than ~40 ticks
     for (let x = 0, n = 0; x <= length + 1e-9; x += step, n++) {
       const major = n % 5 === 0;
-      elements.push({ kind: "line", id: `tick-${n}`, role: "ruler-tick", x1: x, y1: rulerY, x2: x, y2: rulerY - (major ? 2 : 1), stroke: "line", strokeWidth: 0.4 });
-      if (major) elements.push({ kind: "text", id: `tick-label-${n}`, role: "ruler-label", x, y: rulerY - 3.5, text: `${Math.round(x)}`, anchor: "middle", size: LABEL_PX.rulerTick, fill: "text-muted" });
+      elements.push({ kind: "line", id: `tick-${n}`, role: "ruler-tick", x1: x, y1: rulerY, x2: x, y2: rulerY - (major ? 2 : 1), stroke: "line-200", strokeWidth: 0.4 });
+      if (major) elements.push({ kind: "text", id: `tick-label-${n}`, role: "ruler-label", x, y: rulerY - 3.5, text: `${Math.round(x)}`, anchor: "middle", size: LABEL_PX.rulerTick, fill: "ink-200" });
     }
     maxY = Math.max(maxY, Math.abs(rulerY) + 6);
   }
@@ -447,9 +445,9 @@ export function renderHull(hull: HullGeometry, options: RenderOptions = {}): Hul
     // A 1.8 m person and a 1.4 m docking ring, drawn at true size. The single
     // best guard against a hull drifting an order of magnitude off scale.
     const baseY = maxY + 3;
-    elements.push({ kind: "line", id: "figure", role: "scale:figure", x1: 2, y1: baseY, x2: 2, y2: baseY + 1.8, stroke: "navy-200", strokeWidth: 0.6 });
-    elements.push({ kind: "circle", id: "figure-head", role: "scale:figure", cx: 2, cy: baseY + 2.1, r: 0.3, fill: "navy-200" });
-    elements.push({ kind: "circle", id: "ring", role: "scale:ring", cx: 8, cy: baseY + 0.7, r: 0.7, fill: undefined, stroke: "navy-200", strokeWidth: 0.6 });
+    elements.push({ kind: "line", id: "figure", role: "scale:figure", x1: 2, y1: baseY, x2: 2, y2: baseY + 1.8, stroke: "ink-200", strokeWidth: 0.6 });
+    elements.push({ kind: "circle", id: "figure-head", role: "scale:figure", cx: 2, cy: baseY + 2.1, r: 0.3, fill: "ink-200" });
+    elements.push({ kind: "circle", id: "ring", role: "scale:ring", cx: 8, cy: baseY + 0.7, r: 0.7, fill: undefined, stroke: "ink-200", strokeWidth: 0.6 });
     maxY = baseY + 3;
   }
 

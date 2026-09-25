@@ -1,0 +1,160 @@
+<!-- @dsCard group="Screens" height=1080 width=1920 subtitle="Boot and authorisation terminal, 1920x1080 — three frames of the ASCII orbital idle" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--surface-100)}
+.scr{width:1920px;height:1080px;position:relative;display:flex;flex-direction:column}
+.topban{height:24px;background:var(--class-top-secret);color:var(--on-accent);display:flex;align-items:center;justify-content:center}
+.botban{height:24px;background:var(--class-top-secret);color:var(--on-accent);display:flex;align-items:center;justify-content:center}
+.body{flex:1;display:flex;align-items:center;padding:0 120px;gap:88px}
+.left{width:760px}
+.mark{display:flex;align-items:baseline;gap:14px}
+.mark .disp{font-size:46px;line-height:48px;letter-spacing:.06em}
+.sub{margin-top:10px;color:var(--ink-300);max-width:560px}
+.rule{height:1px;background:var(--line-200);margin:26px 0}
+.log{display:flex;flex-direction:column;gap:7px}
+.ll{display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center;height:20px}
+.ts{color:var(--ink-300)}
+.okk{color:var(--status-green)}
+.wrn{color:var(--status-amber)}
+.act{color:var(--accent-300)}
+.prog{margin-top:26px;display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center}
+.pb{font-size:15px;line-height:15px}
+.auth{margin-top:30px;border:1px solid var(--line-200);background:var(--surface-200);width:560px}
+.ahd{height:26px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;
+     padding:0 12px;color:var(--ink-200);justify-content:space-between}
+.abd{padding:12px;display:flex;flex-direction:column;gap:8px}
+.fr{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:12px;height:26px}
+.fv{height:26px;background:var(--surface-400);border:1px solid var(--line-200);display:flex;align-items:center;padding:0 8px}
+.focw{position:relative}
+.focw::after{content:"";position:absolute;inset:-3px;border:2px solid var(--focus)}
+.caret{width:1px;height:14px;background:var(--accent-300);margin-left:1px}
+.btnrow{display:flex;gap:8px;margin-top:4px;justify-content:flex-end}
+.btn{height:26px;padding:0 14px;border:1px solid var(--line-200);background:var(--surface-300);color:var(--ink-100);
+     font:500 13px/18px var(--font-sans);display:inline-flex;align-items:center}
+.btn.pri{background:var(--accent-500);border-color:var(--accent-500);color:var(--on-accent);font-weight:600}
+.right{flex:1;display:flex;flex-direction:column;align-items:flex-start}
+.frames{display:flex;gap:34px;align-items:flex-start}
+.fcol{display:flex;flex-direction:column;align-items:center;gap:10px}
+.art{color:var(--glyph-navy);font:400 13px/15px var(--font-mono);white-space:pre}
+.art .s{color:var(--accent-300)}
+.fcap{color:var(--ink-300)}
+.legend{margin-top:34px;border:1px solid var(--line-200);background:var(--surface-200);padding:12px 14px;width:560px}
+.lg{display:grid;grid-template-columns:110px 1fr;gap:5px 14px}
+.lg .lxs{color:var(--ink-300)}
+.footnote{position:absolute;left:120px;bottom:44px;color:var(--ink-400)}
+.blink{color:var(--accent-300)}
+</style>
+<div class="scr">
+  <div class="topban ban">COSMIC TOP SECRET//ORCON &mdash; GALLERY WORKBENCH &mdash; UJCN</div>
+
+  <div class="body">
+    <div class="left">
+      <div class="mark"><span class="disp">GALLERY</span><span class="stmp met">BUILD 4.11.2</span></div>
+      <p class="bd sub">Naval intelligence and research terminal. Records, orbital charts and hull forms for the Coalition survey vault.</p>
+      <div class="rule"></div>
+
+      <div class="log">
+        <div class="ll"><span class="dsm ts">06:00:41.2</span><span class="dmd">VERIFYING SECURITY KEYS&hellip;</span><span class="dsm okk">OK</span></div>
+        <div class="ll"><span class="dsm ts">06:00:41.9</span><span class="dmd">HANDSHAKE &mdash; ONI CATALOGUE NODE 3</span><span class="dsm okk">OK</span></div>
+        <div class="ll"><span class="dsm ts">06:00:42.4</span><span class="dmd">AUTHORIZATION: COSMIC TOP SECRET</span><span class="dsm okk">GRANTED</span></div>
+        <div class="ll"><span class="dsm ts">06:00:43.0</span><span class="dmd">RECONCILING TYPED SCHEMA &mdash; 12 KINDS</span><span class="dsm okk">OK</span></div>
+        <div class="ll"><span class="dsm ts">06:00:43.6</span><span class="dmd">4 RECORDS CARRY UNRESOLVED BACKLINKS</span><span class="dsm wrn">CAUTION</span></div>
+        <div class="ll"><span class="dsm ts">06:00:44.1</span><span class="dmd act">MOUNTING VAULT&hellip; <span class="blink">/</span></span><span class="dsm met">&mdash;</span></div>
+      </div>
+
+      <div class="prog">
+        <span class="lsm mut">VAULT</span>
+        <span class="asc acc pb">[##########################--------]</span>
+        <span class="dsm acc">74%</span>
+      </div>
+
+      <div class="auth">
+        <div class="ahd"><span class="tsm">AUTHORIZATION</span><span class="stmp met">SMARTCARD + PIN</span></div>
+        <div class="abd">
+          <div class="fr"><span class="lsm mut">OPERATOR</span><div class="fv dmd">T.WADDELL / ONI-R4</div></div>
+          <div class="fr"><span class="lsm mut">CLEARANCE</span><div class="fv dmd"><span class="okk">LEVEL 4</span><span class="dsm met" style="margin-left:auto">expires 2497-12-31</span></div></div>
+          <div class="fr"><span class="lsm mut">PIN</span><div class="focw"><div class="fv dmd">&bull;&bull;&bull;&bull;&bull;&bull;<span class="caret"></span></div></div></div>
+          <div class="btnrow"><button class="btn">ABORT</button><button class="btn pri">AUTHORIZE</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <span class="lxs met" style="margin-bottom:14px;display:block">ORBITAL IDLE &mdash; THREE FRAMES, 900 MS EACH</span>
+      <div class="frames">
+        <div class="fcol">
+          <pre class="art">     . - - - .
+   '           '
+  .    . - .    .
+ .   .   <span class="s">*</span>   .   .
+ .   .   o   .   .
+  .    ' - '    .
+   .           .
+     ' - - - '</pre>
+          <span class="dxs fcap">FRAME 1 &mdash; 0&deg;</span>
+        </div>
+        <div class="fcol">
+          <pre class="art">     . - - - .
+   '           '
+  .    . - .    .
+ .   o   <span class="s">*</span>   .   .
+ .   .   .   .   .
+  .    ' - '    o
+   .           .
+     ' - - - '</pre>
+          <span class="dxs fcap">FRAME 2 &mdash; 120&deg;</span>
+        </div>
+        <div class="fcol">
+          <pre class="art">     . - - - o
+   '           '
+  .    . o .    .
+ .   .   <span class="s">*</span>   .   .
+ .   .   .   .   .
+  .    ' - '    .
+   .           .
+     ' - - - '</pre>
+          <span class="dxs fcap">FRAME 3 &mdash; 240&deg;</span>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="lg">
+          <span class="lxs">GLYPHS</span><span class="dsm mut"><span class="acc">*</span> primary &middot; o body &middot; . orbit &middot; ' - rim</span>
+          <span class="lxs">INK</span><span class="dsm mut">glyph-navy, primary in accent-300</span>
+          <span class="lxs">TYPE</span><span class="dsm mut">ascii, 13px, tight leading so frames register</span>
+          <span class="lxs">MOTION</span><span class="dsm mut">the only animation on this screen besides the spinner</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote dxs">NODE 3 &middot; HELIARIS &middot; 05 SEP 497 06:00 &middot; UNATTENDED TERMINALS LOCK AFTER 90 S</div>
+  <div class="botban ban">COSMIC TOP SECRET//ORCON &mdash; GALLERY WORKBENCH &mdash; UJCN</div>
+</div>
