@@ -5,10 +5,14 @@
  *   Tab / Shift+Tab   indent / outdent
  *   Backspace on empty   delete node (focus previous)
  *   Alt+↑ / Alt+↓   move node
- *   Click bullet    collapse / expand
+ *   Click ▾ / ▸     collapse / expand
+ *
+ * Drawn as a tree in monospace: every item hangs off `├─` / `└─` with `│`
+ * carrying each ancestor that continues, as the notes' OPML nests.
  */
 import { useEffect, useRef, useState } from "react";
 import type { OutlineNode } from "../core/types";
+import { treePrefix } from "./kit";
 
 type Path = number[];
 
@@ -161,16 +165,22 @@ export function Outliner({ value, onChange }: { value: OutlineNode[]; onChange: 
     }
   };
 
-  const render = (nodes: OutlineNode[], base: Path) =>
+  const render = (nodes: OutlineNode[], base: Path, ancestors: boolean[]) =>
     nodes.map((n, i) => {
       const p = [...base, i];
       const key = p.join(".");
       const collapsed = isCollapsed(n);
+      const last = i === nodes.length - 1;
+      // The guides a note line and the children carry: each ancestor that continues, then this item.
+      const through = [...ancestors, !last];
       return (
         <div key={key} data-path={key}>
           <div className="ol-node">
+            <span className="ol-tree" aria-hidden>
+              {treePrefix(ancestors, last)}
+            </span>
             <span
-              className={"bullet" + (collapsed ? " collapsed" : "")}
+              className={"bullet" + (collapsed ? " collapsed" : "") + (n.children.length ? "" : " leaf")}
               title={n.children.length ? (collapsed ? "Expand" : "Collapse") : ""}
               onClick={() =>
                 n.children.length &&
@@ -183,7 +193,7 @@ export function Outliner({ value, onChange }: { value: OutlineNode[]; onChange: 
                 })
               }
             >
-              {n.children.length ? (collapsed ? "▸" : "▾") : "•"}
+              {n.children.length ? (collapsed ? "▸" : "▾") : "─"}
             </span>
             <AutoTextarea
               className="text"
@@ -198,7 +208,12 @@ export function Outliner({ value, onChange }: { value: OutlineNode[]; onChange: 
             />
           </div>
           {n.note !== undefined && (
-            <AutoTextarea
+            <div className="ol-note-row">
+              <span className="ol-tree" aria-hidden>
+                {through.map((c) => (c ? "│  " : "   ")).join("")}
+                {n.children.length && !collapsed ? "│ " : "  "}
+              </span>
+              <AutoTextarea
               className="ol-note"
               value={n.note}
               placeholder="note…"
@@ -215,19 +230,20 @@ export function Outliner({ value, onChange }: { value: OutlineNode[]; onChange: 
                 })
               }
               onFocus={() => setFocus({ path: p, note: true })}
-            />
+              />
+            </div>
           )}
-          {!collapsed && n.children.length > 0 && <div className="ol-children">{render(n.children, p)}</div>}
+          {!collapsed && n.children.length > 0 && <div className="ol-children">{render(n.children, p, through)}</div>}
         </div>
       );
     });
 
   return (
     <div className="outliner" ref={container}>
-      {render(value.length ? value : [{ text: "", children: [] }], [])}
+      {render(value.length ? value : [{ text: "", children: [] }], [], [])}
       <div className="ol-help">
         <span className="kbd">Enter</span> new item · <span className="kbd">Tab</span>/<span className="kbd">Shift+Tab</span> indent · <span className="kbd">Shift+Enter</span> note ·{" "}
-        <span className="kbd">Alt+↑↓</span> move · click bullet to collapse
+        <span className="kbd">Alt+↑↓</span> move · click ▾ to collapse
       </div>
     </div>
   );

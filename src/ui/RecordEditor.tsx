@@ -10,7 +10,8 @@ import { AssetsPanel } from "./AssetsPanel";
 import { BodyPanel } from "./BodyPanel";
 import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
-import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode } from "../core/handling";
+import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode, withCaveat } from "../core/handling";
+import { CaveatAdder } from "./CaveatAdder";
 import type { Repository } from "../core/repo";
 import { logEvent } from "./log";
 import {
@@ -297,7 +298,7 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
 
           <aside className="rp-side">
             <Backlinks repo={repo} backlinks={backlinks} />
-            <HandlingPanel handling={draft.handling} vocab={vocab} code={code} onChange={setHandling} />
+            <HandlingPanel handling={draft.handling} vocab={vocab} code={code} onChange={setHandling} onSaveCaveat={(c) => repo.saveConfig({ handling: withCaveat(vocab, c) })} />
             <Revisions record={draft} />
           </aside>
         </div>
@@ -352,8 +353,8 @@ function Backlinks({ repo, backlinks }: { repo: Repository; backlinks: ReturnTyp
   );
 }
 
-/** The record's marking, edited from the closed vocabularies in gallery.config.yaml. */
-function HandlingPanel({ handling, vocab, code, onChange }: { handling: Handling | undefined; vocab: HandlingVocab | undefined; code: string; onChange: (p: Partial<Handling>) => void }) {
+/** The record's marking, edited from the closed vocabularies in gallery.config.yaml, plus any caveat written here. */
+function HandlingPanel({ handling, vocab, code, onChange, onSaveCaveat }: { handling: Handling | undefined; vocab: HandlingVocab | undefined; code: string; onChange: (p: Partial<Handling>) => void; onSaveCaveat: (c: string) => void }) {
   const h = handling ?? {};
   const caveats = [...new Set([...(vocab?.caveats ?? []), ...(h.caveats ?? [])])];
   const pick = (label: string, value: string | undefined, options: string[], set: (v: string | undefined) => void): ReactNode => (
@@ -387,6 +388,12 @@ function HandlingPanel({ handling, vocab, code, onChange }: { handling: Handling
               <Checkbox key={c} label={c} checked={!!h.caveats?.includes(c)} onChange={(on) => onChange({ caveats: on ? [...(h.caveats ?? []), c] : (h.caveats ?? []).filter((x) => x !== c) })} />
             ))}
             {caveats.length === 0 && <span className="help">No caveats in gallery.config.yaml.</span>}
+            <CaveatAdder
+              onAdd={(c, save) => {
+                if (!h.caveats?.includes(c)) onChange({ caveats: [...(h.caveats ?? []), c] });
+                if (save) onSaveCaveat(c);
+              }}
+            />
           </span>
         </Row>
         <Row label="CODE">

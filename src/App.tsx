@@ -12,7 +12,8 @@ import { AdvisoryLog } from "./ui/AdvisoryLog";
 import { Boot } from "./ui/Boot";
 import { isTauri } from "./core/storage/tauri";
 import type { Repository } from "./core/repo";
-import { Button, Panel, StatusRow } from "./ui/kit";
+import { Button, Panel, Spinner, StatusRow, treePrefix } from "./ui/kit";
+import { SECTIONS, sectionsOf } from "./ui/sections";
 
 export function App() {
   const app = useApp();
@@ -71,7 +72,7 @@ export function App() {
         {app.error && (
           <StatusRow severity="violation" id="ERROR" message={app.error} detail="Click to dismiss." word={false} onClick={() => actions.error(null)} />
         )}
-        {app.busy && <div className="help">{app.busy}</div>}
+        {app.busy && <Spinner label={app.busy.toLocaleUpperCase("en")} />}
         {v.kind === "record" && <RecordEditor key={v.id} id={v.id} />}
         {v.kind === "map" && <SystemMap key={v.id} id={v.id} />}
         {v.kind === "hull" && <HullEditor key={v.id} id={v.id} />}
@@ -90,7 +91,7 @@ export function App() {
 function Crumbs({ repo, view }: { repo: Repository; view: View }) {
   const parts: string[] = [repo.config.name];
   const typeTitle = (t: string | undefined) => (t ? repo.registry.get(t)?.title ?? t : undefined);
-  if (view.kind === "list") parts.push(typeTitle(view.type) ?? "All records");
+  if (view.kind === "list") parts.push(typeTitle(view.type) ?? SECTIONS.find((s) => s.id === view.section)?.title ?? "All records");
   if (view.kind === "record") {
     const r = repo.record(view.id);
     if (r) parts.push(typeTitle(r.type) ?? r.type, r.name);
@@ -126,32 +127,45 @@ function Overview() {
         {stats?.records ?? 0} records · schemas and presets are editable files in <code>_schemas/</code> and <code>_presets/</code> · index at <code>_index.csv</code>, per-type sheets
         in <code>_exports/</code>.
       </p>
-      <Panel title="TYPES" meta={`${repo.registry.types().length} kinds`} bodyClassName="flush">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th></th>
-              <th>TYPE</th>
-              <th>FOLDER</th>
-              <th className="num">RECORDS</th>
-              <th className="num">PRESETS</th>
-              <th>DESCRIPTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            {repo.registry.types().map((t) => (
-              <tr key={t.id} className="is-link" onClick={() => actions.navigate({ kind: "list", type: t.id })}>
-                <td className="glyph">{t.icon}</td>
-                <td className="t-label-md">{t.title}</td>
-                <td>{t.folder}/</td>
-                <td className="num">{stats?.byType[t.id] ?? 0}</td>
-                <td className="num">{repo.registry.presetsFor(t.id).length}</td>
-                <td className="help">{t.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
+      {/* The vault by section, each kind on a treeline, as the rail draws it. */}
+      {sectionsOf(repo.registry.types()).map(({ section, types }) => {
+        const total = types.reduce((n, t) => n + (stats?.byType[t.id] ?? 0), 0);
+        return (
+          <Panel
+            key={section.id}
+            title={section.title}
+            meta={`${total} records · ${types.length} ${types.length === 1 ? "kind" : "kinds"}`}
+            actions={
+              types.length > 1 ? (
+                <Button size="sm" onClick={() => actions.navigate({ kind: "list", section: section.id })}>
+                  LIST SECTION
+                </Button>
+              ) : undefined
+            }
+            bodyClassName="flush"
+          >
+            <table className="tbl tree-tbl">
+              <tbody>
+                {types.map((t, i) => (
+                  <tr key={t.id} className="is-link" onClick={() => actions.navigate({ kind: "list", type: t.id })}>
+                    <td className="tree-cell">
+                      <span className="tree" aria-hidden>
+                        {treePrefix([], i === types.length - 1)}
+                      </span>
+                      <span className="glyph">{t.icon}</span>
+                      <span className="t-label-md">{t.title}</span>
+                    </td>
+                    <td className="mono ink-300">{t.folder}/</td>
+                    <td className="num">{stats?.byType[t.id] ?? 0}</td>
+                    <td className="num ink-300">{repo.registry.presetsFor(t.id).length} presets</td>
+                    <td className="help">{t.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        );
+      })}
       {/* Load problems live in the session log now (AdvisoryLog subsumes the old list); this row points there. */}
       {(problems.length > 0 || repo.registry.problems.length > 0) && (
         <Panel title="LOAD PROBLEMS" meta={String(problems.length + repo.registry.problems.length)} bodyClassName="flush">

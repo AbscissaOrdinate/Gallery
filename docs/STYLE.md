@@ -181,7 +181,7 @@ visual language.
   `--station-mark`, `--text-control-sm` (Button label at control-sm), `--dur-spinner`; for the map
   (step 5) `--tac-frame-w` / `--tac-frame-h` (TacticalSymbols' 30×20 frame), `--opacity-halo` (the
   12% selection halo) and `--scale-bar-w` (the plate's 120px bar); for boot (step 6) `--dur-idle-frame`
-  (900 ms).
+  (900 ms); step 7 `--dur-boot-line` (320 ms).
 - **Schema-driven labels** (field titles, x-group names, table columns) are uppercased when rendered
   (`caps()`), so the DOM text itself is uppercase; schema titles carry no units, so nothing
   case-sensitive is touched. Authored UI copy is written uppercase directly.
@@ -287,6 +287,22 @@ Owner decisions on conflicts §2 did not cover. They carry the same weight as §
 | TacticalSymbols needs an affiliation; nothing in the vault said which side a polity is on | **A polity field**: `affiliation` (friend / hostile / neutral / unknown) on the polity schema (v4, backed up per convention), from the vault operator's point of view. A body takes its `controller`'s, a location its `owner`'s. Blank or no owner draws the object bare; an unrecognised value is unknown. The demo sets UESC friend, UJCN hostile, LDF neutral. |
 | Far-zoom threshold "roughly 0.2×" (§2: a config value) | **`map.far_zoom_ratio` in `gallery.config.yaml`**, a fraction of the fit-to-system zoom; default 0.75 (two wheel steps out from Fit). Not seeded: absent means the default. |
 | Redaction and completeness need `required` fields | **Core fields marked required** in the built-in schemas (bumped, backed up per convention): polity kind, government; location kind, owner; character role, affiliation; hull hull_class; bus core_diameter_m, station_pitch_m; style construction; craft kind, hull_class, role, hull, operator, status; body kind, system; system primary; module unchanged. A type with none shows completeness as `—`. |
+
+### 8.1 Rulings, 2026-09-26: the rest of Gallery in the boot screen's voice
+
+The owner asked for the whole app to feel like the boot sequence: minimal, utilitarian, terminal,
+more ASCII. Composed from the book's own ASCII language (AsciiIndicators' treelines), not new marks.
+
+| Ask | Ruling |
+|---|---|
+| Buttons for vault sections; nested menus for related kinds | **The rail is a tree.** Sections — NOTES, ASTROGRAPHY (star system, body, location), FACTIONS (polity, character), SHIPYARD (hull, module, craft, bus standard, style kit) — are `label-xs` headers with a fold chevron (▾ / ▸) and a total; the name is a button that lists the whole section. Kinds hang off `├─` / `└─` treelines in `line-300`. A section of one kind is just the kind. Custom kinds land in OTHER. The fold is remembered per install; a section with the current kind never folds shut. MAPS and TOOLS use the same treelines. The overview draws the same sections as panels, each kind on a treeline, with LIST SECTION. (`src/ui/sections.ts`) |
+| Notes (.opml) with `│` lines and `├─` symbols | **The outliner is a monospace tree** (`text-code`): each item on `├─` / `└─` with `│` for every ancestor that continues; ▾ / ▸ fold an item with children, `─` marks a leaf; note lines carry the guides. |
+| Write caveats of your own, with a toggle to save them | **HANDLING → caveats takes a written caveat** (uppercased, single-spaced, slashes removed since `//` separates caveats in a banner). It marks the record at once; **SAVE TO VAULT** also adds it to `gallery.config.yaml` `handling.caveats`, offered on every record. Settings → CAVEATS lists the vault's caveats, adds and removes them; removing one leaves records that carry it alone. |
+| Slow the full boot so it can be seen; show the real stack | **A full boot replays its log a line at a time** (`--dur-boot-line`, 320 ms; the newest line is the one in flight). The first key or click skips to the end, the next goes on; brief stays instant; reduced motion shows every line at once. The log opens with three real lines: `RUNTIME — <TAURI x or BROWSER> · <ENGINE>`, `BUILD — VITE <version> · <MODE>`, `INTERFACE — REACT <version>` (`src/ui/runtime.ts`; Vite's version is defined at build). |
+| The rest should match | **The welcome screen is the boot's terminal** before a vault is open: the boot wordmark and build, the lede, a rule, the commands as `›` prompt lines (the primary in `accent-300`; hover takes the selection wash), recent vaults on treelines, and the runtime footnote. Busy states are the ASCII spinner. The toast carries a `›` prompt. |
+| Title bunched under the classification banner | **The record page opens a step below its marking** (`space-10` under the banner), and the command line above the title is ruled off from it. The header's title and subtitle take the width left of the badge and no more. |
+
+Also fixed with these: the width utilities (`.w-rel`, `.w-field`) lost to the base input rule, so a link row's relation field took the whole row and pushed its picker out of the panel.
 
 ## 9. Verification
 

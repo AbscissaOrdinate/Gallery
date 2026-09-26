@@ -8,6 +8,7 @@ import { BOOT_MODES, DEFAULT_BOOT_MODE, type BootMode, type OperatorConfig } fro
 import { LEVEL_WORD } from "../core/handling";
 import type { UiSeverity } from "./kit/severity";
 import { logEvent, newSession, nextSessionNumber } from "./log";
+import { runtimeLines } from "./runtime";
 import type { StorageAdapter } from "../core/storage/adapter";
 import { isTauri, readAppSettings, writeAppSettings, TauriFsAdapter } from "../core/storage/tauri";
 import { MemoryAdapter } from "../core/storage/memory";
@@ -15,7 +16,7 @@ import { demoVault } from "./demo";
 
 export type View =
   | { kind: "welcome" }
-  | { kind: "list"; type?: string }
+  | { kind: "list"; type?: string; section?: string }
   | { kind: "record"; id: string }
   | { kind: "settings" }
   | { kind: "import" }
@@ -33,6 +34,8 @@ export interface BootLine {
   inFlight?: boolean;
 }
 export interface BootState {
+  /** Which boot this is: a reopened vault starts its replay over. */
+  id: number;
   mode: Exclude<BootMode, "off">;
   lines: BootLine[];
   /** Records read, 0–1, once the record walk starts. */
@@ -108,7 +111,7 @@ export const actions = {
     const peek = await peekConfig(adapter);
     const mode: BootMode = BOOT_MODES.includes(peek?.boot as BootMode) ? (peek!.boot as BootMode) : DEFAULT_BOOT_MODE;
     newSession({ number: nextSessionNumber(), operator: peek?.operator?.name, node: adapter.label });
-    let boot: BootState | null = mode === "off" ? null : { mode, lines: [], done: false, node: adapter.label, operator: peek?.operator };
+    let boot: BootState | null = mode === "off" ? null : { id: t0, mode, lines: [], done: false, node: adapter.label, operator: peek?.operator };
     const bootSet = (patch: Partial<BootState>) => {
       if (!boot) return;
       boot = { ...boot, ...patch };
@@ -129,6 +132,8 @@ export const actions = {
     set({ busy: "Opening vault…", error: null, boot });
     try {
       const repo = new Repository(adapter);
+      // What Gallery itself is running on comes first: the shell, the build, the interface.
+      for (const l of await runtimeLines()) step(l, "OK");
       begin(`HANDSHAKE — ${adapter.label.toLocaleUpperCase("en")}`);
       const isVault = await repo.isVault();
       if (!isVault && !opts.create) {

@@ -6,7 +6,7 @@
  * redacted when its schema marks it `required` and the record holds no value,
  * so completeness is computed, not stored.
  */
-import type { FieldSchema, GalleryRecord, Handling, HandlingLevel, Revision, TypeSchema, TypedRecord } from "./types";
+import type { FieldSchema, GalleryRecord, Handling, HandlingLevel, HandlingVocab, Revision, TypeSchema, TypedRecord } from "./types";
 import { HANDLING_LEVELS, isNote } from "./types";
 
 export const LEVEL_WORD: Record<HandlingLevel, string> = {
@@ -202,4 +202,29 @@ export function nextRevisions(prev: GalleryRecord | undefined, next: GalleryReco
   if (last && recent && !parts.includes("created")) log[log.length - 1] = { at: now, change: render(mergeParts(unrender(last.change), parts)) };
   else log.push({ at: now, change: render(parts) });
   return log.slice(-REVISION_CAP);
+}
+
+// ---------------------------------------------------------------------------
+// Caveats you write yourself
+// ---------------------------------------------------------------------------
+
+/**
+ * A caveat as written into a marking: trimmed, uppercase, single-spaced, and
+ * without slashes, since `//` separates caveats in a banner. Empty when
+ * nothing usable is left.
+ */
+export function normaliseCaveat(s: string): string {
+  return s.replace(/\/+/g, " ").replace(/\s+/g, " ").trim().toLocaleUpperCase("en");
+}
+
+/** The vault's caveat list with one more, kept once and in the order written. */
+export function withCaveat(vocab: HandlingVocab | undefined, caveat: string): HandlingVocab {
+  const base: HandlingVocab = { clearance: [], caveats: [], disruption: [], risk: [], ...vocab };
+  return base.caveats.includes(caveat) ? base : { ...base, caveats: [...base.caveats, caveat] };
+}
+
+/** The vault's caveat list without one. Records that carry it keep it: a value off the list is still shown. */
+export function withoutCaveat(vocab: HandlingVocab | undefined, caveat: string): HandlingVocab {
+  const base: HandlingVocab = { clearance: [], caveats: [], disruption: [], risk: [], ...vocab };
+  return { ...base, caveats: base.caveats.filter((c) => c !== caveat) };
 }

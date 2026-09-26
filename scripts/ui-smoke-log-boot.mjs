@@ -91,10 +91,22 @@ await page.waitForTimeout(100);
 await page.getByRole("button", { name: "REOPEN VAULT" }).click();
 await page.waitForSelector(".boot");
 await page.waitForSelector(".boot-idle");
+// A full boot plays its log out at a reading pace: early on, only some lines are showing.
+const early = await page.locator(".boot-line").count();
+await page.waitForTimeout(700);
+const later = await page.locator(".boot-line").count();
+if (!(later > early)) errors.push(`full boot did not pace its lines (${early} then ${later})`);
+if (!/SKIP/.test((await page.locator(".boot-hint").textContent()) ?? "")) errors.push("no skip hint while replaying");
+await page.screenshot({ path: shot("03a-boot-replaying") });
+// A click skips the replay to the end; it does not dismiss yet.
+await page.locator(".boot-wordmark").click();
+await page.waitForTimeout(100);
+if ((await page.locator(".boot").count()) !== 1) errors.push("the first click dismissed the boot instead of skipping the replay");
+if ((await page.locator(".boot-hint").textContent()) !== "PRESS ANY KEY") errors.push("replay did not finish on click");
 const bootBanners = await page.locator(".boot .banner").allInnerTexts();
 if (bootBanners.length !== 2 || bootBanners[0] !== "TOP SECRET//ORCON — GALLERY WORKBENCH — UESC" || bootBanners[1] !== bootBanners[0]) errors.push(`boot banners read ${JSON.stringify(bootBanners)}`);
 const bootLines = await page.locator(".boot-msg").allTextContents();
-for (const want of [/^HANDSHAKE/, /^AUTHORIZATION: TOP SECRET$/, /^RECONCILING TYPED SCHEMA — \d+ KINDS$/, /^MOUNTING VAULT — \d+ FILES$/]) if (!bootLines.some((l) => want.test(l))) errors.push(`no boot line ${want} in ${JSON.stringify(bootLines)}`);
+for (const want of [/^RUNTIME — (BROWSER|TAURI)/, /^BUILD — VITE \d/, /^INTERFACE — REACT \d/, /^HANDSHAKE/, /^AUTHORIZATION: TOP SECRET$/, /^RECONCILING TYPED SCHEMA — \d+ KINDS$/, /^MOUNTING VAULT — \d+ FILES$/]) if (!bootLines.some((l) => want.test(l))) errors.push(`no boot line ${want} in ${JSON.stringify(bootLines)}`);
 if (!/100%/.test((await page.locator(".boot-progress").textContent()) ?? "")) errors.push("progress did not reach 100%");
 if ((await page.getByLabel("PIN").evaluate((el) => el === document.activeElement)) !== true) errors.push("PIN field does not hold focus");
 if (!(await page.getByRole("button", { name: "AUTHORIZE" }).isEnabled())) errors.push("AUTHORIZE not enabled after load");

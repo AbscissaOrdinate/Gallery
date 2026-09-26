@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { actions, lastVaultPath, recentVaultPaths, useApp } from "./state";
 import { isTauri, TauriFsAdapter } from "../core/storage/tauri";
-import { Button, Panel, StatusRow } from "./kit";
+import { version } from "../../package.json";
+import { Spinner, StatusRow, treePrefix } from "./kit";
+import { engineLabel, reactLabel, shellLabel, viteLabel } from "./runtime";
 
 async function pickFolder(): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -23,69 +25,84 @@ export function Welcome() {
 
   const openPath = (p: string, create: boolean) => actions.openVault(new TauriFsAdapter(p), { create });
   const others = recent.filter((r) => r !== last);
+  // The footnote names what Gallery is running on, as the boot log does.
+  const [shell, setShell] = useState("");
+  useEffect(() => {
+    shellLabel().then(setShell);
+  }, []);
+  const foot = [shell, engineLabel(), viteLabel(), reactLabel()].filter(Boolean).join(" · ");
+
+  // A command line in the boot's terminal: prompt, command, and what it does beneath.
+  const cmd = (key: string, label: string, sub: string, onClick: () => void, primary = false) => (
+    <button key={key} type="button" className={"term-cmd" + (primary ? " is-primary" : "")} onClick={onClick}>
+      <span className="prompt" aria-hidden>
+        ›
+      </span>
+      <span className="body">
+        <span className="label">{label}</span>
+        <span className="sub">{sub}</span>
+      </span>
+    </button>
+  );
 
   return (
     <div className="welcome">
-      <div className="wordmark">GALLERY</div>
-      <p className="prose">
-        A file-first workbench for worldbuilding. The vault is a plain folder — put it in OneDrive or Google Drive and it syncs like anything else. Records are YAML/JSON, notes are
-        OPML outlines, sheets are CSV, portraits are SVG.
+      <div className="boot-mark">
+        <span className="boot-wordmark">GALLERY</span>
+        <span className="stamp ink-300">BUILD {version}</span>
+      </div>
+      <p className="boot-lede">
+        A file-first workbench for worldbuilding. The vault is a plain folder — put it in OneDrive or Google Drive and it syncs like anything else. Records are YAML/JSON, notes are OPML
+        outlines, sheets are CSV, portraits are SVG.
       </p>
+      <div className="boot-rule" />
       {app.error && <StatusRow severity="violation" id="ERROR" message={app.error} word={false} />}
-      {app.busy && <div className="help">{app.busy}</div>}
+      {app.busy && <Spinner label={app.busy.toLocaleUpperCase("en")} />}
 
-      <Panel title="OPEN A VAULT">
+      <div className="term-group">
+        <div className="t-label-xs ink-300">OPEN A VAULT</div>
         {tauri ? (
           <>
-            {last && (
-              <Button variant="primary" className="opt" onClick={() => openPath(last, false)}>
-                <span>OPEN LAST VAULT</span>
-                <span className="sub">{last}</span>
-              </Button>
-            )}
-            <Button
-              className="opt"
-              onClick={async () => {
+            {last && cmd("last", "OPEN LAST VAULT", last, () => openPath(last, false), true)}
+            {cmd(
+              "open",
+              "OPEN AN EXISTING VAULT…",
+              "a folder that already contains gallery.config.yaml",
+              async () => {
                 const p = await pickFolder();
                 if (p) openPath(p, false);
-              }}
-            >
-              <span>Open an existing vault…</span>
-              <span className="sub">A folder that already contains gallery.config.yaml</span>
-            </Button>
-            <Button
-              className="opt"
-              onClick={async () => {
-                const p = await pickFolder();
-                if (p) openPath(p, true);
-              }}
-            >
-              <span>CREATE A VAULT IN A FOLDER…</span>
-              <span className="sub">Writes gallery.config.yaml, _schemas/, _presets/ and the type folders. Existing files are left alone.</span>
-            </Button>
+              },
+              !last,
+            )}
+            {cmd("create", "CREATE A VAULT IN A FOLDER…", "writes gallery.config.yaml, _schemas/, _presets/ and the type folders; existing files are left alone", async () => {
+              const p = await pickFolder();
+              if (p) openPath(p, true);
+            })}
           </>
         ) : (
           <>
-            <Button variant="primary" className="opt" onClick={() => actions.openDemo()}>
-              <span>Open the demo vault (in memory)</span>
-              <span className="sub">Browser mode: nothing is written to disk. The desktop app opens real folders.</span>
-            </Button>
+            {cmd("demo", "OPEN THE DEMO VAULT", "in memory · browser mode writes nothing to disk; the desktop app opens real folders", () => actions.openDemo(), true)}
             <p className="help">
               Build the desktop app with <code>npm run app:build</code> (or via the GitHub Actions workflow) to open folders on disk.
             </p>
           </>
         )}
-      </Panel>
+      </div>
 
       {tauri && others.length > 0 && (
-        <Panel title="RECENT" meta={String(others.length)}>
-          {others.map((r) => (
-            <span key={r} className="link mono" onClick={() => openPath(r, false)}>
+        <div className="term-group">
+          <div className="t-label-xs ink-300">RECENT</div>
+          {others.map((r, i) => (
+            <button key={r} type="button" className="term-recent" onClick={() => openPath(r, false)}>
+              <span className="tree" aria-hidden>
+                {treePrefix([], i === others.length - 1)}
+              </span>
               {r}
-            </span>
+            </button>
           ))}
-        </Panel>
+        </div>
       )}
+      <div className="boot-foot welcome-foot">{foot}</div>
     </div>
   );
 }

@@ -167,6 +167,7 @@
   --text-control-sm: 500 11px/14px var(--font-sans);   /* Button label at control-sm */
   --dur-spinner: 120ms;   /* one ASCII spinner frame */
   --dur-idle-frame: 900ms;   /* one boot orbital-idle frame (BootSequence) */
+  --dur-boot-line: 320ms;   /* a full boot plays its log out one line at a time */
 }
 
 /* ── Base ─────────────────────────────────────────────────── */

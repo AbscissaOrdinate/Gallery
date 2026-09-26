@@ -112,10 +112,34 @@ if (marked !== "SECRET//SI — POL-SMOKE-POLITY") errors.push(`marked banner rea
 if (!(await page.locator(".banner").first().getAttribute("class"))?.includes("lvl-secret")) errors.push("banner ground did not follow the level");
 const revisions = await page.locator(".rp-side .revision").allInnerTexts();
 if (!revisions.some((r) => /handling/.test(r))) errors.push(`revision log has no handling entry: ${JSON.stringify(revisions)}`);
+// A caveat written here: with SAVE TO VAULT it marks the record and joins the vault's list.
+await handling.getByLabel("New caveat").fill("eyes only");
+await handling.locator(".check", { hasText: /^SAVE TO VAULT$/ }).click();
+await handling.getByRole("button", { name: "ADD", exact: true }).click();
+await page.waitForTimeout(1500); // autosave
+const withOwn = await page.locator(".banner").first().innerText();
+if (withOwn !== "SECRET//SI//EYES ONLY — POL-SMOKE-POLITY") errors.push(`banner with a written caveat reads ${JSON.stringify(withOwn)}`);
+if ((await handling.locator(".check", { hasText: /^EYES ONLY$/ }).count()) !== 1) errors.push("written caveat is not offered as a checkbox");
 // A bar reveals its field on click, so the gap can be filled.
 await page.locator(".redact").first().click();
 if ((await page.locator(".redact").count()) !== 0) errors.push("clicking the redaction bar did not reveal the field");
 await page.screenshot({ path: shot("08-record-marked") });
+
+// The vault list now offers it everywhere (Settings → CAVEATS).
+await page.locator(".rail-item", { hasText: "Settings" }).click();
+const vaultCaveats = await page.locator(".panel", { hasText: "CAVEATS" }).first().locator(".flabel").allInnerTexts();
+if (!vaultCaveats.includes("EYES ONLY")) errors.push(`EYES ONLY not saved to the vault list: ${JSON.stringify(vaultCaveats)}`);
+
+// ---- the rail's sections --------------------------------------------------------
+await page.getByRole("button", { name: "ASTROGRAPHY", exact: true }).click();
+await page.waitForTimeout(200);
+if ((await page.locator(".listpane .panel-title").textContent()) !== "ASTROGRAPHY") errors.push("section button did not list the section");
+const kinds = new Set(await page.locator(".listpane .rec .meta > span:first-child").allTextContents());
+for (const k of kinds) if (!["system", "body", "location"].includes(k)) errors.push(`section list has a ${k}`);
+await page.getByRole("button", { name: "Fold ASTROGRAPHY" }).click();
+if ((await page.locator(".rail-item", { hasText: /^.*Location/ }).count()) !== 0) errors.push("folding ASTROGRAPHY left its kinds showing");
+await page.getByRole("button", { name: "Unfold ASTROGRAPHY" }).click();
+await page.screenshot({ path: shot("09-section") });
 
 await browser.close();
 console.log(`screens → ${OUT}`);
