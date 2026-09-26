@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "./state";
 import type { AssetRef, GalleryRecord } from "../core/types";
+import { sanitizeSvg } from "../core/codec/svg";
 import { slugify } from "../core/ids";
 import { Button, Group, Panel, Row, Select, TextField, caps } from "./kit";
 
@@ -74,15 +75,4 @@ function SvgPreview({ path }: { path: string }) {
   }, [path, repo]);
   if (!svg) return <div className="help">Preview unavailable.</div>;
   return <div className="svgbox" dangerouslySetInnerHTML={{ __html: svg }} />;
-}
-
-/** Strip scripts and event handlers before inlining an SVG. */
-function sanitizeSvg(text: string): string {
-  return text
-    .replace(/<\?xml[^>]*\?>/g, "")
-    .replace(/<!DOCTYPE[^>]*>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\son[a-z]+="[^"]*"/gi, "")
-    .replace(/\son[a-z]+='[^']*'/gi, "")
-    .replace(/href="javascript:[^"]*"/gi, "");
 }
