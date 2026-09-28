@@ -12,6 +12,7 @@ npm test               # vitest run  — tests/**/*.test.ts, environment: node
 npm run build          # tsc --noEmit && vite build
 npm run dev            # browser mode, in-memory demo vault
 npm run app:dev        # Tauri dev window (needs Rust + WebView2)
+cargo test             # Rust fsops tests, run in src-tauri/
 ```
 
 Both `npm run typecheck` and `npm test` must be clean before any commit.
@@ -43,7 +44,8 @@ src/core/           pure logic, no React imports anywhere in here
   storage/          StorageAdapter: tauri (desktop), memory (browser/tests), node (CLI)
   repo.ts           load/save/index/backlinks
 src/ui/             React. `demo.ts` is pure and is imported by tests.
-src-tauri/          Rust shell (fsops.rs)
+src-tauri/          Rust shell (fsops.rs): fs/settings commands; writes are atomic (temp + rename)
+                    so a sync client never sees half a file
 scripts/            CLI importer, headless UI smoke scripts
 tests/              vitest
 docs/UNITS.md       canonical units — authoritative over every other doc
