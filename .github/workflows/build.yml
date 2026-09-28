@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Typecheck and tests run on every PR, so problems show before a merge rather than after.
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -19,6 +21,8 @@ jobs:
 
   windows:
     needs: test
+    # The desktop build and its artefacts are for main, tags and manual runs, not every PR.
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
