@@ -48,7 +48,8 @@ export const GLYPH_MOTIFS = [
 
 export const BODY_SCHEMA: TypeSchema = {
   id: "body",
-  version: 3,
+  version: 4, // 4: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "BODY" },
   title: "Body",
   description: "Stars, planets, moons, asteroids, comets, belts, artificial bodies. Worldsmith physics + EWoCS classification are derived from these inputs.",
   folder: "bodies",
@@ -57,7 +58,7 @@ export const BODY_SCHEMA: TypeSchema = {
   indexColumns: ["kind", "parent", "sma_au", "mass_earth"],
   fields: {
     type: "object",
-    required: ["kind"],
+    required: ["kind", "system"],
     properties: {
       kind: str("Kind", {
         enum: ["star", "brown-dwarf", "barycenter", "planet", "dwarf", "moon", "asteroid", "comet", "belt", "ring", "artificial"],

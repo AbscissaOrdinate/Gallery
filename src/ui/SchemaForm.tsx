@@ -6,17 +6,22 @@
  * group per `x-group` (ungrouped fields under GENERAL), and each field is a
  * label/value row. A nested object is flattened into rows with a prefixed
  * label rather than nested a fourth level deep.
+ *
+ * With `redact`, a required field that holds no value draws a redaction bar
+ * (docs/STYLE.md §4.2) and each group states its pending count; a group with
+ * nothing filled at all says so once instead of barring every row.
  */
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { FieldSchema } from "../core/types";
 import { RefPicker } from "./RefPicker";
 import { actions, useApp } from "./state";
 import { hintAU, hintKm } from "../core/astro/units";
-import { Button, Checkbox, Empty, Group, NumberField, Row, Select, TextArea, TextField, caps } from "./kit";
+import { Button, Checkbox, Empty, Group, NumberField, RedactionBar, Row, Select, TextArea, TextField, caps } from "./kit";
+import { isEmptyValue } from "../core/handling";
 
 type Obj = Record<string, unknown>;
 
-export function SchemaForm({ schema, value, onChange, flat, labelPrefix }: { schema: FieldSchema; value: Obj; onChange: (v: Obj) => void; flat?: boolean; labelPrefix?: string }) {
+export function SchemaForm({ schema, value, onChange, flat, labelPrefix, redact }: { schema: FieldSchema; value: Obj; onChange: (v: Obj) => void; flat?: boolean; labelPrefix?: string; redact?: boolean }) {
   const props = schema.properties ?? {};
   // group fields by x-group, preserving declaration order
   const groups = new Map<string, [string, FieldSchema][]>();
@@ -33,21 +38,57 @@ export function SchemaForm({ schema, value, onChange, flat, labelPrefix }: { sch
     onChange(next);
   };
   if (Object.keys(props).length === 0) return <Empty>THIS TYPE HAS NO FIELDS. EDIT ITS SCHEMA IN _SCHEMAS/.</Empty>;
-  const rows = (fields: [string, FieldSchema][]) =>
-    fields.map(([k, f]) => <Field key={k} name={k} schema={f} value={value[k]} onChange={(v) => set(k, v)} required={schema.required?.includes(k)} labelPrefix={labelPrefix} />);
-  if (flat) return <>{rows([...groups.values()].flat())}</>;
+  const pendingIn = (fields: [string, FieldSchema][]) => fields.filter(([k]) => schema.required?.includes(k) && isEmptyValue(value[k])).length;
+  const rows = (fields: [string, FieldSchema][], bars: boolean) =>
+    fields.map(([k, f]) => (
+      <Field key={k} name={k} schema={f} value={value[k]} onChange={(v) => set(k, v)} required={schema.required?.includes(k)} labelPrefix={labelPrefix} redacted={bars && !!schema.required?.includes(k) && isEmptyValue(value[k])} />
+    ));
+  if (flat) return <>{rows([...groups.values()].flat(), !!redact)}</>;
   return (
     <>
-      {[...groups.entries()].map(([g, fields]) => (
-        <Group key={g || "_"} title={caps(g || "General")} meta={`${fields.length}`}>
-          {rows(fields)}
-        </Group>
-      ))}
+      {[...groups.entries()].map(([g, fields]) => {
+        const pending = pendingIn(fields);
+        const allEmpty = fields.every(([k]) => isEmptyValue(value[k]));
+        const meta =
+          redact && allEmpty ? (
+            <span className="stamp">NO DATA ON FILE</span>
+          ) : redact && pending > 0 ? (
+            <span className="stamp sev-text-caution">
+              {pending} FIELD{pending === 1 ? "" : "S"} PENDING
+            </span>
+          ) : (
+            `${fields.length}`
+          );
+        return (
+          <Group key={g || "_"} title={caps(g || "General")} meta={meta}>
+            {rows(fields, !!redact && !allEmpty)}
+          </Group>
+        );
+      })}
     </>
   );
 }
 
-function Field({ name, schema: f, value, onChange, required, labelPrefix }: { name: string; schema: FieldSchema; value: unknown; onChange: (v: unknown) => void; required?: boolean; labelPrefix?: string }) {
+function Field({
+  name,
+  schema: f,
+  value,
+  onChange,
+  required,
+  labelPrefix,
+  redacted,
+}: {
+  name: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  required?: boolean;
+  labelPrefix?: string;
+  redacted?: boolean;
+}) {
+  // A bar stands only where the value was missing when the record opened; clearing a
+  // field while editing keeps its input rather than swapping it out mid-keystroke.
+  const [revealed, setRevealed] = useState(!redacted);
   const title = caps(f.title ?? name);
   const label: ReactNode = (
     <span title={name}>
@@ -60,6 +101,13 @@ function Field({ name, schema: f, value, onChange, required, labelPrefix }: { na
     return <SchemaForm schema={f} value={(value as Obj) ?? {}} onChange={(v) => onChange(Object.keys(v).length ? v : undefined)} flat labelPrefix={labelPrefix ? `${labelPrefix} · ${title}` : title} />;
   }
   const wide = f.type === "array" && (f.items?.type === "object" || !(f.items?.["x-ref"] ?? f["x-ref"]));
+  if (redacted && !revealed) {
+    return (
+      <Row label={label}>
+        <RedactionBar seed={name} onReveal={() => setRevealed(true)} />
+      </Row>
+    );
+  }
   return (
     <Row label={label} className={wide ? "stacked" : undefined}>
       <Input schema={f} value={value} onChange={onChange} />

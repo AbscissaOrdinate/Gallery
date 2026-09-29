@@ -9,3 +9,5 @@ export { AsciiBar, AsciiMeter, Spinner, IndeterminateBar } from "./Ascii";
 export { caps, commitState, countBySeverity, groupBySeverity, uiSeverity, ratioSeverity, SEVERITY_WORD, treePrefix } from "./severity";
 export type { UiSeverity } from "./severity";
 export { cx } from "./cx";
+export { ClassificationBanner, ClassificationBadge, RedactionBar } from "./Document";
+export type { BadgeRow } from "./Document";

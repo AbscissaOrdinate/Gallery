@@ -10,7 +10,8 @@ const str = (title: string, extra: Record<string, unknown> = {}) => ({ type: "st
 
 export const SYSTEM_SCHEMA: TypeSchema = {
   id: "system",
-  version: 3, // 3: distance fields gained x-distance without a bump; bumped 2026-09-24 so vaults pick it up
+  version: 4, // 3: distance fields gained x-distance without a bump; bumped 2026-09-24 so vaults pick it up. 4: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  handling: { code_prefix: "SYS" },
   title: "Star system",
   description: "A star system and its schematic orbital map: radius mapping, moon-system scale, annotations (rings, transit arcs, labels).",
   folder: "systems",
@@ -19,6 +20,7 @@ export const SYSTEM_SCHEMA: TypeSchema = {
   indexColumns: ["primary", "radius_mapping"],
   fields: {
     type: "object",
+    required: ["primary"],
     properties: {
       primary: { type: "string", title: "Primary (star or barycenter)", "x-ref": { types: ["body"], rel: "contains" } },
       distance_ly: num("Distance from home", "ly"),

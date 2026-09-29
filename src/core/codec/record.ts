@@ -18,6 +18,7 @@
  *   created: 2026-09-14T00:00:00Z
  *   updated: 2026-09-14T00:00:00Z
  */
+import { compactHandling, parseHandling, parseRevisions } from "../handling";
 import YAML from "yaml";
 import type { TypedRecord, Link, AssetRef } from "../types";
 import { newId, nowIso, slugify } from "../ids";
@@ -89,8 +90,12 @@ export function normalizeRecord(raw: unknown): { record: TypedRecord; problems: 
     created: str("created") || nowIso(),
     updated: str("updated") || nowIso(),
     preset: str("preset") || undefined,
+    handling: parseHandling(o.handling),
+    revisions: parseRevisions(o.revisions),
     fields,
   };
+  if (!record.handling) delete record.handling;
+  if (!record.revisions) delete record.revisions;
   return { record, problems };
 }
 
@@ -110,8 +115,11 @@ export function serializeRecord(r: TypedRecord, format: RecordFormat): string {
   ordered.assets = r.assets;
   ordered.fields = r.fields;
   if (r.body) ordered.body = r.body;
+  const handling = compactHandling(r.handling);
+  if (handling) ordered.handling = handling;
   ordered.created = r.created;
   ordered.updated = r.updated;
+  if (r.revisions?.length) ordered.revisions = r.revisions;
 
   if (format === "json") return JSON.stringify(ordered, null, 2) + "\n";
   return YAML.stringify(ordered, { lineWidth: 100, indent: 2, blockQuote: "literal" });

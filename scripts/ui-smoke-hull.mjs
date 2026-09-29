@@ -201,7 +201,8 @@ console.log("fleet strip plates:", plates);
 // Last, and deliberately: the migrated Sword hull carries no armour zones, so
 // this needs the UJCN pattern hull, and everything above is about the migrated
 // one. Opening a second hull here disturbs nothing.
-await page.getByRole("button", { name: "Back", exact: true }).click();
+// Back to the hulls list through the rail: a record page hides the list pane.
+await page.locator(".rail-item", { hasText: "Hull" }).click();
 await page.waitForSelector(".listpane .rec");
 const halberd = page.locator(".listpane .rec", { hasText: "Halberd" }).first();
 if ((await halberd.count()) === 0) fail("no Halberd hull in the demo vault to test armour zones on");

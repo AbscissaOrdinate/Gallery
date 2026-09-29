@@ -256,17 +256,49 @@ describe("schema versions", () => {
     const byId = Object.fromEntries(BUILTIN_SCHEMAS.map((s) => [s.id, s]));
     // 3: slot facing/tilt/ring count and the hull's internal density (2026-09-23).
     // 4: slot subtype, for flight decks (2026-09-24).
-    expect(byId.hull?.version).toBe(4);
+    // 5 (and one more on every type below): the record document layer — a
+    // handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+    expect(byId.hull?.version).toBe(5);
     // Editor 2 added the six fields the ship kernel reads: standby draw,
     // radiator temperature, radiated power, and the three weapon-scale figures.
-    expect(byId.module?.version).toBe(3);
+    expect(byId.module?.version).toBe(4);
     // Fittings, manifest, tanks, modes, watch factor and endurance.
     // 3: the watch bill's fields, which changed on 2026-09-20 without a bump.
-    expect(byId.craft?.version).toBe(3);
-    expect(byId.bus?.version).toBe(1);
+    expect(byId.craft?.version).toBe(4);
+    expect(byId.bus?.version).toBe(2);
     // radiator_aspect, ruled 2026-09-20: radiators stay taller than wide, and
     // how much taller is the kit's to set (`gallery/09` §1.3).
-    expect(byId.style?.version).toBe(2);
+    expect(byId.style?.version).toBe(3);
+  });
+
+  it("gives every built-in an explicit version and a handling code prefix", () => {
+    for (const s of BUILTIN_SCHEMAS) {
+      expect(s.version, s.id).toBeGreaterThanOrEqual(2);
+      expect(s.handling?.code_prefix, s.id).toMatch(/^[A-Z]+$/);
+      for (const k of s.fields.required ?? []) expect(s.fields.properties?.[k], `${s.id}.${k}`).toBeDefined();
+    }
+  });
+
+  it("backs up each previous schema once when the step-4 bump reaches an existing vault", async () => {
+    const fs = new MemoryAdapter();
+    const repo = new Repository(fs);
+    await repo.init();
+    // An older Gallery's copies: the versions before the document-layer bump.
+    const before: Record<string, number> = { note: 0, polity: 2, hull: 4, craft: 3 };
+    for (const [id, v] of Object.entries(before)) {
+      const cur = JSON.parse(await fs.readText(`_schemas/${id}.schema.json`)) as Record<string, unknown>;
+      const old = { ...cur, handling: undefined, ...(v ? { version: v } : {}) };
+      if (!v) delete old.version;
+      await fs.writeText(`_schemas/${id}.schema.json`, JSON.stringify(old));
+    }
+    await repo.registry.seed(fs);
+    for (const [id, v] of Object.entries(before)) {
+      expect(await fs.exists(`_schemas/${id}.schema.v${v || 1}.json`), id).toBe(true);
+      const now = JSON.parse(await fs.readText(`_schemas/${id}.schema.json`)) as { version: number; handling?: unknown };
+      expect(now.handling, id).toBeDefined();
+    }
+    // Seeding again writes nothing: no schema is left re-seeding on every open.
+    expect(await repo.registry.seed(fs)).toBe(0);
   });
 
   it("upgrades an on-disk schema and keeps the old copy, per the existing mechanism", async () => {
@@ -277,7 +309,7 @@ describe("schema versions", () => {
     await fs.writeText("_schemas/hull.schema.json", JSON.stringify({ id: "hull", version: 1, title: "Hull", folder: "hulls", fields: { type: "object", properties: {} } }));
     await repo.registry.seed(fs);
     const upgraded = JSON.parse(await fs.readText("_schemas/hull.schema.json")) as { version: number };
-    expect(upgraded.version).toBe(4);
+    expect(upgraded.version).toBe(5);
     expect(await fs.exists("_schemas/hull.schema.v1.json")).toBe(true);
   });
 
