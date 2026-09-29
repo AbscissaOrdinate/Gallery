@@ -1,9 +1,8 @@
 # S1 — Foundations: audit, snapshots, view-never-writes guard, undo/history layer
 
-**Surface:** Cloud Code · **Model:** Fable 5.1 (Fable #1 in ROADMAP §6), default effort
-· **Readers/subagents:** Sonnet 5.5 @ low · **Branch:** `feat/foundations` from `main`
-· **Three PRs, in order.** **Budget:** target ≤ $35 — set a usage-credit spend cap before
-starting, and stop at a PR boundary if you pass $30.
+**Surface:** Cloud Code · **Model:** split per ROADMAP §2
+· **Readers/subagents:** Sonnet 5.5 @ low · **Branch:** per ROADMAP §2, from `main`
+· **Three PRs, in order.**
 
 Blocked until: S0 merged, and `gallery/11-qol-foundations.md` §1 (undo) is in the repo.
 
@@ -58,8 +57,7 @@ editor, map drag).
 ## Hygiene
 
 - Smoke browser: see ROADMAP §7 (`SMOKE_CHROME`).
-- Split rule: if context passes ~50% before PR 3 starts, write
-  `docs/sessions/S1-handoff.md` and stop — PR 3 continues as S1b on Opus 5.5 @ high.
+- Split rule: one PR per session; each session ends by updating `docs/sessions/S1-handoff.md`.
 - Before each PR: `npm run typecheck && npm test`, relevant smoke scripts, and a review
   subagent (Opus 5.5 @ medium) over the diff.
 - At the end: record actual spend and context use in ROADMAP §6; mark S1 done/partial in §2.

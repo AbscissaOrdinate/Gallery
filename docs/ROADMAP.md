@@ -32,7 +32,10 @@ and the owner agrees.
 | S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done (PR #10) |
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
-| S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` (PR 3 → 3a core + 3b UI per doc 11 §5) | ready |
+| S1a | Foundations — audit | Cloud Code | Sonnet @ medium | `feat/foundations-audit` | S0, C1 | `sessions/S1-foundations.md` | done (`docs/AUDIT.md`; deviations + units not audited) |
+| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | — |
+| S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | — |
+| S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
 | S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
 | S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
 | S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
@@ -65,7 +68,7 @@ before the next session starts.
 | ≤ 8 | Sonnet 5.5 @ medium (low for pure data entry) |
 | 9–12 | Sonnet 5.5 @ high; Opus 5.5 @ medium when ambiguity = 3 |
 | 13–15 | Opus 5.5 @ high |
-| ≥ 16, or blast radius **and** reversibility both 3 | Fable 5.1 candidate — owner approves against the ledger (§6) |
+| ≥ 16, or blast radius **and** reversibility both 3 | Fable 5.1 candidate — owner approves against the ledger (§6). Fable 5.1 needs paid usage credits on the Pro plan; default to Opus 5.5 @ high (extra-high only if stuck) and split finer. |
 
 Surface: **Cowork** for research, specs, owner decisions, data review. **Cloud Code** for
 builds (sees only GitHub). **Local Code** only when a task needs the OneDrive vault or a
@@ -167,8 +170,8 @@ Fable ledger (target: 3 sessions, ≤ $100):
 
 | # | Session | Estimate | Actual | Notes |
 |---|---|---|---|---|
-| 1 | S1 foundations | $25–35 | | audit readers on Sonnet @ low |
-| 2 | R4 planet editor core | $35–45 | | after doc 13 |
+| 1 | S1 foundations | $25–35 | not used — Pro plan | audit readers on Sonnet @ low |
+| 2 | R4 planet editor core | $35–45 | | after doc 13; Opus unless owner buys credits |
 | 3 | Reserve | ~$25 | | stuck bug, or S5a escalation |
 
 ## 7. Environment
