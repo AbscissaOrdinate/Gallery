@@ -29,7 +29,7 @@ and the owner agrees.
 | ID | Work | Surface | Model @ effort | Branch | Needs | Brief | Status |
 |---|---|---|---|---|---|---|---|
 | C0 | Plan, rulings, this file, first briefs | Cowork | Opus 5.5 @ high | — | — | — | done |
-| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done (PR: PRLINK) |
+| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done (PR: [#10](https://github.com/AbscissaOrdinate/Gallery/pull/10)) |
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | ready |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | ready |
 | S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` | blocked on C1 |
