@@ -1,0 +1,46 @@
+# Starter system recipe — ε Eridani. Format: doc 12 §4.1.
+
+recipe: 1
+id: starter-epsilon-eridani
+kind: record-set
+title: "Epsilon Eridani (starter)"
+summary: "A young, active K2V star with one confirmed giant at 3.5 AU and three dust belts — a younger Solar System analogue. Speculative: trojans of the giant, a hypothesised outer planet shaping the Kuiper-like ring, and a binary planetesimal. Generic starter, not canon."
+options:
+  candidates:  { default: true, label: "Include candidate and disputed bodies" }
+  speculative: { default: true, label: "Include speculative showcase records" }
+showcases: [multiple-debris-belts, giant-trojans, hypothesised-planet, binary-planetesimal, young-active-star]
+
+records:
+  - { key: sys, type: system, name: "Epsilon Eridani", status: confirmed, fields: { primary: $star, radius_mapping: log } }
+  - key: star
+    type: body
+    name: "Epsilon Eridani"
+    preset: star-k-dwarf
+    status: confirmed
+    src: epseri
+    fields: { kind: star, system: $sys, stage: ms, spectral_type: "K2V", mass_sol: 0.82, radius_sol: 0.742, luminosity_sol: 0.326, age_gyr: 1.1 }
+    prov: { age_gyr: "page gives 1.1 ± 0.1 Gyr; older sources 200–800 Myr — contested" }
+    notes: "Activity cycles 2.95 and 12.7 yr (Metcalfe 2013, via epseri)."
+
+  - key: b
+    type: body
+    name: "Epsilon Eridani b"
+    preset: jupiterlike
+    status: confirmed
+    src: epseri
+    fields: { system: $sys, parent: $star, sma_au: 3.53, eccentricity: 0.06, inclination_deg: 40, mass_earth: 317.8 }
+    prov: { mass_earth: "~1.0 M_J table value; astrometry gives 0.63–0.78 M_J (Feng 2023) — contested" }
+
+  # ---- belts ------------------------------------------------------------------------------
+  - { key: warm,  type: body, name: "Warm inner belt",     preset: main-belt,   status: confirmed, src: su2017,   fields: { system: $sys, parent: $star, belt_inner_au: 1.5, belt_outer_au: 2.0 }, prov: { belt_inner_au: "Su 2017 allows 1.5–2 or 3–4 AU; 1.5–2 chosen because 3–4 AU overlaps planet b's orbit" } }
+  - { key: mid,   type: body, name: "Intermediate belt",   preset: main-belt,   status: confirmed, src: su2017,   fields: { system: $sys, parent: $star, belt_inner_au: 8, belt_outer_au: 20 } }
+  - { key: outer, type: body, name: "Outer ring",          preset: kuiper-belt, status: confirmed, src: booth2023, fields: { system: $sys, parent: $star, belt_inner_au: 65, belt_outer_au: 75 } }
+
+  # ---- speculative ---------------------------------------------------------------------------
+  - { key: c, type: body, name: "Epsilon Eridani c (hypothesised)", preset: neptunelike, gate: speculative, status: speculative, src: chavez2016, fields: { system: $sys, parent: $star, sma_au: 45, eccentricity: 0.05, mass_earth: 30 }, prov: { "*": "hypothesised from disc structure (40–50 AU, debated); mass and e invented" } }
+  - { key: b-l4, type: body, name: "b Trojan swarm (L4)", preset: trojan, gate: speculative, status: speculative, fields: { system: $sys, parent: $star, lagrange: L4, lagrange_of: $b, glyph: belt, mass_earth: null }, prov: { "*": "invented; M★/M_b ≈ 860 ≫ 24.96, so L4/L5 are stable (lagrange)" } }
+  - { key: cfg-b-l4, type: configuration, name: "b L4 swarm", gate: speculative, status: speculative, fields: { kind: tadpole, system: $sys, host: $b, members: [$b-l4], params: { point: L4, libration_deg: 20 } }, prov: { "*": "invented" } }
+  - { key: pp-bary, type: body, name: "Twin planetesimal barycentre", preset: barycenter, gate: speculative, status: speculative, fields: { kind: barycenter, system: $sys, parent: $star, mass_sol: 2.0e-12, luminosity_sol: 0, sma_au: 70, eccentricity: 0.03 }, prov: { "*": "invented; sits in the outer ring" } }
+  - { key: pp-1, type: body, name: "Twin planetesimal A", preset: asteroid-rubble, gate: speculative, status: speculative, fields: { kind: asteroid, system: $sys, parent: $pp-bary, sma_au: null, sma_km: 806, mass_earth: 4.0e-7 }, prov: { "*": "invented" } }
+  - { key: pp-2, type: body, name: "Twin planetesimal B", preset: asteroid-rubble, gate: speculative, status: speculative, fields: { kind: asteroid, system: $sys, parent: $pp-bary, sma_au: null, sma_km: 1194, mass_earth: 2.7e-7 }, prov: { "*": "invented" } }
+  - { key: cfg-pp, type: configuration, name: "Twin planetesimal pair", gate: speculative, status: speculative, fields: { kind: barycentric-pair, system: $sys, center: $pp-bary, members: [$pp-1, $pp-2], params: { separation_km: 2000, eccentricity: 0 } }, prov: { "*": "invented; a_i = 2,000 km · m_j/(m_i+m_j) = 806 / 1,194 km (layout derives these from the config; the member fields are seeds for when the config is removed)" } }
