@@ -29,12 +29,12 @@ and the owner agrees.
 | ID | Work | Surface | Model @ effort | Branch | Needs | Brief | Status |
 |---|---|---|---|---|---|---|---|
 | C0 | Plan, rulings, this file, first briefs | Cowork | Opus 5.5 @ high | — | — | — | done |
-| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | ready |
-| C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | ready |
-| C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | ready |
-| S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` | blocked on C1 |
-| S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write after C1 | — |
-| S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write after C1 | — |
+| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done |
+| C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
+| C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
+| S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` (PR 3 → 3a core + 3b UI per doc 11 §5) | ready after S0 |
+| S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
+| S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
 | S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
 | S5a | Orbital configurations — co-orbital, barycentric pairs, rosettes, resonance chains, … (v1 set from doc 12) | Cloud Code | Opus 5.5 @ high (Fable reserve if stuck) | `feat/orbital-configs` | S4 | to write after C2 | — |
 | S5b | Starter systems as recipes — Sol, α Cen, Barnard's, Sirius, ε Eri | Cloud Code | Sonnet 5.5 @ medium; Cowork reviews data | `feat/starter-systems` | S5a | to write after C2 | — |
@@ -143,9 +143,12 @@ reviewer scores both on tests passed first time, review findings, and diff size.
    renderer lives under `src/core/astro/`, not `src/render/`; the Caelum review lives at
    `gallery/reviews/caelum-review.md`.
 
+10. **Wiki (C1, 2026-09-29):** both `[[Name]]` and `[[id|Name]]` resolve; Gallery writes `[[Name]]`.
+    Prose renders when not editing, via a small Markdown subset in core (no new dependency).
+    Rename with inbound links: preview, then rewrite; old name kept as alias by default.
+
 ### Open — owner decides (batch; never guessed by Code)
 
-- Wiki link storage form (`[[Name]]` vs `[[id|Name]]`) — C1 proposes.
 - v1 orbital-configuration set and per-system showcase list — C2 proposes.
 - Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; planet-map storage
   format (R4); any doc 10 items to cut.
