@@ -29,10 +29,10 @@ and the owner agrees.
 | ID | Work | Surface | Model @ effort | Branch | Needs | Brief | Status |
 |---|---|---|---|---|---|---|---|
 | C0 | Plan, rulings, this file, first briefs | Cowork | Opus 5.5 @ high | — | — | — | done |
-| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done |
+| S0 | Prep: docs drop, renames, doc 10 reconciliation, routing section, cloud env check | Cloud Code | Sonnet 5.5 @ medium | `chore/s0-prep` | drop uploaded | `sessions/S0-prep.md` | done (PR #10) |
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
-| S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` (PR 3 → 3a core + 3b UI per doc 11 §5) | ready after S0 |
+| S1 | Foundations — audit, snapshots, view-never-writes guard, undo/history layer | Cloud Code | **Fable 5.1** (#1) | `feat/foundations` | S0, C1 | `sessions/S1-foundations.md` (PR 3 → 3a core + 3b UI per doc 11 §5) | ready |
 | S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
 | S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
 | S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
@@ -173,4 +173,23 @@ Fable ledger (target: 3 sessions, ≤ $100):
 
 ## 7. Environment
 
-Filled in by S0: cloud toolchain results, smoke-browser path, timings, known gaps.
+Filled in by S0 (2026-09-29, cloud container, Node 22.22.2, Claude Code 2.1.284):
+
+| Command | Result | Wall time | Notes |
+|---|---|---|---|
+| `npm ci` | pass | 6 s | |
+| `npm run typecheck` | pass | 8 s | |
+| `npm test` | pass | 13 s | 649 tests, 11.7 s in vitest |
+| `npm run build` | pass | 10 s | chunk-size warning only |
+| `npx vite preview` (background) | pass | — | serves `http://localhost:4173/` |
+| `node scripts/ui-smoke.mjs` | pass | 5 s | one console 404 (missing resource, not a page error) |
+| `node scripts/ui-smoke-hull.mjs` | pass | 10 s | 11 classes; no page errors |
+| `cargo test` (src-tauri) | **unavailable** | — | build fails: needs system GTK (`gdk-3.0.pc`); expected in cloud, not fixed |
+
+- **Smoke browser:** Playwright wants `chromium-1243`, which is not installed. Working value:
+  `SMOKE_CHROME=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+  (`/opt/pw-browsers/chromium` is a directory, not the executable).
+- **Fable 5.1 in `/model`:** not verified — `/model` is interactive and could not be run from a
+  cloud session. The owner should check in the app before S1.
+- **Known gaps:** no Tauri/Rust build in the cloud (Local Code only); the other smoke scripts
+  (`-map*`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) were not run in S0.

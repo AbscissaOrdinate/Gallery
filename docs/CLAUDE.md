@@ -57,7 +57,9 @@ scripts/            CLI importer, headless UI smoke scripts
 tests/              vitest
 docs/UNITS.md       canonical units — authoritative over every other doc
 docs/refs/          NFC and CoaDE reference screenshots for UI intent
-gallery/            project docs 01–07; each phase adds one
+gallery/            project docs 00–13 plus reviews/; each phase adds one
+docs/ROADMAP.md     queue, routing, owner rulings, environment notes
+docs/sessions/      session briefs and handoffs (<ID>-handoff.md)
 ```
 
 ## Conventions
@@ -102,6 +104,15 @@ gallery/            project docs 01–07; each phase adds one
 - **Theme: reuse `src/theme.css`.** The Nocturne-style navy→rust ramp is already there and
   the map and record editors already consume it. Add no new colours, no second palette, no
   per-editor styling — read the existing tokens and use them.
+
+## Sessions and routing
+
+- Start every session by reading `docs/ROADMAP.md` and your brief in `docs/sessions/`.
+- Model routing and the per-PR check plan live in ROADMAP §3–4.
+- Before stopping mid-task, write `docs/sessions/<ID>-handoff.md` (done / not done / next
+  step / open questions).
+- Owner decisions in ROADMAP §5 are binding. The open list there is never guessed — stop and
+  ask.
 
 ## The design suite (docs `gallery/06` and `gallery/07`)
 
@@ -166,6 +177,7 @@ in `docs/design-book/`. The rules below are its §1, repeated here so they are a
 - Radius is `0` everywhere except the classification badge (`radius-2`) and tag chips
   (`radius-pill`). No gradients, glows, neon, panel shadows, or coloured-left-edge cards.
 - Nothing animates except the ASCII spinner, the indeterminate ASCII bar and the boot orbital
-  idle; all three stop under `prefers-reduced-motion`.
+  idle — until the motion section from `gallery/11` lands (S3); all three stop under
+  `prefers-reduced-motion`.
 - Hull/craft SVGs stay generated from the record at render time (existing rule) — theming them is
   a renderer change, never an edited asset.

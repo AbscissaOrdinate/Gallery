@@ -1,3 +1,5 @@
+> **Superseded by `docs/ROADMAP.md` (2026-09-29); kept for history.**
+
 # Handoff — start here on the new machine
 
 Paste the block below as the first message of the new session. Everything it refers to is in
@@ -21,7 +23,7 @@ this repo.
 > 3. `gallery/08-deviations.md` — every place the implementation departs from the specs, and
 >    why. Also the two known bugs listed below.
 > 4. `gallery/09-ui-and-editor-2b.md` — **the plan you are executing.** Four strands, ordered.
-> 5. `gallery/07-editor-suit-spec.md` §2 and §3 — the UI shell and the editor-1/editor-2
+> 5. `gallery/07-editor-suite-spec.md` §2 and §3 — the UI shell and the editor-1/editor-2
 >    boundary the plan is measured against.
 >
 > **Binding rules from the vault owner, which override convenience:**

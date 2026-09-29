@@ -1,6 +1,15 @@
 # Gallery — 10 · Record views overhaul: Champlain + Caelum (2026-09-28)
 
-Status: spec for Code. Runs **after the UI refresh lands** (miltech / naval-intelligence tokens) and deepens it; it does not re-theme. Companion to `gallery/05-caelum-review.md` (Caelum lessons, referenced by letter/number below) and `docs/refs/champlain/` (screenshots from `champlain-refs.zip`).
+Status: spec for Code. Runs **after the UI refresh lands** (miltech / naval-intelligence tokens) and deepens it; it does not re-theme. Companion to `gallery/reviews/caelum-review.md` (Caelum lessons, referenced by letter/number below) and `docs/refs/champlain/` (screenshots from `champlain-refs.zip`).
+
+## Revisions (2026-09-29)
+
+- Caelum review path: `gallery/05-caelum-review.md` → `gallery/reviews/caelum-review.md` everywhere.
+- `trust: placeholder` → `provisional: true` (§1.3, §7.3); §7.1's **T** badge tooltip shows `source`/`provisional` (doc 08 dropped `trust`).
+- §4: strip renderer is `src/core/astro/strip-svg.ts`; §8 import-boundary rule reads `src/core/**` only (there is no `src/render/`).
+- §7.7 and §8: snapshots and the view-never-writes test are delivered by S1 (`feat/foundations`), before 10a's migration.
+- §7.8: motion moves into `docs/STYLE.md` behind a Settings toggle, specified in `gallery/11` (C1), delivered by S3.
+- §9: `RecordCard`, redaction rendering and the classification header move from 10a into S2; the rest of 10a is unchanged.
 
 Decisions taken 2026-09-28:
 - **World descriptor** = auto-generated from EWoCS/derived values, with a manual override.
@@ -29,7 +38,7 @@ Verified from the saved DOM, the bundled app JS (~380 kB) and ~260 design commen
 - **Map markers:** nation roundel replaces the system dot; split roundel for divided systems; diamond for unclaimed systems on a major route; restricted records switch to a red scheme with redaction blocks; special-use records gold.
 - **Formatting:** two motion speeds (130 / 260 ms, one easing curve), sections rise 8 px with a 35 ms stagger; only the innermost hovered card lights; datasheet cells bottom-align so two-line labels grow upward and values share a baseline; mono for labels/annotations, proportional face for names and prose.
 
-### 1.2 Caelum (from `05-caelum-review.md`, learning surfaces excluded)
+### 1.2 Caelum (from `gallery/reviews/caelum-review.md`, learning surfaces excluded)
 Kept: science verification matrix with GAP rows (1); Auto/Guided/Manual provenance on derived values (2); summary-first progressive disclosure (3); label leader lines (4); seeded partial reroll with lock states and failure diagnostics (5, 6); destructive-action discipline with restore points (7); architecture guardrails in CI (8); third-party provenance (9); 1-D **System Poster** strip with AU ruler, log/linear, HZ/frost bands (F); deferred-content labels "4 moons · zoom in" (G); persistent **context strip** EDITING / TOPOLOGY / CLASSIFICATION / SOURCE (B); authoring depths (C); **Result Summary → KPI chips → filter pills** output shape (D); input micro-pattern slider + box + unit chip + endpoints + qualifier line (E); copy-ready **Report** (live finding); view state never writes world data (live finding; `map_angle_deg` on drag is the deliberate exception); storage-health card and pre-restore backup (L).
 
 ### 1.3 Where the two converge (build once)
@@ -39,7 +48,7 @@ Kept: science verification matrix with GAP rows (1); Auto/Guided/Manual provenan
 | `+ 91` moon overflow | "4 moons · zoom in" | One overflow/deferral label convention on strip and map |
 | Registry eyebrow + region chain | Context strip | **Classification header** on every page and editor |
 | Restricted red scheme + redaction | Provenance banner | `visibility` + redaction for incomplete fields + source badges |
-| Estimative caveat footer | Derived-value qualifier lines | Caveat appears automatically when shown values are derived or `trust: placeholder` |
+| Estimative caveat footer | Derived-value qualifier lines | Caveat appears automatically when shown values are derived or `provisional: true` |
 | Pixel-block meters | — | The refresh's terminal progress bars, one component |
 
 ---
@@ -117,7 +126,7 @@ All via annotations on existing JSON Schemas; bump each touched schema's `versio
 
 ## 4. The strip (Champlain chart + Caelum poster)
 
-`src/core/astro/strip.ts` (pure model) + `src/render/strip-svg.ts` (renderer). No React in either.
+`src/core/astro/strip.ts` (pure model) + `src/core/astro/strip-svg.ts` (renderer). No React in either.
 
 **Model** — built from records, never stored:
 1. Star branches from the barycenter tree. Close pairs (both stars orbit one barycenter, separation below a config threshold) share one spine start, drawn overlapping as Champlain does. Distant companions get their own spine/row, labelled with separation in the vault's distance unit.
@@ -164,14 +173,14 @@ Distinct from the System tab's POI list: **containment children are shown in tab
 ## 7. Cross-cutting UI (applies to every editor, including the design suite)
 
 ### 7.1 Provenance badges (Caelum 2, 9)
-Every displayed value carries a one-letter badge: **A** derived by the kernel, **M** manual override, **T** from `_tables` (tooltip shows `source`/`trust`), **P** from a preset. Derived numbers get a one-line qualifier beneath (e.g. "Worldsmith gas-retention model; pessimistic for cold worlds").
+Every displayed value carries a one-letter badge: **A** derived by the kernel, **M** manual override, **T** from `_tables` (tooltip shows `source`/`provisional`), **P** from a preset. Derived numbers get a one-line qualifier beneath (e.g. "Worldsmith gas-retention model; pessimistic for cold worlds").
 
 ### 7.2 Inputs and outputs (Caelum D, E)
 - Numeric input = slider + number box + unit chip + min/max endpoint labels; `x-distance` fields keep their unit-equivalent line.
 - Output panels (body derived panel, budget panel, advisory panel) = Result Summary → KPI chips → filter pills (All · Key numbers · Classification · Orbit · Environment · Habitability · Derived). "All" is the long column.
 
 ### 7.3 Caveat footer
-Appears automatically when any shown value is **A** or `trust: placeholder`: short estimative-assessment wording in the refresh's classification voice. One component, one wording template per tab.
+Appears automatically when any shown value is **A** or `provisional: true`: short estimative-assessment wording in the refresh's classification voice. One component, one wording template per tab.
 
 ### 7.4 Authoring depths (Caelum C)
 Record forms get **Quick** (preset/archetype picker + name + host), **Advanced** (full schema form) and **Recipes** (saved multi-record presets, e.g. "Earth + Luna + L4/L5 castles"). Guided goal-fitting is deferred.
@@ -183,9 +192,13 @@ Header button emits copy-ready Markdown: classification line, name, summary, wik
 Skeleton… gains a **seed**, **per-slot locks**, **partial reroll** of unlocked slots, and a diagnostics list when a constraint can't be met ("no stable orbit between Jupiter-like and frost line at 2:1 spacing").
 
 ### 7.7 Destructive-action discipline (Caelum 7, L)
+> Revised 2026-09-29: snapshots are delivered by S1 (`feat/foundations`), before 10a's migration.
+
 Before import, Skeleton regenerate, schema migration, bulk delete or restore: snapshot the affected files to `_snapshots/<ISO-timestamp>/` and log it. Settings gains a **storage-health card** (vault size, record count, snapshot count/size, last sync-visible write) and **Start fresh, keep backups** distinct from a full wipe.
 
 ### 7.8 Motion and formatting (Champlain)
+> Revised 2026-09-29: motion moves into `docs/STYLE.md` behind a Settings toggle, specified in `gallery/11` (C1) and delivered by S3.
+
 Add to the refresh tokens: `--m-fast 130ms`, `--m-med 260ms`, one easing curve; section entrance = 8 px rise + 35 ms stagger (capped); tab-strip changes fade only. Datasheet grid: columns packed left, cells bottom-aligned on a shared value baseline. Emblems/flags normalised to painted extent in a fixed box; flags keep one height whether one or several.
 
 ### 7.9 Map markers
@@ -195,14 +208,16 @@ In Political mode the body glyph gains the controller's emblem ring; split ring 
 
 ## 8. Guardrails and verification (Caelum 1, 8)
 
-- **View state never writes**: a test renders every view/tab/lightbox/toggle against a repository spy and fails on any write, except `map_angle_deg` on drag.
-- **Import boundaries**: `src/core/**` and `src/render/**` may not import React; enforced by a lint rule in CI.
+- **View state never writes** (delivered by S1, `feat/foundations`, before 10a's migration): a test renders every view/tab/lightbox/toggle against a repository spy and fails on any write, except `map_angle_deg` on drag.
+- **Import boundaries**: `src/core/**` may not import React; enforced by a lint rule in CI.
 - **Verification matrix**: `docs/VERIFICATION.md` generated from test metadata — each formula/derived quantity → source (Worldsmith sheet, EWoCS table, `_tables` row) → test → status; untested quantities appear as explicit **GAP** rows. Regenerated in CI; a new derived quantity without a row fails the build.
 - **Third-party provenance**: `docs/THIRD_PARTY.md` lists every font, icon, dataset and preset source with license; nothing from Champlain or Caelum appears in it because nothing is copied.
 
 ---
 
 ## 9. Work breakdown (one PR each, strictly in order)
+
+> Revised 2026-09-29: `RecordCard`, redaction rendering and the classification header move from 10a into S2 (wiki hover previews need them); the rest of 10a is unchanged.
 
 | # | Scope | Depends on |
 |---|---|---|
@@ -229,11 +244,11 @@ Fixtures: Heliaris demo vault; **Sol**; an **Alpha Centauri** triple (A/B close 
 
 ## 11. IP
 
-Concepts and layout behaviour only, from both sources. No Champlain palette, TWK Everett (commercial font), roundels, flags, icons, word ladders or text; no Caelum code, prose, presets or data (MPL-2.0 and upstream licenses, see `05-caelum-review.md`). All ladders, descriptors and caveat wording are written fresh.
+Concepts and layout behaviour only, from both sources. No Champlain palette, TWK Everett (commercial font), roundels, flags, icons, word ladders or text; no Caelum code, prose, presets or data (MPL-2.0 and upstream licenses, see `gallery/reviews/caelum-review.md`). All ladders, descriptors and caveat wording are written fresh.
 
 ## 12. Deliberately not built
 
 Interstellar starmap and Leaflet tiling; unread/bulletin tracking and pulses; newsletter, Most Wanted/bounty board, flashpoint cards and the conflict tracker (candidate for a later doc); Guided goal-fitting authoring; all learning surfaces (formula reference, related-page lists, CONTROLS/AFFECTS triplets).
 
 ## Handoff to Code
-This doc; `docs/refs/champlain/` (unzip `champlain-refs.zip`); `gallery/05-caelum-review.md`; `gallery/06` and `07` (renderer and kernel conventions); the refreshed `theme.css`; the fixtures above.
+This doc; `docs/refs/champlain/` (unzip `champlain-refs.zip`); `gallery/reviews/caelum-review.md`; `gallery/06` and `07` (renderer and kernel conventions); the refreshed `theme.css`; the fixtures above.

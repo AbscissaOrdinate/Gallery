@@ -42,8 +42,9 @@ inventory is the input to PR 2 and PR 3 — make it exact.
   for any view that cannot mount in jsdom, cover it in a smoke script via a dev-only write
   counter. Add the core-purity lint rule (`src/core/**` may not import React) to CI.
 - Tests: snapshot → restore round-trip is byte-identical on the demo vault.
+- Add `.test.tsx` to the vitest include for the jsdom guard.
 
-## PR 3 — Undo / history layer
+## PR 3a (core) + PR 3b (UI) — `gallery/11` §5 governs
 
 Implement `gallery/11` §1 exactly. If the spec is ambiguous or looks architecturally wrong
 once you are in the code, **stop and ask** — do not improvise the design. Expected shape
@@ -56,6 +57,7 @@ editor, map drag).
 
 ## Hygiene
 
+- Smoke browser: see ROADMAP §7 (`SMOKE_CHROME`).
 - Split rule: if context passes ~50% before PR 3 starts, write
   `docs/sessions/S1-handoff.md` and stop — PR 3 continues as S1b on Opus 5.5 @ high.
 - Before each PR: `npm run typecheck && npm test`, relevant smoke scripts, and a review

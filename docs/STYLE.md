@@ -26,7 +26,7 @@ says "override", the book is wrong for Gallery and this wins.
 - Radius is `0` everywhere except the classification badge (`radius-2`) and tag chips
   (`radius-pill`). No gradients, glows, neon, panel shadows, or coloured-left-edge cards.
 - Nothing animates except the ASCII spinner, the indeterminate ASCII bar and the boot orbital
-  idle; all three stop under `prefers-reduced-motion`.
+  idle — until the motion section from `gallery/11` lands (S3); all three stop under `prefers-reduced-motion`.
 - Hull/craft SVGs stay generated from the record at render time (existing rule) — theming them is
   a renderer change, never an edited asset.
 
