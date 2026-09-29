@@ -237,7 +237,7 @@ function swatch(pieces: Pieces, label: string, frame?: { w: number; h: number })
   const vx = -cx - w / 2 - pad;
   const vy = -cy - h / 2 - pad;
   const body = pieces
-    .map((o) => `<polygon points="${o.map(([x, y]) => `${(-x).toFixed(2)},${(-y).toFixed(2)}`).join(" ")}" fill="var(--navy-200)" stroke="var(--navy-600)" stroke-width="${(Math.max(w, h) / 300).toFixed(3)}"/>`)
+    .map((o) => `<polygon points="${o.map(([x, y]) => `${(-x).toFixed(2)},${(-y).toFixed(2)}`).join(" ")}" fill="var(--ink-200)" stroke="var(--surface-400)" stroke-width="${(Math.max(w, h) / 300).toFixed(3)}"/>`)
     .join("");
   return `<figure><svg viewBox="${vx.toFixed(2)} ${vy.toFixed(2)} ${(w + 2 * pad).toFixed(2)} ${(h + 2 * pad).toFixed(2)}" width="120" height="96" preserveAspectRatio="xMidYMid meet">${body}</svg><figcaption>${label}</figcaption></figure>`;
 }
@@ -399,16 +399,16 @@ writeFileSync(
   `<!doctype html><meta charset="utf-8"><title>Hull style probe</title>
 <style>
 ${theme}
-  body { background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif; margin:24px 32px; }
+  body { background:var(--surface-100); color:var(--ink-100); font:14px/1.5 system-ui, sans-serif; margin:24px 32px; }
   h1 { font-weight:600; letter-spacing:.02em; }
-  h3 { font-size:12px; font-weight:500; margin:12px 0 2px; color:var(--text-muted); }
-  h2 { font-size:15px; font-weight:600; margin:28px 0 2px; color:var(--accent); }
-  p { margin:0 0 10px; color:var(--text-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+  h3 { font-size:12px; font-weight:500; margin:12px 0 2px; color:var(--ink-200); }
+  h2 { font-size:15px; font-weight:600; margin:28px 0 2px; color:var(--accent-500); }
+  p { margin:0 0 10px; color:var(--ink-200); font-size:12px; font-variant-numeric:tabular-nums; }
   .swatches { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
-  figure { margin:0; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:6px; text-align:center; }
-  figure.ref img { width:120px; height:96px; object-fit:contain; image-rendering:pixelated; background:var(--navy-950); }
-  figcaption { font-size:10px; color:var(--text-muted); margin-top:4px; }
-  .plate { background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px; margin-bottom:8px; overflow-x:auto; }
+  figure { margin:0; background:var(--surface-200); border:1px solid var(--line-200); border-radius:6px; padding:6px; text-align:center; }
+  figure.ref img { width:120px; height:96px; object-fit:contain; image-rendering:pixelated; background:var(--surface-000); }
+  figcaption { font-size:10px; color:var(--ink-200); margin-top:4px; }
+  .plate { background:var(--surface-200); border:1px solid var(--line-200); border-radius:6px; padding:10px; margin-bottom:8px; overflow-x:auto; }
 </style>
 <h1>Hull style probe — can the generators make the reference shapes?</h1>
 ${gallery}

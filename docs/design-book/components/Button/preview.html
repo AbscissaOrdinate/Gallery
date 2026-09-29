@@ -1,0 +1,81 @@
+<!-- @dsCard group="Controls" height=300 width=900 subtitle="Default, primary and danger buttons across rest, hover, active and disabled" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+body{padding:20px}
+.wrap{display:grid;grid-template-columns:96px repeat(4,1fr);gap:8px 10px;align-items:center;max-width:820px}
+.hd{color:var(--ink-300);text-align:center}
+.rl{color:var(--ink-200)}
+.btn{height:26px;padding:0 12px;border:1px solid var(--line-200);background:var(--surface-300);color:var(--ink-100);
+     font:500 13px/18px var(--font-sans);border-radius:0;display:inline-flex;align-items:center;justify-content:center;width:100%}
+.btn.hover{border-color:var(--line-300);background:var(--surface-400)}
+.btn.press{border-color:var(--accent-600);background:var(--surface-400)}
+.btn.dis{opacity:.4;color:var(--ink-400)}
+.pri{background:var(--accent-500);border-color:var(--accent-500);color:var(--on-accent);font-weight:600}
+.pri.hover{background:var(--accent-500);border-color:var(--accent-300)}
+.pri.press{background:var(--accent-500);border-color:var(--accent-600);box-shadow:inset 0 0 0 1px var(--accent-600)}
+.pri.dis{opacity:.4}
+.dng{background:var(--surface-300);border-color:var(--status-red-mark);color:var(--status-red)}
+.dng.hover{background:var(--status-red-wash);border-color:var(--status-red)}
+.dng.press{background:var(--status-red-wash);border-color:var(--accent-600)}
+.foc{position:relative}
+.foc::after{content:"";position:absolute;inset:-3px;border:2px solid var(--focus)}
+.note{margin-top:20px;color:var(--ink-300);max-width:700px}
+.lg{height:32px;padding:0 16px}
+.sm{height:22px;padding:0 8px;font-size:11px}
+</style>
+<div class="wrap">
+  <div></div>
+  <div class="lxs hd">REST</div><div class="lxs hd">HOVER</div><div class="lxs hd">ACTIVE</div><div class="lxs hd">DISABLED</div>
+
+  <div class="lsm rl">DEFAULT</div>
+  <button class="btn">MOUNT</button>
+  <button class="btn hover">MOUNT</button>
+  <button class="btn press">MOUNT</button>
+  <button class="btn dis">MOUNT</button>
+
+  <div class="lsm rl">PRIMARY</div>
+  <button class="btn pri">COMMIT</button>
+  <button class="btn pri hover">COMMIT</button>
+  <button class="btn pri press">COMMIT</button>
+  <button class="btn pri dis">COMMIT</button>
+
+  <div class="lsm rl">DANGER</div>
+  <button class="btn dng">PURGE</button>
+  <button class="btn dng hover">PURGE</button>
+  <button class="btn dng press">PURGE</button>
+  <button class="btn dng dis">PURGE</button>
+
+  <div class="lsm rl">FOCUS</div>
+  <div class="foc"><button class="btn">MOUNT</button></div>
+  <div class="foc"><button class="btn pri">COMMIT</button></div>
+  <div class="row" style="gap:8px"><button class="btn sm" style="width:auto">SM 22</button><button class="btn lg" style="width:auto">LG 32</button></div>
+  <div class="dxs met">control-sm / -md / -lg</div>
+</div>
+<p class="bd note">Buttons are square, bordered and the same height as every other control in their row. Only one primary button appears per pane.</p>
