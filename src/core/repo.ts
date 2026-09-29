@@ -31,7 +31,7 @@ import type { LogInput } from "./sessionLog";
 /** A transaction in progress: its `save`/`delete` add entries to one step (doc 11 §1.4). */
 export interface Tx {
   readonly label: string;
-  save(r: GalleryRecord, opts?: { touch?: boolean }): Promise<LoadedRecord>;
+  save(r: GalleryRecord, opts?: { touch?: boolean }): Promise<SavedRecord>;
   delete(id: string): Promise<void>;
 }
 
@@ -47,6 +47,17 @@ export interface SaveOptions {
   /** Append to this open transaction instead of making a step of its own. */
   tx?: Tx;
 }
+
+/** A save whose slug was taken: `r.slug` is changed to a free one before the write (never refused). */
+export interface SaveCollision {
+  /** The slug asked for. */
+  slug: string;
+  /** The file already holding that slug: at the path it names, or another record's in another format. */
+  path: string;
+}
+
+/** What `save` returns: the record as loaded, plus the collision when its slug had to change. */
+export type SavedRecord = LoadedRecord & { collision?: SaveCollision };
 
 export interface DeleteOptions {
   /** As for `save`. */
@@ -416,9 +427,12 @@ export class Repository {
 
   /**
    * Persist a record (new or existing). Renames the file if slug/type changed. One undoable step,
-   * or one entry of `opts.tx` (doc 11 §1.3–1.4).
+   * or one entry of `opts.tx` (doc 11 §1.3–1.4). When its slug is taken — the file it names is
+   * another record's or one that did not load, or another record of the type holds the slug in
+   * another format — it is saved under the next free slug instead
+   * (`r.slug` changes), a caution is logged, and the result carries `collision`.
    */
-  async save(r: GalleryRecord, opts: SaveOptions = {}): Promise<LoadedRecord> {
+  async save(r: GalleryRecord, opts: SaveOptions = {}): Promise<SavedRecord> {
     await this.enterWrite();
     try {
       return await this.saveNow(r, opts);
@@ -427,7 +441,7 @@ export class Repository {
     }
   }
 
-  private async saveNow(r: GalleryRecord, opts: SaveOptions): Promise<LoadedRecord> {
+  private async saveNow(r: GalleryRecord, opts: SaveOptions): Promise<SavedRecord> {
     const tx = this.openTx(opts.tx);
     const prior = this.byId.get(r.id);
     const before = prior ? await this.currentSide(r.id) : null;
@@ -438,27 +452,46 @@ export class Repository {
       if (revisions) r.revisions = revisions;
     }
     const existing = this.byId.get(r.id);
-    let path = existing?.location.path ?? this.pathFor(r);
-    // keep the existing format unless the type/slug changed
-    const desired = this.pathFor(r);
-    if (existing && basename(existing.location.path) !== basename(desired)) {
-      const keepFmt = existing.location.format;
-      const newPath = isNote(r) ? desired : joinPath(this.registry.folderFor(r.type), recordFilename(r.slug, r.type, keepFmt === "opml" ? this.config.recordFormat : keepFmt));
-      if (newPath !== existing.location.path) {
-        await this.fs.mkdirAll(newPath.split("/").slice(0, -1).join("/"));
-        try {
-          await this.fs.rename(existing.location.path, newPath);
-        } catch {
-          /* fall through: will write new and remove old */
-          await this.fs.remove(existing.location.path).catch(() => undefined);
-        }
-        path = newPath;
+    const oldPath = existing?.location.path;
+    let path = this.targetPath(r, existing);
+    // Never write over another record's file, or over a file that did not load: the undo of this
+    // step would remove it (doc 11 §1.5). Save under the next free slug instead — never refuse.
+    let collision: SaveCollision | undefined;
+    const taken = path === oldPath ? undefined : (this.slugHolder(r) ?? ((await this.pathTaken(path, r.id, oldPath)) ? path : undefined));
+    if (taken) {
+      collision = { slug: r.slug, path: taken };
+      r.slug = await this.freeSlug(r, existing);
+      path = this.targetPath(r, existing);
+      this.log({ severity: "caution", source: "record", message: `SLUG TAKEN — ${collision.slug} → ${r.slug}`, detail: { subject: r.name, subjectId: r.id, path: collision.path, note: `${collision.path} already exists; saved as ${path} instead.` } });
+    }
+    const moved = !!oldPath && path !== oldPath;
+    let renamed = false;
+    if (moved) {
+      await this.fs.mkdirAll(dirname(path));
+      try {
+        await this.fs.rename(oldPath!, path);
+        renamed = true;
+      } catch {
+        /* fall through: write the new file, and remove the old one only once that has succeeded */
       }
     }
     const fmt = formatFromPath(path) ?? this.config.recordFormat;
-    await this.fs.mkdirAll(path.split("/").slice(0, -1).join("/"));
+    await this.fs.mkdirAll(dirname(path));
     const text = isNote(r) ? serializeNoteOpml(r) : serializeRecord(r, fmt === "opml" ? this.config.recordFormat : fmt);
-    await this.fs.writeText(path, text);
+    try {
+      await this.fs.writeText(path, text);
+    } catch (err) {
+      // Put a renamed file back where the repository still thinks it is, and the slug asked for.
+      if (renamed) await this.fs.rename(path, oldPath!).catch(() => undefined);
+      if (collision) r.slug = collision.slug;
+      throw err;
+    }
+    // A case-only move on a case-insensitive disk wrote over the old name itself: nothing to remove.
+    if (moved && !renamed && oldPath!.toLowerCase() !== path.toLowerCase()) {
+      await this.fs.remove(oldPath!).catch((err: Error) => {
+        this.log({ severity: "caution", source: "record", message: `OLD FILE LEFT — ${oldPath}`, detail: { subject: r.name, subjectId: r.id, path: oldPath, note: `Saved as ${path}, but the old file could not be removed (${err.message}). Both hold this record; delete the old one.` } });
+      });
+    }
     const loaded: LoadedRecord = { record: r, location: { path, format: fmt === "opml" ? "opml" : fmt } };
     const copy = structuredClone(r);
     this.byId.set(r.id, loaded);
@@ -468,7 +501,48 @@ export class Repository {
     if (opts.history !== false) this.fileEntry({ id: r.id, before, after: { path, text, record: copy } }, tx, opts.origin, undefined, opts.label);
     this.emit();
     if (!tx && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
-    return loaded;
+    return collision ? { ...loaded, collision } : loaded;
+  }
+
+  /** Where `r` is saved: its current file when only the format differs, else the file its slug and type name. */
+  private targetPath(r: GalleryRecord, existing: LoadedRecord | undefined): string {
+    const desired = this.pathFor(r);
+    if (!existing) return desired;
+    if (basename(existing.location.path) === basename(desired)) return existing.location.path;
+    if (isNote(r)) return desired;
+    // keep the existing format when the type/slug changed
+    const keepFmt = existing.location.format;
+    return joinPath(this.registry.folderFor(r.type), recordFilename(r.slug, r.type, keepFmt === "opml" ? this.config.recordFormat : keepFmt));
+  }
+
+  /** The file of another record of `r`'s type that already holds `r.slug` (in any format), if any. */
+  private slugHolder(r: GalleryRecord): string | undefined {
+    return this.all().find((o) => o.record.type === r.type && o.record.id !== r.id && o.record.slug === r.slug)?.location.path;
+  }
+
+  /**
+   * Whether `path` belongs to something other than record `id`, whose file is `own`: another loaded
+   * record's file, or any file on disk. Compared case-insensitively — vaults live on Windows and
+   * macOS — except that the record's own file, by its exact name, never counts: a case-only
+   * rename of it is not a collision, but another file differing from it only in case is.
+   */
+  private async pathTaken(path: string, id: string, own: string | undefined): Promise<boolean> {
+    const lower = path.toLowerCase();
+    for (const lr of this.byId.values()) if (lr.record.id !== id && lr.location.path.toLowerCase() === lower) return true;
+    const dir = dirname(path);
+    const ownName = own && dirname(own) === dir ? basename(own) : undefined;
+    const name = basename(lower);
+    const entries = await this.fs.list(dir).catch(() => []);
+    return entries.some((e) => e.name !== ownName && e.name.toLowerCase() === name);
+  }
+
+  /** The first of `<slug>-2`, `-3`… (as `uniqueSlug`) whose file is free and whose slug no other record of the type holds. */
+  private async freeSlug(r: GalleryRecord, existing: LoadedRecord | undefined): Promise<string> {
+    for (let i = 2; i < 1000; i++) {
+      const next = { ...r, slug: `${r.slug}-${i}` };
+      if (!this.slugHolder(next) && !(await this.pathTaken(this.targetPath(next, existing), r.id, existing?.location.path))) return next.slug;
+    }
+    return `${r.slug}-${newId(4)}`;
   }
 
   /**

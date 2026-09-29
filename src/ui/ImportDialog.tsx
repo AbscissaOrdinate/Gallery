@@ -49,9 +49,10 @@ export function ImportDialog() {
         dedupeSlugs(p.notes, taken);
         for (const note of p.notes) taken.add(note.slug);
       }
-      // Import creates notes, so the only thing it can destroy is a file already at a target name
-      // (one that failed to load, so its slug was not "taken"). The index is derived and regenerated;
-      // with no such file there is nothing to keep and no snapshot is taken.
+      // Import creates notes, so the only file at risk is one already at a target name (one that
+      // failed to load, so its slug was not "taken"). `repo.save` no longer writes over it — the
+      // note takes the next free slug — but the snapshot stays as the ruling asks. The index is
+      // derived and regenerated; with no such file there is nothing to keep and no snapshot is taken.
       await repo.snapshot(SNAPSHOT_CAUSE.import, [], { paths: pending.flatMap((p) => p.notes.map((note) => repo.pathFor(note))) });
       let n = 0;
       for (const p of pending) {
