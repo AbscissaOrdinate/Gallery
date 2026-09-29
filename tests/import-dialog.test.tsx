@@ -82,7 +82,7 @@ describe("ImportDialog", () => {
     expect(await listSnapshots(spy)).toEqual([]);
   });
 
-  it("snapshots a file it is about to overwrite: one at a target name that failed to load", async () => {
+  it("snapshots a file at a target name that failed to load, and saves beside it rather than over it", async () => {
     // A note file the loader could not read is not "taken", so the importer picks its name.
     const target = "notes/fleets-and-strikecraft-late-ussf.opml";
     await spy.inner.writeText(target, "<opml><body><outline text=");
@@ -100,8 +100,8 @@ describe("ImportDialog", () => {
     expect(snaps.map((s) => s.cause)).toEqual([SNAPSHOT_CAUSE.import]);
     expect(snaps[0].files.map((f) => f.path)).toEqual([target]); // only the file at risk; not the derived index
     expect(await spy.readText(`_snapshots/${snaps[0].id}/files/${target}`)).toBe("<opml><body><outline text=");
-    const order = spy.writes.map((w) => w.path);
-    expect(order.findIndex((p) => p.startsWith(`_snapshots/${snaps[0].id}/manifest.json`))).toBeLessThan(order.indexOf(target));
-    expect(await spy.readText(target)).toContain("Late USSF");
+    // The save never writes over it (S1c-fix): the note takes the next free slug.
+    expect(await spy.readText(target)).toBe("<opml><body><outline text=");
+    expect(await spy.readText(target.replace(".opml", "-2.opml"))).toContain("Late USSF");
   });
 });

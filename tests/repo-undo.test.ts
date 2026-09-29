@@ -726,3 +726,179 @@ describe("review follow-ups", () => {
   });
 });
 
+
+describe("a save never writes over another file (S1c-fix)", () => {
+  it("renaming onto another record's slug leaves that file byte-identical and saves as <slug>-2; undo restores the original path", async () => {
+    const { fs, repo, log } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    const aPath = repo.get(a.id)!.location.path;
+    const aText = await fs.readText(aPath);
+    const bPath = repo.get(b.id)!.location.path;
+    const bText = await fs.readText(bPath);
+
+    a.slug = b.slug;
+    const saved = await repo.save(a);
+    const newPath = bPath.replace(`${b.slug}.`, `${b.slug}-2.`);
+    expect(saved.collision).toEqual({ slug: b.slug, path: bPath });
+    expect(saved.record.slug).toBe(`${b.slug}-2`);
+    expect(saved.location.path).toBe(newPath);
+    expect(await fs.readText(bPath)).toBe(bText);
+    expect(repo.get(b.id)!.location.path).toBe(bPath);
+    expect(await fs.exists(aPath)).toBe(false);
+    expect(log).toContainEqual(expect.objectContaining({ severity: "caution", source: "record", message: `SLUG TAKEN — ${b.slug} → ${b.slug}-2`, detail: expect.objectContaining({ path: bPath }) }));
+
+    expect((await repo.undo()).ok).toBe(true);
+    expect(await fs.readText(aPath)).toBe(aText);
+    expect(await fs.exists(newPath)).toBe(false);
+    expect(await fs.readText(bPath)).toBe(bText);
+    expect(repo.get(a.id)!.location.path).toBe(aPath);
+    expect(repo.get(b.id)!.location.path).toBe(bPath);
+
+    expect((await repo.redo()).ok).toBe(true);
+    expect(repo.get(a.id)!.location.path).toBe(newPath);
+    expect(await fs.readText(bPath)).toBe(bText);
+  });
+
+  it("a later save asking for the taken slug again stays at <slug>-2 rather than moving to -3", async () => {
+    const { repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    a.slug = b.slug;
+    const first = await repo.save(a);
+    const again = structuredClone(first.record) as TypedRecord;
+    again.slug = b.slug;
+    again.summary = "again";
+    const second = await repo.save(again);
+    expect(second.location.path).toBe(first.location.path);
+    expect(second.record.slug).toBe(`${b.slug}-2`);
+  });
+
+  it("a create onto an existing file that did not load does not overwrite it, even in another case; undo leaves it", async () => {
+    const { fs, repo } = await demo();
+    const c = repo.create("polity", "Fresh");
+    const path = repo.pathFor(c);
+    const upper = path.replace(/[^/]+$/, (n) => n.toUpperCase());
+    await fs.writeText(upper, "not: [a record\n");
+    const saved = await repo.save(c);
+    expect(saved.collision).toEqual({ slug: "fresh", path });
+    expect(saved.location.path).toBe(repo.pathFor({ ...c, slug: "fresh-2" }));
+    expect(await fs.readText(upper)).toBe("not: [a record\n");
+    expect(await fs.exists(path)).toBe(false);
+
+    expect((await repo.undo()).ok).toBe(true);
+    expect(await fs.readText(upper)).toBe("not: [a record\n");
+    expect(await fs.exists(saved.location.path)).toBe(false);
+  });
+
+  it("skips a free file whose slug another record of the type holds, as uniqueSlug does", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    const bPath = repo.get(b.id)!.location.path;
+    b.slug = "taken-2";
+    // b's file is json, so `taken-2.polity.yaml` is free on disk but its slug is held
+    await fs.writeText(bPath.replace(/[^/]+$/, "taken-2.polity.json"), serializeRecord(b, "json"));
+    await fs.remove(bPath);
+    await fs.writeText(bPath.replace(/[^/]+$/, "taken.polity.yaml"), "stray\n");
+    await repo.load();
+    a.slug = "taken";
+    const saved = await repo.save(a);
+    expect(saved.record.slug).toBe("taken-3");
+  });
+
+  it("a slug another record of the type holds in another format counts as taken", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    const bPath = repo.get(b.id)!.location.path;
+    const jsonPath = bPath.replace(/\.yaml$/, ".json");
+    await fs.writeText(jsonPath, serializeRecord(b, "json"));
+    await fs.remove(bPath);
+    await repo.load();
+    a.slug = b.slug;
+    const saved = await repo.save(a);
+    expect(saved.collision).toEqual({ slug: b.slug, path: jsonPath });
+    expect(saved.record.slug).toBe(`${b.slug}-2`);
+  });
+
+  it("a case-only rename onto another record's file is a collision on a case-sensitive disk", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    b.slug = "shared";
+    const bPath = (await repo.save(b)).location.path;
+    const bText = await fs.readText(bPath);
+    const aPath = repo.get(a.id)!.location.path;
+    a.slug = "Shared";
+    const upper = bPath.replace("shared.", "Shared.");
+    await fs.writeText(upper, serializeRecord(a, "yaml"));
+    await fs.remove(aPath);
+    await repo.load();
+    expect(repo.get(a.id)!.location.path).toBe(upper);
+
+    a.slug = "shared";
+    const saved = await repo.save(a);
+    expect(saved.record.slug).toBe("shared-2");
+    expect(await fs.readText(bPath)).toBe(bText);
+  });
+
+  it("two new records with one slug in one transaction: the second takes -2; one undo removes both", async () => {
+    const { fs, repo } = await demo();
+    const [n1, n2] = [repo.createNote("Twin"), repo.createNote("Twin")];
+    expect(n2.slug).toBe(n1.slug); // neither saved yet
+    await repo.transaction("TWINS", async (tx) => {
+      await tx.save(n1);
+      await tx.save(n2);
+    });
+    expect(n2.slug).toBe("twin-2");
+    const paths = [repo.get(n1.id)!.location.path, repo.get(n2.id)!.location.path];
+    expect(paths).toEqual(["notes/twin.opml", "notes/twin-2.opml"]);
+    expect((await repo.undo()).ok).toBe(true);
+    for (const p of paths) expect(await fs.exists(p)).toBe(false);
+  });
+
+  it("a collision whose write then fails leaves the slug as asked", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    const aPath = repo.get(a.id)!.location.path;
+    const aText = await fs.readText(aPath);
+    vi.spyOn(fs, "writeText").mockRejectedValueOnce(new Error("EIO"));
+    a.slug = b.slug;
+    await expect(repo.save(a)).rejects.toThrow("EIO");
+    expect(a.slug).toBe(b.slug);
+    expect(await fs.readText(aPath)).toBe(aText);
+  });
+
+  it("a failed fs.rename falls back to write-then-remove; the file is never lost", async () => {
+    const { fs, repo } = await demo();
+    const r = polity(repo);
+    const oldPath = repo.get(r.id)!.location.path;
+    const oldText = await fs.readText(oldPath);
+    vi.spyOn(fs, "rename").mockRejectedValue(new Error("EBUSY"));
+
+    // The write fails too: the old file is untouched and the record still points at it.
+    const write = vi.spyOn(fs, "writeText").mockRejectedValueOnce(new Error("EIO"));
+    r.slug = "moved-once";
+    await expect(repo.save(r)).rejects.toThrow("EIO");
+    expect(await fs.readText(oldPath)).toBe(oldText);
+    expect(repo.get(r.id)!.location.path).toBe(oldPath);
+    write.mockRestore();
+
+    // The write succeeds: new file written, old one removed only then; undo puts it back.
+    const saved = await repo.save(r);
+    expect(saved.location.path).not.toBe(oldPath);
+    expect(await fs.exists(saved.location.path)).toBe(true);
+    expect(await fs.exists(oldPath)).toBe(false);
+    expect((await repo.undo()).ok).toBe(true);
+    expect(await fs.readText(oldPath)).toBe(oldText);
+    expect(await fs.exists(saved.location.path)).toBe(false);
+  });
+
+  it("a rename that succeeds but whose write then fails is moved back", async () => {
+    const { fs, repo } = await demo();
+    const r = polity(repo);
+    const oldPath = repo.get(r.id)!.location.path;
+    const oldText = await fs.readText(oldPath);
+    vi.spyOn(fs, "writeText").mockRejectedValueOnce(new Error("EIO"));
+    r.slug = "moved-back";
+    await expect(repo.save(r)).rejects.toThrow("EIO");
+    expect(await fs.readText(oldPath)).toBe(oldText);
+    expect(await fs.exists(repo.pathFor(r))).toBe(false);
+  });
+});
