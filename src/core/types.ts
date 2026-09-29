@@ -265,6 +265,7 @@ export const VAULT = {
   constraintsDir: "_constraints",
   tablesDir: "_tables",
   exportsDir: "_exports",
+  snapshotsDir: "_snapshots",
   indexCsv: "_index.csv",
   assetsDir: "assets",
   notesDir: "notes",

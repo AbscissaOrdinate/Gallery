@@ -1,6 +1,6 @@
 # Gallery — Roadmap and session plan
 
-Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29.
+Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1b).
 
 This file is the **single entry point** for every Code or Cowork session. It holds the queue,
 the routing rules, the owner's rulings for the current round, and the Fable spend ledger.
@@ -33,12 +33,13 @@ and the owner agrees.
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
 | S1a | Foundations — audit | Cloud Code | Sonnet @ medium | `feat/foundations-audit` | S0, C1 | `sessions/S1-foundations.md` | done (`docs/AUDIT.md`; deviations + units not audited) |
-| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | — |
+| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | in review — PR "S1b — snapshots + guard" |
 | S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | — |
 | S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
+| S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
+| H1 | Audit fixes F8, F9, F11, F12, F15 — provisional markers on the budget panel and hull STRUCTURE figures; hull-render font sizes and literal stroke/opacity values from tokens; delete unused `--radius-1` | Cloud Code | Sonnet @ medium | `fix/audit-h1` | S1d | to write from `docs/AUDIT.md` | — |
 | S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
 | S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
-| S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
 | S5a | Orbital configurations — co-orbital, barycentric pairs, rosettes, resonance chains, … (v1 set from doc 12) | Cloud Code | Opus 5.5 @ high (Fable reserve if stuck) | `feat/orbital-configs` | S4 | to write after C2 | — |
 | S5b | Starter systems as recipes — Sol, α Cen, Barnard's, Sirius, ε Eri | Cloud Code | Sonnet 5.5 @ medium; Cowork reviews data | `feat/starter-systems` | S5a | to write after C2 | — |
 | R2 | Doc 10: rest of 10a → 10b (strip; starter systems are fixtures) → 10c → trimmed 10d/10e | Cloud Code | Sonnet @ high; Opus @ high for 10b | `feat/record-views-*` | S5b | later | — |
@@ -46,7 +47,14 @@ and the owner agrees.
 | R4 | Doc 13 planet editor spec (Cowork) → core build | Cowork → Cloud Code | Opus @ high → **Fable 5.1** (#2) | `feat/planet-editor` | R3 | later | — |
 
 Branch rule: every session branches from current `main`; one PR per checkpoint; merge
-before the next session starts.
+before the next session starts. **Branch names are advisory** (a cloud session is assigned its
+own); **the PR title carries the session ID** (e.g. "S1b — snapshots + guard").
+
+> **Pending (2026-09-29):** the S2, S3, S5a and S5b rows above still read as written before C2.
+> They are to be replaced by the sessions in `docs/sessions/S2-wiki.md`, `S3-qol-shell.md`,
+> `S4-star-types.md` and `S5-orbits-and-starters.md`; S4 has already moved directly after S1.
+> Those four briefs were not in the repository when S1b ran, so the rows were not rewritten
+> from them.
 
 ## 3. Routing rubric (Gallery-specific)
 
@@ -150,9 +158,35 @@ reviewer scores both on tests passed first time, review findings, and diff size.
     Prose renders when not editing, via a small Markdown subset in core (no new dependency).
     Rename with inbound links: preview, then rewrite; old name kept as alias by default.
 
+11. **Doc 12 §6 items 1–4 accepted** (2026-09-29): (1) S5a splits into S5a-1 / S5a-2, replacing
+    the one S5a row; (2) S5b's routing moves from 8 to 12 (Sonnet @ high), and S5a-1 at 15 stays
+    Opus @ high with the Fable reserve as its fallback; (3) the `white-dwarf` and `brown-dwarf`
+    preset ids take the figures of Sirius B and Luhman 16 A — existing records are untouched,
+    since presets are copied at creation; (4) record-set recipes are called "Starters" in the UI.
+
+12. **Audit findings (`docs/AUDIT.md`, S1a) — the owner's F-list, 2026-09-29:**
+    - **F1:** the title's blur edits only when the slug actually changes, and `edit()` does
+      nothing when the patch changes nothing.
+    - **F2:** opening a vault is maintenance, not viewing. Creating missing seed files needs no
+      snapshot. Overwriting an existing file (schema upgrade, config rewrite) snapshots first
+      with cause "Before vault upgrade", writes only if the content differs, and logs one
+      session-log line. Opening twice writes nothing the second time (tested).
+    - **F19:** the view-never-writes guard spies on the storage adapter's writes under the vault
+      root, and only those. `settings.json` and `localStorage` are out of scope.
+    - **F7:** the core-purity check is added (S1b).
+    - **F13, F14:** `STYLE.md` §1 amended — shadows are allowed on floating elements (toast,
+      menus, map tooltip), not docked panels; severity left rules are allowed on rows, not cards.
+    - **F16:** stored portrait SVGs are user assets and are never used as a craft's silhouette
+      (`docs/CLAUDE.md`).
+    - **F8, F9, F11, F12, F15** move to session H1 (§2), after S1d.
+    - The snapshot API takes a cause and a list of ids, for S1c (doc 11 §1.7); `ImportDialog`
+      gets a smoke test.
+
 ### Open — owner decides (batch; never guessed by Code)
 
 - v1 orbital-configuration set and per-system showcase list — C2 proposes.
+- F17 (audit): the paced boot-log replay is not one of the three permitted animations — add it
+  to `STYLE.md` / the doc 11 motion tiers, or cut it.
 - Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; planet-map storage
   format (R4); any doc 10 items to cut.
 

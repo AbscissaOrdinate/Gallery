@@ -2,6 +2,7 @@ import { actions, useApp } from "./state";
 import { BOOT_MODES, DEFAULT_BOOT_MODE, HANDLING_LEVELS, VAULT, type BootMode, type HandlingLevel, type OperatorConfig } from "../core/types";
 import { LEVEL_WORD, withCaveat, withoutCaveat } from "../core/handling";
 import { CaveatAdder } from "./CaveatAdder";
+import { SnapshotsPanel } from "./SnapshotsPanel";
 import { Button, Checkbox, Group, Panel, Row, Select, StatusRow, TextField } from "./kit";
 
 export function Settings() {
@@ -104,6 +105,7 @@ export function Settings() {
           </Row>
         </Group>
       </Panel>
+      <SnapshotsPanel />
       <Panel title="SESSION">
         <div className="row">
           <Button onClick={() => actions.reopenVault()} title="Load the vault again from disk, with the boot screen">

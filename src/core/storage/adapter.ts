@@ -45,8 +45,11 @@ export function basename(path: string): string {
   return i < 0 ? path : path.slice(i + 1);
 }
 
-/** Recursively list files under `dir` (vault-relative paths). Skips dot-folders. */
-export async function walk(adapter: StorageAdapter, dir: string, out: string[] = []): Promise<string[]> {
+/**
+ * Recursively list files under `dir` (vault-relative paths). Skips dot-folders, and any folder
+ * for which `skip` returns true (not descended into, so a big `_snapshots/` costs nothing).
+ */
+export async function walk(adapter: StorageAdapter, dir: string, out: string[] = [], skip?: (path: string) => boolean): Promise<string[]> {
   let entries: DirEntry[];
   try {
     entries = await adapter.list(dir);
@@ -56,7 +59,9 @@ export async function walk(adapter: StorageAdapter, dir: string, out: string[] =
   for (const e of entries) {
     if (e.name.startsWith(".")) continue;
     const p = joinPath(dir, e.name);
-    if (e.isDir) await walk(adapter, p, out);
+    if (e.isDir) {
+      if (!skip?.(p)) await walk(adapter, p, out, skip);
+    }
     else out.push(p);
   }
   return out;

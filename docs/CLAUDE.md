@@ -8,7 +8,8 @@ The vault is a plain folder of YAML/OPML records (see `README.md` for the layout
 ```bash
 npm ci                 # install (Node 22+)
 npm run typecheck      # tsc --noEmit
-npm test               # vitest run  — tests/**/*.test.ts, environment: node
+npm test               # vitest run  — tests/**/*.test.{ts,tsx}; node, and jsdom for a .test.tsx that
+                       #   opens with `// @vitest-environment jsdom`
 npm run build          # tsc --noEmit && vite build
 npm run dev            # browser mode, in-memory demo vault
 npm run app:dev        # Tauri dev window (needs Rust + WebView2)
@@ -88,6 +89,16 @@ docs/sessions/      session briefs and handoffs (<ID>-handoff.md)
   keeps shapes, text, groups, clip paths and gradients, and refuses anything that is not
   well-formed XML. Markup the app builds itself (`glyph.ts`, `hull/render.ts`) skips it, so
   every record value those interpolate must be escaped or validated (colours: hex only).
+- **Viewing never writes.** Looking at a record, map, tab or toggle must not touch the vault;
+  `tests/view-never-writes.test.tsx` fails on any write to the storage adapter except a map drag
+  writing `map_angle_deg`. Opening a vault is maintenance, not viewing: it creates missing seed
+  files, but overwrites an existing file only when the content differs, and only after a
+  "Before vault upgrade" snapshot.
+- **Snapshot before anything destructive.** `repo.snapshot(cause, ids)` copies the affected files
+  to `_snapshots/<id>/` (`src/core/snapshots.ts`); delete, import, skeleton generate, vault
+  upgrade and restore all do. New destructive operations must too.
+- **`src/core/` purity is enforced** by `tests/core-purity.test.ts` (no React, UI, Tauri or Node
+  imports outside `storage/tauri.ts` and `storage/node.ts`; no browser globals).
 - **Nothing is ever blocked from saving.** Every check is an advisory with a severity
   (`error | warn | info`), a message, and the field it points at. A captured hull, an export
   variant or a deliberately experimental craft must always save — with a banner, never a
@@ -136,6 +147,8 @@ Cross-cutting:
   the kernel, not in an editor.
 - **The hull SVG is generated from the record at render time, never stored as a
   hand-authored asset** — editor 2 adds external modules that must appear in the silhouette.
+  A stored portrait SVG (an `assets/` file attached to a record) is a user asset: it is shown
+  as the user's picture and is never used as a craft's silhouette.
 - **Geometry**: side profile mirrored about the long axis, with an independent beam giving
   an elliptical cross-section. External modules (radiators, turrets, tanks) are silhouette-
   plane parts mirrored vertically, not swept. Internal placement is volume totals per
@@ -175,7 +188,8 @@ in `docs/design-book/`. The rules below are its §1, repeated here so they are a
 - Units always shown, right-aligned in columns. Unknown = `—` in `ink-300`. Missing required
   value = redaction bar (STYLE.md §4.2).
 - Radius is `0` everywhere except the classification badge (`radius-2`) and tag chips
-  (`radius-pill`). No gradients, glows, neon, panel shadows, or coloured-left-edge cards.
+  (`radius-pill`). No gradients, glows or neon. Shadows only on floating elements (toast, menus,
+  map tooltip), never docked panels; the coloured severity left rule goes on rows, never on cards.
 - Nothing animates except the ASCII spinner, the indeterminate ASCII bar and the boot orbital
   idle — until the motion section from `gallery/11` lands (S3); all three stop under
   `prefers-reduced-motion`.

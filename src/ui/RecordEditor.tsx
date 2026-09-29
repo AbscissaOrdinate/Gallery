@@ -10,6 +10,7 @@ import { AssetsPanel } from "./AssetsPanel";
 import { BodyPanel } from "./BodyPanel";
 import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
+import { sameValue } from "../core/equal";
 import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode, withCaveat } from "../core/handling";
 import { CaveatAdder } from "./CaveatAdder";
 import type { Repository } from "../core/repo";
@@ -96,6 +97,8 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   if (!repo || !draft || !loaded) return <div className="help">Record not found.</div>;
 
   const edit = (patch: Partial<GalleryRecord>) => {
+    // A patch that changes nothing is not an edit: it must not dirty the record, or focus + blur would rewrite the file (F1).
+    if (Object.entries(patch).every(([k, v]) => sameValue((draft as unknown as Record<string, unknown>)[k], v))) return;
     setDraft({ ...draft, ...patch } as GalleryRecord);
     setDirty(true);
   };
@@ -156,8 +159,9 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
       value={draft.name}
       onChange={(e) => edit({ name: e.target.value })}
       onBlur={() => {
-        // keep the filename in step with the name unless the slug was customised
-        if (draft.slug === slugify(loaded.record.name) || !draft.slug) edit({ slug: slugify(draft.name) });
+        // Keep the filename in step with the name unless the slug was customised, and only when it actually moves.
+        const next = slugify(draft.name);
+        if ((draft.slug === slugify(loaded.record.name) || !draft.slug) && next !== draft.slug) edit({ slug: next });
       }}
     />
   );

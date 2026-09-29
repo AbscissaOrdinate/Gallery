@@ -24,7 +24,11 @@ says "override", the book is wrong for Gallery and this wins.
 - Units always shown, right-aligned in columns. Unknown = `—` in `ink-300`. Missing required
   value = redaction bar (§4.2).
 - Radius is `0` everywhere except the classification badge (`radius-2`) and tag chips
-  (`radius-pill`). No gradients, glows, neon, panel shadows, or coloured-left-edge cards.
+  (`radius-pill`). No gradients, glows or neon.
+- **Shadows** (`--elev-*`) are for **floating** elements only — the toast, menus and pickers, the
+  map tooltip. Docked panels never carry one.
+- **Severity rules**: the coloured left rule (`border-3`) belongs on **rows** — log, advisory and
+  list rows. Never on a card.
 - Nothing animates except the ASCII spinner, the indeterminate ASCII bar and the boot orbital
   idle — until the motion section from `gallery/11` lands (S3); all three stop under `prefers-reduced-motion`.
 - Hull/craft SVGs stay generated from the record at render time (existing rule) — theming them is

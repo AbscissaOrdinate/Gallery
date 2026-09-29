@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import { actions, useApp } from "./state";
 import type { TypedRecord } from "../core/types";
+import { SNAPSHOT_CAUSE } from "../core/snapshots";
 import * as W from "../core/astro/worldsmith";
 import { Button, Checkbox, Group, NumberField, Panel, Row, Select, TextField } from "./kit";
 
@@ -78,6 +79,8 @@ export function SystemBuilder({ system, onDone }: { system: TypedRecord; onDone:
     if (!rows) return;
     setBusy(true);
     try {
+      // The builder rewrites the system record and may retune an existing star: keep the old files first.
+      await repo.snapshot(SNAPSHOT_CAUSE.skeleton, [system.id, ...(existingPrimary ? [existingPrimary.id] : [])]);
       // star
       let primary = existingPrimary;
       if (!primary) {

@@ -20,6 +20,7 @@ import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSe
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
 import { newId, nowIso, slugify } from "./ids";
+import { SNAPSHOT_CAUSE, VaultUpgrade, SnapshotWriter, listSnapshots, readManifest, restoreSnapshot, type RestoreResult, type SnapshotManifest } from "./snapshots";
 
 export interface VaultStats {
   records: number;
@@ -52,6 +53,16 @@ export async function peekConfig(fs: StorageAdapter): Promise<Partial<VaultConfi
   }
 }
 
+/** What `init()` did to files that already existed (F2). Creating missing seed files is not reported. */
+export interface InitReport {
+  /** The "Before vault upgrade" snapshot, when an existing file was overwritten. */
+  snapshot?: string;
+  /** Existing files that were overwritten. */
+  rewritten: string[];
+  /** Existing files left alone because they could not be snapshotted first. */
+  skipped: { path: string; reason: string }[];
+}
+
 export class Repository {
   readonly registry = new Registry();
   config: VaultConfig = { ...DEFAULT_VAULT_CONFIG };
@@ -81,8 +92,16 @@ export class Repository {
 
   // ---- lifecycle -------------------------------------------------------
 
-  /** Create folder structure, config, schemas and presets if missing. */
-  async init(): Promise<void> {
+  /**
+   * Create folder structure, config, schemas and presets if missing.
+   *
+   * Opening a vault is maintenance, not viewing (F2): a missing seed file is created without
+   * ceremony; an existing one (schema upgrade, config rewrite) is overwritten only when the new
+   * content differs, and only after the old copy is in a "Before vault upgrade" snapshot. Opening
+   * an up-to-date vault writes nothing.
+   */
+  async init(): Promise<InitReport> {
+    const upgrade = new VaultUpgrade(this.fs);
     const cfgPath = VAULT.configFile;
     if (!(await this.fs.exists(cfgPath))) {
       await this.fs.writeText(cfgPath, YAML.stringify({ ...this.config, polityPalette: [...POLITY_PALETTE_SEED], handling: structuredClone(HANDLING_VOCAB_SEED) }));
@@ -94,13 +113,13 @@ export class Repository {
           const add: Partial<VaultConfig> = {};
           if (!Array.isArray(raw.polityPalette)) add.polityPalette = [...POLITY_PALETTE_SEED];
           if (!raw.handling || typeof raw.handling !== "object") add.handling = structuredClone(HANDLING_VOCAB_SEED);
-          if (Object.keys(add).length) await this.fs.writeText(cfgPath, YAML.stringify({ ...raw, ...add }));
+          if (Object.keys(add).length) await upgrade.write(cfgPath, YAML.stringify({ ...raw, ...add }));
         }
       } catch {
         // An unreadable config is load()'s to report, not init's to rewrite.
       }
     }
-    await this.registry.seed(this.fs);
+    await this.registry.seed(this.fs, upgrade);
     for (const t of this.registry.types()) await this.fs.mkdirAll(t.folder);
     await this.fs.mkdirAll(VAULT.assetsDir);
     await this.fs.mkdirAll(VAULT.constraintsDir);
@@ -108,6 +127,7 @@ export class Repository {
     await seedConstraints(this.fs);
     await seedBodyTints(this.fs);
     await this.fs.mkdirAll(VAULT.exportsDir);
+    return { snapshot: upgrade.snapshot, rewritten: upgrade.rewritten, skipped: upgrade.skipped };
   }
 
   async isVault(): Promise<boolean> {
@@ -131,7 +151,7 @@ export class Repository {
     this.designProblems = [...this.tables.problems, ...constraints.problems];
     report.tables?.(this.designProblems.length);
 
-    const files = await walk(this.fs, "");
+    const files = await walk(this.fs, "", [], (dir) => dir === VAULT.snapshotsDir);
     const next = new Map<string, LoadedRecord>();
     const problems: VaultStats["problems"] = [];
     let done = 0;
@@ -341,14 +361,71 @@ export class Repository {
     return loaded;
   }
 
-  async delete(id: string): Promise<void> {
+  /**
+   * Remove a record's file. Snapshots it first ("Before delete", doc 11 §1.7) — undo does not
+   * survive a restart, the snapshot does. `snapshot: false` is for a caller that already took a
+   * covering snapshot of several ids (bulk delete).
+   */
+  async delete(id: string, opts: { snapshot?: boolean } = {}): Promise<void> {
     const lr = this.byId.get(id);
     if (!lr) return;
+    if (opts.snapshot !== false) await this.snapshot(SNAPSHOT_CAUSE.delete, [id]);
     await this.fs.remove(lr.location.path);
     this.byId.delete(id);
     this.saved.delete(id);
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+  }
+
+  // ---- snapshots (src/core/snapshots.ts) -------------------------------
+
+  /**
+   * Called once for every snapshot taken here on a caller's behalf, so the UI can put it in the
+   * session log. The open-time upgrade snapshot is reported through `init()`'s return value.
+   */
+  onSnapshot?: (manifest: SnapshotManifest) => void;
+
+  /**
+   * Copy the files of the records `ids` (as they are now), plus any extra vault-relative `paths`,
+   * into a new snapshot. This is the call S1c's `transaction(…, { snapshot: { cause, ids } })`
+   * makes; `manifest.id` is what a history step records. Ids not loaded and files that do not
+   * exist are skipped; undefined when nothing at all was copied. A copy that fails throws, so the
+   * caller does not go on to change what it could not save.
+   */
+  async snapshot(cause: string, ids: readonly string[], extra: { paths?: readonly string[] } = {}): Promise<SnapshotManifest | undefined> {
+    const w = new SnapshotWriter(this.fs, cause, ids);
+    for (const id of new Set(ids)) {
+      const lr = this.byId.get(id);
+      if (lr) await w.capture(lr.location.path, id);
+    }
+    for (const p of extra.paths ?? []) await w.capture(p);
+    const manifest = w.result;
+    if (manifest) this.onSnapshot?.(manifest);
+    return manifest;
+  }
+
+  /** Every snapshot in the vault, newest first. Reads only. */
+  snapshots(): Promise<SnapshotManifest[]> {
+    return listSnapshots(this.fs);
+  }
+
+  /**
+   * Put a snapshot's files back, then reload. What is on disk now is snapshotted first ("Before
+   * restore of <id>"), and a record that has been renamed since is moved back rather than
+   * duplicated. Files created after the snapshot are left alone.
+   */
+  async restoreSnapshot(id: string): Promise<RestoreResult> {
+    const manifest = await readManifest(this.fs, id);
+    const remove: string[] = [];
+    for (const f of manifest.files) {
+      const cur = f.id ? this.byId.get(f.id) : undefined;
+      if (cur && cur.location.path !== f.path) remove.push(cur.location.path);
+    }
+    const result = await restoreSnapshot(this.fs, id, { remove });
+    if (result.safety) this.onSnapshot?.(result.safety);
+    await this.load();
+    if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+    return result;
   }
 
   async saveConfig(cfg: Partial<VaultConfig>): Promise<void> {
