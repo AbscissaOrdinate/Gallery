@@ -54,7 +54,7 @@ guard now also selects map objects and sweeps the map inspector, cycles the list
 asserts the unmount flush of the last view. One pre-existing bug fixed on the way: the title
 blur never moved the file once the 900 ms autosave had fired (it compared against the
 already-saved record); it now uses whether the slug followed the name when the page opened.
-Not fixed: hull component selection and a lightbox are not reached by the guard (no lightbox
+Not fixed: the L-point park path (see S1d above), hull component selection and a lightbox are not reached by the guard (no lightbox
 exists until doc 10b).
 
 **Not done / deliberately deferred**
@@ -80,11 +80,25 @@ exists until doc 10b).
 - `restoreSnapshot` currently does its own `load()` + CSV; make it a transaction.
 - `onSnapshot` is set in `state.openVault` and logs source `snapshot` (prefix `SNP`).
 
+**Owner rulings applied after review (PR #12)**
+- Distance unit → a per-install preference (Settings + the map's quick switch), **deferred to S3**.
+  Until then it stays `saveConfig` from the map and the guard exempts it by name (recorded in
+  ROADMAP §5.12).
+- Import keeps its snapshot but only of files it could overwrite: `_index.csv` is dropped
+  (derived), so an import onto no existing file takes none. Tested both ways.
+- View-never-writes exception is "map drag **or L-point park** writing `map_angle_deg`,
+  `lagrange_of`, `lagrange`, `orbit_km`" (doc 11 §1.6): wording updated in `docs/CLAUDE.md`,
+  ROADMAP §4 and the guard file header.
+- Fix: `followsName` is cleared when the slug field is typed in, so a slug typed this visit is
+  not overwritten by the next title blur (jsdom case: slug edit → focus/blur title → no writes,
+  slug and path unchanged; also holds after a later name change).
+
+**For S1d**
+- **Add the L-point-park guard test.** The guard covers only a `map_angle_deg` drag today; a park
+  (drop on an L-point → `lagrange_of` + `lagrange`, `orbit_km` removed for locations) is
+  unexercised. It needs a body/location dropped near a `lpointDots` target in the jsdom map.
+
 **Open questions for the owner**
-- The map's **distance-unit switch** persists to `gallery.config.yaml` from a view. The guard
-  exempts it by name. Keep (vault preference) or move to app settings / session state?
-- Import is create-only, so its snapshot holds `_index.csv` and any file already at a target name
-  — nominal. Fine, or should import be a no-snapshot operation until S1c's transaction?
 - F17 (boot-log replay vs "nothing animates") is still open (ROADMAP §5).
 
 ## S1a — audit (Sonnet @ medium) — done, PR open

@@ -117,7 +117,7 @@ reviewer scores both on tests passed first time, review findings, and diff size.
   before** any UI refactor. Pure extractions: identical screenshots.
 - Schema touched → version bump + `.v<N>.json` backup + migration round-trip test.
 - Any migration or bulk write runs only after a snapshot exists (from S1 on).
-- From S1 on: the view-never-writes test passes (only `map_angle_deg` on drag may write).
+- From S1 on: the view-never-writes test passes (only a map drag or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange`, `orbit_km` may write).
 - From S1 on: every new write path goes through the history layer (undoable or explicitly
   exempt with a reason in code).
 - Review pass by a fresh session or subagent on the opposite model. Refactors reviewed via
@@ -180,7 +180,13 @@ reviewer scores both on tests passed first time, review findings, and diff size.
       (`docs/CLAUDE.md`).
     - **F8, F9, F11, F12, F15** move to session H1 (§2), after S1d.
     - The snapshot API takes a cause and a list of ids, for S1c (doc 11 §1.7); `ImportDialog`
-      gets a smoke test.
+      gets a smoke test. Import keeps its snapshot but only of files it could overwrite (the
+      derived index is left out), so an import onto no existing file takes none.
+    - **View-never-writes exception (doc 11 §1.6):** a map drag or L-point park writing
+      `map_angle_deg`, `lagrange_of`, `lagrange` or `orbit_km`.
+    - **Distance unit:** becomes a per-install preference (Settings + the map's quick switch),
+      **deferred to S3**. Until then it stays `saveConfig({ distanceUnit })` from the map, and the
+      guard exempts it by name.
 
 ### Open — owner decides (batch; never guessed by Code)
 

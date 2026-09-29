@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { actions, useApp } from "./state";
 import { importDynalistOpml, dedupeSlugs, type SplitStrategy } from "../core/importers/dynalist";
-import { VAULT, type NoteRecord } from "../core/types";
+import type { NoteRecord } from "../core/types";
 import { SNAPSHOT_CAUSE } from "../core/snapshots";
 import { Button, Checkbox, Group, Panel, Row, Select, TextField } from "./kit";
 
@@ -49,8 +49,10 @@ export function ImportDialog() {
         dedupeSlugs(p.notes, taken);
         for (const note of p.notes) taken.add(note.slug);
       }
-      // Import only creates notes, so what it can disturb is a file already at a target name and the index it regenerates.
-      await repo.snapshot(SNAPSHOT_CAUSE.import, [], { paths: [...pending.flatMap((p) => p.notes.map((note) => repo.pathFor(note))), VAULT.indexCsv] });
+      // Import creates notes, so the only thing it can destroy is a file already at a target name
+      // (one that failed to load, so its slug was not "taken"). The index is derived and regenerated;
+      // with no such file there is nothing to keep and no snapshot is taken.
+      await repo.snapshot(SNAPSHOT_CAUSE.import, [], { paths: pending.flatMap((p) => p.notes.map((note) => repo.pathFor(note))) });
       let n = 0;
       for (const p of pending) {
         for (const note of p.notes) {

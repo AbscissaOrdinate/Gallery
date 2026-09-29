@@ -5,7 +5,9 @@
  * Every view, every record's page, and every tab / toggle / display-mode control is mounted and
  * exercised against a spy on the storage adapter (F19: the adapter's writes under the vault
  * root, and only those — `settings.json` and `localStorage` are out of scope). Any write fails
- * the test, except a map drag writing `map_angle_deg`.
+ * the test, except a map drag or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange`
+ * or `orbit_km` (doc 11 §1.6). The park case is not exercised here yet (S1d); the drag test below
+ * covers `map_angle_deg`.
  *
  * Timers are faked and run past the 900 ms autosave and every other debounce, and each view is
  * unmounted afterwards (the editors flush on unmount), so a write scheduled by merely looking
@@ -247,6 +249,38 @@ describe("view never writes", () => {
     // (`repo` here is the test's own instance; what the app did is on the adapter.)
     const files = Object.keys(spy.inner.dump());
     expect(files.filter((p) => /brand-new-name/.test(p))).toEqual(["polities/brand-new-name.polity.yaml"]);
+    expect(files).not.toContain("polities/lunar-defense-force.polity.yaml");
+  });
+
+  // A slug the user typed this visit is customised: leaving the title must not put it back.
+  it("a slug typed into the slug field survives leaving the title", async () => {
+    const polity = repo.ofType("polity")[0].record;
+    await go({ kind: "record", id: polity.id });
+    const slug = Array.from(container.querySelectorAll<HTMLInputElement>("main input")).find((i) => i.value === polity.slug)!;
+    expect(slug, "the SLUG / FILE field").toBeDefined();
+    await act(async () => void fireEvent.change(slug, { target: { value: "custom-slug" } }));
+    await flush(); // its own save: the file moves
+    const custom = "polities/custom-slug.polity.yaml";
+    expect(Object.keys(spy.inner.dump()).filter((p) => p.startsWith("polities/"))).toContain(custom);
+
+    spy.reset();
+    const title = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
+    await act(async () => {
+      fireEvent.focus(title);
+      fireEvent.blur(title);
+    });
+    await flush();
+    unwritten("leaving the title after typing a slug");
+    expect(slug.value).toBe("custom-slug");
+
+    // And a new name typed afterwards still leaves the customised slug alone.
+    await act(async () => void fireEvent.change(title, { target: { value: "Something Else Entirely" } }));
+    await flush();
+    await act(async () => void fireEvent.blur(title));
+    await flush();
+    const files = Object.keys(spy.inner.dump()).filter((p) => p.startsWith("polities/"));
+    expect(files).toContain(custom);
+    expect(files.filter((p) => /something-else/.test(p))).toEqual([]);
     expect(files).not.toContain("polities/lunar-defense-force.polity.yaml");
   });
 

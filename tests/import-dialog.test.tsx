@@ -41,7 +41,7 @@ afterEach(async () => {
 const notePaths = () => Object.keys(spy.inner.dump()).filter((p) => p.startsWith("notes/"));
 
 describe("ImportDialog", () => {
-  it("previews a Dynalist file, then imports it behind a snapshot", async () => {
+  it("previews a Dynalist file, then imports it (no snapshot when nothing is overwritten)", async () => {
     expect(screen.getByText("Import", { selector: ".page-title" })).toBeTruthy();
     const before = notePaths();
 
@@ -60,15 +60,9 @@ describe("ImportDialog", () => {
 
     const added = notePaths().filter((p) => !before.includes(p));
     expect(added.sort()).toEqual(["notes/fleets-and-strikecraft-early-ussf-fleet.opml", "notes/fleets-and-strikecraft-late-ussf.opml"]);
-    // The snapshot was taken before the first note was written.
-    const snaps = await listSnapshots(spy);
-    expect(snaps.map((s) => s.cause)).toEqual([SNAPSHOT_CAUSE.import]);
-    const order = spy.writes.map((w) => w.path);
-    const firstNote = order.findIndex((p) => added.includes(p));
-    const snapWrite = order.findIndex((p) => p.startsWith(`_snapshots/${snaps[0].id}/manifest.json`));
-    expect(snapWrite).toBeGreaterThanOrEqual(0);
-    expect(snapWrite).toBeLessThan(firstNote);
-    expect(snaps[0].files.map((f) => f.path)).toContain("_index.csv");
+    // Nothing existed at the target names, so there was nothing to keep: no snapshot.
+    expect(await listSnapshots(spy)).toEqual([]);
+    expect(spy.writes.filter((w) => w.path.startsWith("_snapshots/"))).toEqual([]);
     // The app moved to the note list and told the user.
     expect(container.querySelector(".toast")?.textContent).toBe("Imported 2 notes");
   });
@@ -85,6 +79,29 @@ describe("ImportDialog", () => {
     const added = notePaths().filter((p) => !before.includes(p));
     expect(added).toHaveLength(4);
     expect(added.filter((p) => /-2\.opml$/.test(p))).toHaveLength(2); // the second import's notes took a suffix
-    expect((await listSnapshots(spy)).map((s) => s.cause)).toEqual([SNAPSHOT_CAUSE.import, SNAPSHOT_CAUSE.import]);
+    expect(await listSnapshots(spy)).toEqual([]);
+  });
+
+  it("snapshots a file it is about to overwrite: one at a target name that failed to load", async () => {
+    // A note file the loader could not read is not "taken", so the importer picks its name.
+    const target = "notes/fleets-and-strikecraft-late-ussf.opml";
+    await spy.inner.writeText(target, "<opml><body><outline text=");
+    await act(async () => actions.navigate({ kind: "list" })); // leave and re-enter, so the dialog is fresh
+    await act(async () => void (await actions.reload()));
+    await act(async () => actions.navigate({ kind: "import" }));
+    spy.reset();
+
+    const file = new File([OPML], "fleets.opml");
+    await act(async () => void fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } }));
+    const button = await screen.findByRole("button", { name: /IMPORT 2 NOTES/ });
+    await act(async () => void fireEvent.click(button));
+
+    const snaps = await listSnapshots(spy);
+    expect(snaps.map((s) => s.cause)).toEqual([SNAPSHOT_CAUSE.import]);
+    expect(snaps[0].files.map((f) => f.path)).toEqual([target]); // only the file at risk; not the derived index
+    expect(await spy.readText(`_snapshots/${snaps[0].id}/files/${target}`)).toBe("<opml><body><outline text=");
+    const order = spy.writes.map((w) => w.path);
+    expect(order.findIndex((p) => p.startsWith(`_snapshots/${snaps[0].id}/manifest.json`))).toBeLessThan(order.indexOf(target));
+    expect(await spy.readText(target)).toContain("Late USSF");
   });
 });

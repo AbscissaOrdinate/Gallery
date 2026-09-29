@@ -53,6 +53,7 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   // Whether the filename still follows the name (the slug was never customised). Judged once, from
   // the record as it was when the page opened: our own autosaves replace `loaded.record` with the
   // draft, so comparing against it later would always say "customised". (The page is keyed by id.)
+  // Typing in the slug field clears it for the rest of the visit.
   const followsName = useRef(!!loaded && (!loaded.record.slug || loaded.record.slug === slugify(loaded.record.name)));
 
   // Autosave 900 ms after the last edit; also on unmount.
@@ -184,7 +185,13 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
         </Row>
       )}
       <Row label="SLUG / FILE">
-        <TextField value={draft.slug} onChange={(e) => edit({ slug: slugify(e.target.value) || draft.slug })} />
+        <TextField
+          value={draft.slug}
+          onChange={(e) => {
+            followsName.current = false; // a slug typed here is customised: the title blur must leave it alone
+            edit({ slug: slugify(e.target.value) || draft.slug });
+          }}
+        />
       </Row>
     </Group>
   );

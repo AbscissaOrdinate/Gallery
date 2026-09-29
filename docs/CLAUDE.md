@@ -91,7 +91,7 @@ docs/sessions/      session briefs and handoffs (<ID>-handoff.md)
   every record value those interpolate must be escaped or validated (colours: hex only).
 - **Viewing never writes.** Looking at a record, map, tab or toggle must not touch the vault;
   `tests/view-never-writes.test.tsx` fails on any write to the storage adapter except a map drag
-  writing `map_angle_deg`. Opening a vault is maintenance, not viewing: it creates missing seed
+  or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange` or `orbit_km` (doc 11 §1.6). Opening a vault is maintenance, not viewing: it creates missing seed
   files, but overwrites an existing file only when the content differs, and only after a
   "Before vault upgrade" snapshot.
 - **Snapshot before anything destructive.** `repo.snapshot(cause, ids)` copies the affected files
