@@ -1,0 +1,56 @@
+# Starter system recipe — Sirius. Format: doc 12 §4.1.
+
+recipe: 1
+id: starter-sirius
+kind: record-set
+title: "Sirius (starter)"
+summary: "A young A-type star with a white-dwarf companion on a 50-yr, e = 0.59 orbit. No known planets. Its habitable zone lies outside Sirius A's stable-orbit limit — the showcase for the binary stability advisory — plus a speculative Dyson swarm band and a circumbinary belt. Generic starter, not canon."
+options:
+  candidates:  { default: true, label: "Include candidate and disputed bodies" }
+  speculative: { default: true, label: "Include speculative showcase records" }
+showcases: [white-dwarf, barycentric-pair, s-type-stability, p-type-stability, hz-outside-stable-zone, dyson-swarm-band, circumbinary-belt, ragnarokian-note]
+
+records:
+  - { key: sys, type: system, name: "Sirius", status: confirmed, src: bond2017, fields: { primary: $ab, radius_mapping: log, distance_ly: 8.61 } }
+  - key: ab
+    type: body
+    name: "Sirius AB barycentre"
+    preset: barycenter
+    status: confirmed
+    src: bond2017
+    fields: { kind: barycenter, system: $sys, mass_sol: 3.081, luminosity_sol: 24.764 }
+    fsrc: { mass_sol: derived, luminosity_sol: derived }
+    derive_note: "sums: 2.063 + 1.018 M☉; 24.74 + 0.02448 L☉"
+  - key: a
+    type: body
+    name: "Sirius A"
+    preset: star-a
+    status: confirmed
+    src: bond2017
+    fields: { kind: star, system: $sys, parent: $ab, stage: ms, spectral_type: "A0mA1 Va", mass_sol: 2.063, radius_sol: 1.7144, luminosity_sol: 24.74, age_gyr: 0.236, sma_au: 6.542, eccentricity: 0.59142, periapsis_deg: 0 }
+    fsrc: { sma_au: derived, age_gyr: liebert2005 }
+    prov: { age_gyr: "midpoint of 230–242 Myr" }
+    derive_note: "barycentric a_A = 19.8 · 1.018 / 3.081"
+  - key: b
+    type: body
+    name: "Sirius B"
+    preset: white-dwarf
+    status: confirmed
+    src: bond2017
+    fields: { kind: star, system: $sys, parent: $ab, stage: white-dwarf, spectral_type: "DA2", mass_sol: 1.018, radius_sol: 0.008098, luminosity_sol: 0.02448, age_gyr: 0.236, sma_au: 13.258, eccentricity: 0.59142, periapsis_deg: 180 }
+    fsrc: { sma_au: derived, age_gyr: liebert2005 }
+    prov: { age_gyr: "system age; WD cooling age is 228 Myr" }
+    notes: "Progenitor ~5 M☉ (B5V); became a WD ~120 Myr ago (liebert2005). Its planetary nebula (~10 kyr lifetime, pnebula) is long gone — no nebula overlay here, by design."
+
+  - { key: cfg-ab, type: configuration, name: "Sirius AB binary", status: confirmed, src: bond2017, fields: { kind: barycentric-pair, system: $sys, center: $ab, members: [$a, $b], params: { separation_au: 19.8, eccentricity: 0.59142 } } }
+  # Derived advisories (holman1999): S-type about A (μ 0.3304) a_c = 0.1094·a = 2.17 AU;
+  # about B (μ 0.6696) a_c = 0.0745·a = 1.48 AU; P-type (μ 0.3304) a_c = 3.987·a = 78.9 AU.
+  # Worldsmith HZ of A from L = 24.74: 4.74–6.83 AU → entirely beyond 2.17 AU: advisory
+  # "no stable orbits in Sirius A's habitable zone". Periastron separation 8.09 AU.
+
+  # ---- speculative ------------------------------------------------------------------------------
+  - { key: a1, type: body, name: "Sirius A I", preset: lava-world, gate: speculative, status: speculative, fields: { system: $sys, parent: $a, sma_au: 0.8, mass_earth: 3, eccentricity: 0.05 }, prov: { "*": "invented; inside A's 2.17 AU limit; survey limit only excludes > 11 M_J at 0.5 AU (vigan2015). History would be Ragnarokian-adjacent: it survived B's ~5 M☉ progenitor evolving at 8 AU periastron — flagged as plausible-but-unstudied" } }
+  - { key: swarm, type: location, name: "Sirius A collector swarm", gate: speculative, status: speculative, fields: { kind: megastructure, body: $a, orbit_km: 224396806 }, prov: { "*": "invented; 1.5 AU band (flux ≈ 11× Earth's from L = 24.74), inside the 2.17 AU limit" } }
+  - { key: cb-belt, type: body, name: "Outer circumbinary belt", preset: kuiper-belt, gate: speculative, status: speculative, fields: { system: $sys, parent: $ab, belt_inner_au: 95, belt_outer_au: 130 }, prov: { "*": "invented; placed beyond the 78.9 AU P-type limit with margin" } }
+  # The swarm is drawn as a system annotation band (existing `ring` annotation kind), linked to the location:
+  - { key: sys-ann, type: patch, target: $sys, gate: speculative, fields: { annotations: [ { kind: ring, label: "Collector swarm", around: $a, radius_km: 224396806, width_px: 6, link: $swarm } ] } }
