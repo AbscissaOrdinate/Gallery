@@ -343,3 +343,37 @@ describe("undo of multi-record operations", () => {
     for (const p of made) expect(text(p), p).toBeDefined();
   });
 });
+
+describe("edits still waiting on a debounce when Ctrl+Z is pressed", () => {
+  it("map settings: the pending burst is saved first and is what comes off; the undo is not overwritten later", async () => {
+    const system = repo.ofType("system")[0];
+    await go({ kind: "map", id: system.record.id });
+    const panel = Array.from(container.querySelectorAll(".panel")).find((p) => /MAP SETTINGS/.test(p.textContent ?? ""))!;
+    const boxes = panel.querySelectorAll<HTMLInputElement>("input[type=checkbox]");
+    expect(boxes.length).toBeGreaterThan(1);
+    await act(async () => void fireEvent.click(boxes[0]));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(600))); // saved
+    const afterFirst = text(system.location.path);
+    await act(async () => void fireEvent.click(boxes[1])); // waiting on its 400 ms
+    await ctrlZ();
+    await flush(); // long past the debounce
+    expect(text(system.location.path)).toBe(afterFirst); // only the second toggle was undone, and stays undone
+    expect(getApp().repo!.history.future.length).toBe(1); // and redo is still there
+  });
+
+  it("skeleton: an edit waiting for its autosave is its own step, not folded into the generate", async () => {
+    const sys = repo.create("system", "Kepler Test");
+    await repo.save(sys);
+    await act(async () => void (await actions.reload()));
+    await go({ kind: "record", id: sys.id });
+    await type(field("Summary"), "typed just before generating");
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /generate skeleton/i })));
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /plan orbits/i })));
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /^CREATE \d+ BODIES/ })));
+    await flush();
+    const past = getApp().repo!.history.past.map((s) => s.label);
+    expect(past.slice(-2)).toEqual([expect.stringMatching(/^EDIT KEPLER TEST/), "GENERATE SKELETON — KEPLER TEST"]);
+    // Nothing is left to save on top of it: the draft is clean.
+    expect(getApp().repo!.history.past.length).toBe(past.length);
+  });
+});

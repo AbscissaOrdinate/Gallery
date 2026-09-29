@@ -72,9 +72,14 @@ export function useRecordDraft(id: string, opts: UseRecordDraftOptions = {}): Re
   /** The repository version this draft is known to reflect. */
   const seen = useRef(repo ? repo.version(id) : 0);
 
-  const flush = useCallback(async (): Promise<void> => {
-    const o = origin.current; // read now: a checkpoint may start a new origin while this waits its turn
+  /**
+   * `fixed`: the origin a checkpoint's flush must save under — the edits it carries were made before the
+   * checkpoint, so it keeps the old origin even while it waits for a running save. Any other flush reads
+   * the origin after waiting, so edits made since a checkpoint are never filed under the one before it.
+   */
+  const flushUnder = useCallback(async (fixed?: string): Promise<void> => {
     while (inflight.current) await inflight.current;
+    const o = fixed ?? origin.current;
     const r = repoRef.current;
     const d = draftRef.current;
     if (!r || !d || !dirtyRef.current) return;
@@ -116,6 +121,7 @@ export function useRecordDraft(id: string, opts: UseRecordDraftOptions = {}): Re
       if (inflight.current === run) inflight.current = null;
     }
   }, [id]);
+  const flush = useCallback(() => flushUnder(), [flushUnder]);
   const flushRef = useRef(flush);
   flushRef.current = flush;
 
@@ -164,10 +170,10 @@ export function useRecordDraft(id: string, opts: UseRecordDraftOptions = {}): Re
   }, []);
 
   const checkpoint = useCallback(() => {
-    const p = flushRef.current(); // takes the origin as it is now…
+    const p = flushUnder(origin.current); // saves what is pending under the origin as it is now…
     origin.current = newOrigin(); // …and everything after starts a step of its own
     return p;
-  }, [id]);
+  }, [id, flushUnder]);
 
   return { loaded, draft, edit, dirty, saving, flush, checkpoint };
 }

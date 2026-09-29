@@ -5,6 +5,7 @@
  * afterwards — edit, delete, add moons, move things to Lagrange points.
  */
 import { useMemo, useState } from "react";
+import { flushAll } from "./drafts";
 import { actions, useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import { SNAPSHOT_CAUSE } from "../core/snapshots";
@@ -81,6 +82,9 @@ export function SystemBuilder({ system, onDone }: { system: TypedRecord; onDone:
     try {
       // The builder rewrites the system record and may retune an existing star: the transaction keeps the
       // old files in a snapshot first, and everything it writes is one undo step (F5, doc 11 §1.4).
+      // `system` is the record page's draft: an edit still waiting for its autosave is saved as its own step first,
+      // or it would be folded into this one — and then saved again on top.
+      await flushAll();
       const at = [system.id, ...(existingPrimary ? [existingPrimary.id] : [])];
       const active = rows.filter((r) => !r.skip);
       await repo.transaction(

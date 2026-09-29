@@ -57,12 +57,23 @@ until the PR merges.**
   `npx vite` (SMOKE_URL=http://localhost:5173/) it also compares file bytes and edits a file behind the app's
   back for the UNDO REFUSED check; against `vite preview` those two are skipped and said so.
 - Docs: ROADMAP §1, §2 (S1c done, S1d + S1 in review), AUDIT "Status after S1d", `docs/CLAUDE.md`.
-- Checks: `npm run typecheck`; `npm test` (41 files, 795 tests); `npm run build`; every `ui-smoke*.mjs`
+- Checks: `npm run typecheck`; `npm test` (41 files, 797 tests); `npm run build`; every `ui-smoke*.mjs`
   (`ui-smoke`, `-map` 1–5, `-hull`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) clean (the one known 404
   in `ui-smoke`); `ui-smoke-undo` clean on both the dev server and the preview build. `cargo test` not run
   (no GTK in the cloud, ROADMAP §7).
 
-REVIEW_PLACEHOLDER
+**Review (subagent, Opus 5.5 — the Agent tool takes a model, not an effort level, so "medium" was asked for in the
+prompt)** — two real bugs found and reproduced, both fixed with a test that fails without the fix; one race fixed:
+- The map settings panel's 400 ms debounce was not in `flushAll`: Ctrl+Z on a settings checkbox inside that window
+  was silently overwritten when the timer fired. It now registers in `drafts.ts` (flush = save now, dirty = pending),
+  saves on leaving the panel, and no longer fires after a vault closes.
+- `SystemBuilder` saved the record page's *draft* without flushing it: an edit made just before CREATE was folded
+  into the skeleton step and saved again on top. It now `await flushAll()`s before the transaction.
+- A checkpoint's flush keeps the old origin; every other flush reads the origin after waiting for a running save,
+  so early drag edits can no longer be filed under the step before the drag.
+Not changed (recorded by the reviewer as older behaviour): a dirty compact inspector draft on the map still wins over
+a drag of the same body, so the drag is lost when the draft autosaves. Confirmed correct: draft bookkeeping, no
+re-save after undo, the owner rulings, key routing, no deadlocks.
 
 **Not done / for later**
 - Distance-unit switch stays `saveConfig` from the map (deferred to S3 by ruling); the guard still exempts it by name.
@@ -70,8 +81,7 @@ REVIEW_PLACEHOLDER
   the rest of the keymap.
 - The L-point park guard exercises a location without `orbit_km` (Antares, a cycler); the `orbit_km` removal
   for a station parked from a moon orbit is not reached by it (that station only shows when zoomed in).
-- The map's settings panel debounce (400 ms) is not in `flushAll`: an undo pressed inside those 400 ms lands
-  first and the settings save follows as its own step.
+- A dirty compact record inspector on the map beats a map drag of the same body (older behaviour; see the review).
 
 **Open questions for the owner**
 - None blocking.

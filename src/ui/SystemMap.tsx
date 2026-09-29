@@ -25,6 +25,7 @@ import { AFFILIATIONS, affiliationOf, frameMarkup, tacticalMarkup, type Affiliat
 import { recordCode } from "../core/handling";
 import { resolveThemeColors } from "./themeColors";
 import { mapSizes } from "./tokenPx";
+import { register, track } from "./drafts";
 import { Button, Group, NumberField, Panel, Row, Segmented, Select, StatusRow, TextField, caps } from "./kit";
 import { formatKm, type DistanceUnit } from "../core/astro/units";
 import { AU_KM } from "../core/astro/worldsmith";
@@ -1107,10 +1108,37 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
   const { repo } = useApp();
   const [fields, setFields] = useState(system.fields);
   const timer = useRef<number | null>(null);
+  /** The settings waiting for the debounce, so an undo, a reload or leaving the panel can save them first. */
+  const pending = useRef<Record<string, unknown> | null>(null);
+  const latest = useRef({ repo, system });
+  latest.current = { repo, system };
+  const saveNow = async () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+    const { repo: r, system: sys } = latest.current;
+    if (!r?.get(sys.id)) return;
+    sys.fields = next as TypedRecord["fields"];
+    // One debounce burst is one step; the bursts of a sitting coalesce (doc 11 §1.3).
+    await r.save(sys, { origin: `map-settings:${sys.id}` }).catch((err: Error) => actions.error(`Save failed: ${err.message}`));
+  };
+  // Registered for `flushAll` (an undo must not be overwritten by a burst still waiting), and saved on leaving.
+  const saveRef = useRef(saveNow);
+  saveRef.current = saveNow;
+  useEffect(() => {
+    const off = register({ flush: () => { const p = saveRef.current(); track(p); return p; }, dirty: () => pending.current !== null });
+    return () => {
+      const p = saveRef.current();
+      track(p);
+      off();
+    };
+  }, []);
   // Follow the record when something else changes it — an undo, redo or reload — unless a burst is pending.
   const version = repo?.version(system.id) ?? 0;
   useEffect(() => {
-    if (!timer.current) setFields(system.fields);
+    if (!pending.current) setFields(system.fields);
   }, [system.id, version]);
   if (!repo) return null;
   const schema = repo.registry.get("system")!;
@@ -1126,13 +1154,9 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
             const next = { ...system.fields, ...v };
             for (const k of keys) if (!(k in v)) delete next[k];
             setFields(next);
+            pending.current = next;
             if (timer.current) window.clearTimeout(timer.current);
-            timer.current = window.setTimeout(() => {
-              timer.current = null;
-              system.fields = next;
-              // One debounce burst is one step; the bursts of a sitting coalesce (doc 11 §1.3).
-              void repo.save(system, { origin: `map-settings:${system.id}` });
-            }, 400);
+            timer.current = window.setTimeout(() => void saveRef.current(), 400);
           }}
         />
       </Panel>
