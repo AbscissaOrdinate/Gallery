@@ -145,6 +145,14 @@ Severity: **high** breaks an invariant a later PR depends on; **med** real gap; 
 | F5 | Core side done: `repo.transaction` (one step, CSV once). Wrapping `SystemBuilder` in it is S1d. |
 | F6 | Unchanged: a rename is an edit entry whose paths differ and undoes as one; S2's rewrite snapshots through `transaction(…, { snapshot })`. |
 
+### Status after S1d
+
+| ID | Now |
+|---|---|
+| F3 | Done: `useRecordDraft` reloads a clean draft when `repo.version(id)` moves (undo, redo, a map drag, Reload), replacing the `loaded.record.updated` effect; `actions.undo()` flushes pending drafts first. |
+| F4 | Done end to end: the map drag and park save through `repo.save(rec, { origin, label })`; the step's `before` is the pre-image, never the in-place-mutated record. Covered by `tests/undo-record.test.tsx` and the park test in the guard. |
+| F5 | Done: `SystemBuilder` and `ImportDialog` each write in one `repo.transaction` — one undo step, the CSV once. |
+
 The guard has one named exemption: the map's **distance-unit
 switch**, which calls `saveConfig({ distanceUnit })`. It is exempted by name in the guard (a vault
 preference, `saveConfig` is "view config" in doc 11 §1.6) and tested to write only

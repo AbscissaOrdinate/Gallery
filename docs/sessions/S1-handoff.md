@@ -2,6 +2,82 @@
 
 Updated at the end of every S1 session (S1a → S1d). Newest first.
 
+## S1d — history UI, PR 3b (Sonnet 5.5 @ high) — done, PR "S1d — history UI" open
+
+Branch: the session's assigned `claude/adoring-hypatia-q970aa` (branch names are advisory, ROADMAP §2),
+from `main` at `f12ab8e` — which holds #13 (history core) and #14 (rename-collision fix), confirmed
+before starting. Doc 11 §1.8 and §5's 3b row govern. **This closes S1: the ROADMAP row is "in review"
+until the PR merges.**
+
+**Done**
+- `src/ui/drafts.ts` (new, pure): `register`, `track`, `flushAll`, `dirtyCount`. `flushAll` also waits for a
+  save an unmounted editor left in flight.
+- `src/ui/useRecordDraft.ts` (new): `{ loaded, draft, edit, dirty, saving, flush, checkpoint }`. 900 ms
+  autosave, flush on unmount, reload of a *clean* draft when `repo.version(id)` moves, `edit()` a no-op
+  for a patch that changes nothing (F1). Every save carries an `origin` (`record:<id>:<n>.<k>`,
+  `hull:…`); `checkpoint()` flushes and starts a new origin. Flushes are serialised (a second waits for the
+  running save, then re-checks dirty), and a draft is marked clean only if it is still the object that was
+  saved — edits made during a save stay owed. **A taken slug:** the draft adopts the slug the repository
+  chose, a toast says `SLUG TAKEN — a → a-2`, and `RecordEditor` stops the filename following the name
+  (else every title blur would retry the taken slug).
+- `src/ui/keys.ts` (new): one router, installed once in `App.tsx` (replaces its listener; Ctrl+K and Alt+←
+  keep working). `commandFor` is pure and tested: in a text entry (text/number/search input, textarea,
+  contenteditable) Ctrl/Cmd+Z and redo are the browser's; on buttons, checkboxes, selects and canvases the
+  app takes them; ignored while the boot screen shows or an element with `data-overlay` is open (S3's
+  palette will set it).
+- `state.ts`: `actions.undo()` / `redo()` (`flushAll` → `repo.undo()` → toast `UNDONE — <label>` /
+  `REDONE — …`; `UNDO REFUSED — <file> CHANGED ON DISK`, `+N MORE` when several). **An empty
+  `ApplyResult` (`ok: false`, no label, nothing refused) is nothing to undo: no toast, no log line** (owner
+  ruling). After an undo of a create the page that showed the record goes to the list. `reload`,
+  `reopenVault`, `closeVault` (now async) flush first. `repo.onLog = logEvent`, beside `onSnapshot`.
+  `getApp()` and `historyToast()` exported.
+- `RecordEditor` and `HullEditor` use the hook and hold no timers (grep: none). `HullCanvas` takes
+  `onCheckpoint`, called at pointer-down on a handle and at the end of its drag: a drag is exactly one step.
+  Deleting from the record page flushes first (else the unmount flush could bring the record back).
+- `SystemMap`: a drag saves with `origin: map-drag:<n>` (module counter, so drags never coalesce) and label
+  `MOVE <NAME>` / `PARK <NAME> AT <L-POINT>`; the settings panel saves with `origin: map-settings:<id>` and
+  follows the record after an undo; the layout memo key now includes `repo.version(id)` (`updated` alone
+  missed an undo that restores a timestamp already seen this second).
+- `SystemBuilder`: one `repo.transaction("GENERATE SKELETON — <NAME>")`, snapshot through `opts.snapshot`
+  (the old standalone `repo.snapshot` call is gone; the step records the snapshot id). `ImportDialog`: one
+  transaction `IMPORT n NOTES`; passes `opts.snapshot` (ids) from 10 notes up, and keeps its own
+  paths-snapshot before the transaction (ruling 12) — the ids are new notes, so `opts.snapshot` finds no
+  file; it is there so the rule holds literally. `NewRecordMenu` toasts a collision.
+- Tests: `tests/undo-record.test.tsx` (13: the §1.9 form case, redo by both chords, a pending edit flushed
+  first, Ctrl+Z in a field left alone, empty stack, external edit refused + logged, `onLog`, slug adoption,
+  hull drag = one step, map drag, two drags never coalesce, form+map+hull undone in reverse order, skeleton
+  generate = one step with its snapshot), `tests/keys.test.tsx` (21), `tests/drafts.test.ts` (4), two in
+  `import-dialog.test.tsx` (one step; `opts.snapshot` from 10), and **the L-point park guard test** in
+  `view-never-writes.test.tsx` (writes only `lagrange_of`/`lagrange`, one step labelled `PARK ANTARES AT <L-POINT>`,
+  undo restores the bytes). Mutation-checked: an empty result treated as a refusal, no flush before undo, and
+  no hull checkpoint each fail a test. `tests/helpers/browserShims.ts` gained a `PointerEvent` (jsdom has none,
+  so every `fireEvent.pointer*` dropped its coordinates — the old map-drag test wrote `NaN`).
+- `scripts/ui-smoke-undo.mjs`: form edit + map drag + hull drag → three Ctrl+Z in reverse order (Reload
+  re-reads the files to prove them), skeleton generate = one step, Ctrl+Z in a text field left alone. Against
+  `npx vite` (SMOKE_URL=http://localhost:5173/) it also compares file bytes and edits a file behind the app's
+  back for the UNDO REFUSED check; against `vite preview` those two are skipped and said so.
+- Docs: ROADMAP §1, §2 (S1c done, S1d + S1 in review), AUDIT "Status after S1d", `docs/CLAUDE.md`.
+- Checks: `npm run typecheck`; `npm test` (41 files, 795 tests); `npm run build`; every `ui-smoke*.mjs`
+  (`ui-smoke`, `-map` 1–5, `-hull`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) clean (the one known 404
+  in `ui-smoke`); `ui-smoke-undo` clean on both the dev server and the preview build. `cargo test` not run
+  (no GTK in the cloud, ROADMAP §7).
+
+REVIEW_PLACEHOLDER
+
+**Not done / for later**
+- Distance-unit switch stays `saveConfig` from the map (deferred to S3 by ruling); the guard still exempts it by name.
+- S3 owns: the `DELETED — CTRL+Z TO UNDO` toast hint, SAVE ALL / the save indicator (`dirtyCount()` is there),
+  the rest of the keymap.
+- The L-point park guard exercises a location without `orbit_km` (Antares, a cycler); the `orbit_km` removal
+  for a station parked from a moon orbit is not reached by it (that station only shows when zoomed in).
+- The map's settings panel debounce (400 ms) is not in `flushAll`: an undo pressed inside those 400 ms lands
+  first and the settings save follows as its own step.
+
+**Open questions for the owner**
+- None blocking.
+
+Context used: about 300k tokens.
+
 ## S1c — history core, PR 3a (Opus 5.5 @ high) — done, PR "S1c — history core" open
 
 Branch: `feat/foundations-history-core`. Doc 11 §1 governs; no UI file changed.

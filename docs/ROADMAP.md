@@ -1,6 +1,6 @@
 # Gallery — Roadmap and session plan
 
-Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1c).
+Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1d).
 
 This file is the **single entry point** for every Code or Cowork session. It holds the queue,
 the routing rules, and the owner's rulings for the current round.
@@ -13,8 +13,10 @@ scope, and owner rulings** recorded in §5.
 ## 1. Where things stand
 
 - `main` has the UI refresh (PRs #1–7) and the design suite through editor 2a plus doc 09
-  steps 1–3 (label fix, armour inspector, glyph redraws, eleven hull classes) (#9).
-- **Not built:** undo, wiki links, QoL shell, extra star types, starter systems, orbital
+  steps 1–3 (label fix, armour inspector, glyph redraws, eleven hull classes) (#9), and the S1
+  foundations up to the history core: snapshots + the view-never-writes guard (#12), undo/redo in
+  `Repository` (#13, #14). The undo UI (S1d, PR 3b) is in review.
+- **Not built:** wiki links, QoL shell, extra star types, starter systems, orbital
   configurations beyond L-points, doc 10 (record views), shell extraction, ship editor UI,
   doc 07 gap closure, Editors 3–5, planet (Mollweide/globe) editor, mobile capture.
 - Already exists (do not rebuild): global search (`repo.search`), backlinks, back navigation
@@ -34,8 +36,8 @@ and the owner agrees.
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
 | S1a | Foundations — audit | Cloud Code | Sonnet @ medium | `feat/foundations-audit` | S0, C1 | `sessions/S1-foundations.md` | done (`docs/AUDIT.md`; deviations + units not audited) |
 | S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | done (PR #12) |
-| S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | in review — PR "S1c — history core" |
-| S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
+| S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | done (PR #13; rename-collision fix #14) |
+| S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | in review — PR "S1d — history UI". **S1 as a whole: in review** (done once this merges) |
 | S4-A | Star types — body v5 `stage`/`spectral_type`/`status`/`provenance`, stage-aware `deriveStar`, presets from `star-types.yaml`, NS/BH glyphs, `eyeball`. **A/B run** (§3.4); PR marked "do not merge" | Cloud Code | Sonnet 5.5 @ medium | `feat/star-types-sonnet` | S1, C2 | `sessions/S4-star-types.md` | — |
 | S4-B | Star types — same brief, second run. **A/B run** (§3.4); PR marked "do not merge". Owner may skip the A/B and run S4-A only | Cloud Code | Opus 5.5 @ medium | `feat/star-types-opus` | S1, C2 | `sessions/S4-star-types.md` | — |
 | S4-J | Judge both S4 diffs against doc 12 §5, recommend one to merge, append the result to §3.4, close the other PR | Cloud Code | Sonnet 5.5 @ high | — | S4-A, S4-B | `sessions/S4-star-types.md` | — |
