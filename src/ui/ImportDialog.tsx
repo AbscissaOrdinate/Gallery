@@ -54,13 +54,18 @@ export function ImportDialog() {
       // note takes the next free slug — but the snapshot stays as the ruling asks. The index is
       // derived and regenerated; with no such file there is nothing to keep and no snapshot is taken.
       await repo.snapshot(SNAPSHOT_CAUSE.import, [], { paths: pending.flatMap((p) => p.notes.map((note) => repo.pathFor(note))) });
-      let n = 0;
-      for (const p of pending) {
-        for (const note of p.notes) {
-          await repo.save(note, { touch: false });
-          n++;
-        }
-      }
+      // The whole import is one undo step (F5): it comes off with one Ctrl+Z. A transaction over 10 or more
+      // records declares them, so it snapshots first (doc 11 §1.7); the notes are new, so that finds no file —
+      // the paths snapshot above is what protects a file already at a target name.
+      const notes = pending.flatMap((p) => p.notes);
+      const n = notes.length;
+      await repo.transaction(
+        `IMPORT ${n} NOTE${n === 1 ? "" : "S"}`,
+        async (tx) => {
+          for (const note of notes) await tx.save(note, { touch: false });
+        },
+        n >= 10 ? { snapshot: { cause: SNAPSHOT_CAUSE.import, ids: notes.map((note) => note.id) } } : {},
+      );
       actions.toast(`Imported ${n} note${n === 1 ? "" : "s"}`);
       setPending([]);
       actions.navigate({ kind: "list", type: "note" });

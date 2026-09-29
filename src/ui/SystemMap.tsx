@@ -89,6 +89,9 @@ interface Tip {
   title: string;
   lines: string[];
 }
+/** Numbers the drags: each save's origin is unique, so no two drags fold into one step. */
+let dragSeq = 0;
+
 interface LDot {
   name: string;
   secondaryId: string;
@@ -126,7 +129,8 @@ export function SystemMap({ id }: { id: string }) {
   const [scaleMode, setScaleMode] = useState<"schematic" | "true" | null>(null);
   const dragged = useRef(false);
   const lpointDots = useRef<LDot[]>([]);
-  const version = repo?.all().map((r) => r.record.updated).join("|");
+  // What the layout is memoised on: `updated` alone misses an undo that restores a timestamp this second already had.
+  const version = repo?.all().map((r) => `${r.record.updated}#${repo.version(r.record.id)}`).join("|");
   const unit: DistanceUnit = repo?.config.distanceUnit ?? "light";
   const sizes = useMemo(() => mapSizes(), []);
 
@@ -351,14 +355,20 @@ export function SystemMap({ id }: { id: string }) {
         const rec = repo.typed(drag.id);
         if (rec) {
           const snap = nearestLPoint(e.clientX, e.clientY);
+          let label: string;
           if (snap && snap.secondaryId !== rec.id && (rec.type === "location" || /asteroid|comet|artificial/.test(String(rec.fields.kind)))) {
+            label = `PARK ${rec.name.toLocaleUpperCase("en")} AT ${snap.point}`;
             rec.fields.lagrange_of = snap.secondaryId;
             rec.fields.lagrange = snap.point;
             if (rec.type === "location") delete rec.fields.orbit_km;
             actions.toast(`Parked at ${snap.name}`);
             logEvent({ severity: "info", source: "map", message: `${rec.name} parked at ${snap.name}`, detail: { subject: rec.name, subjectId: rec.id } });
-          } else rec.fields.map_angle_deg = Math.round(drag.angle * 10) / 10;
-          await repo.save(rec);
+          } else {
+            label = `MOVE ${rec.name.toLocaleUpperCase("en")}`;
+            rec.fields.map_angle_deg = Math.round(drag.angle * 10) / 10;
+          }
+          // One drag is one undo step (doc 11 §1.3): its own origin, so two drags never coalesce.
+          await repo.save(rec, { origin: `map-drag:${++dragSeq}`, label });
         }
       }
       setLiveAngle({});
@@ -1097,7 +1107,11 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
   const { repo } = useApp();
   const [fields, setFields] = useState(system.fields);
   const timer = useRef<number | null>(null);
-  useEffect(() => setFields(system.fields), [system.id]);
+  // Follow the record when something else changes it — an undo, redo or reload — unless a burst is pending.
+  const version = repo?.version(system.id) ?? 0;
+  useEffect(() => {
+    if (!timer.current) setFields(system.fields);
+  }, [system.id, version]);
   if (!repo) return null;
   const schema = repo.registry.get("system")!;
   const keys = ["radius_mapping", "inner_px", "outer_px", "moon_scale_px", "show_lagrange", "show_zones", "show_labels"];
@@ -1114,8 +1128,10 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
             setFields(next);
             if (timer.current) window.clearTimeout(timer.current);
             timer.current = window.setTimeout(() => {
+              timer.current = null;
               system.fields = next;
-              repo.save(system);
+              // One debounce burst is one step; the bursts of a sitting coalesce (doc 11 §1.3).
+              void repo.save(system, { origin: `map-settings:${system.id}` });
             }, 400);
           }}
         />

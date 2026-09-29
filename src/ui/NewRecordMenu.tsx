@@ -20,7 +20,8 @@ export function NewRecordMenu({ onDone }: { onDone: () => void }) {
   const create = async () => {
     const n = name.trim() || (type === "note" ? "Untitled note" : `New ${repo.registry.get(type)?.title ?? type}`);
     const rec = type === "note" ? repo.createNote(n) : repo.create(type, n, presets.find((p) => p.id === preset));
-    await repo.save(rec);
+    const saved = await repo.save(rec);
+    if (saved.collision) actions.toast(`SLUG TAKEN — ${saved.collision.slug} → ${saved.record.slug}`);
     logEvent({ severity: "info", source: "record", message: `Created ${rec.name}${preset ? ` from ${preset}` : ""}`, detail: { subject: rec.name, subjectId: rec.id } });
     actions.navigate({ kind: "record", id: rec.id });
     onDone();

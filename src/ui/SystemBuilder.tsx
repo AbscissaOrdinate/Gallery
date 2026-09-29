@@ -79,58 +79,65 @@ export function SystemBuilder({ system, onDone }: { system: TypedRecord; onDone:
     if (!rows) return;
     setBusy(true);
     try {
-      // The builder rewrites the system record and may retune an existing star: keep the old files first.
-      await repo.snapshot(SNAPSHOT_CAUSE.skeleton, [system.id, ...(existingPrimary ? [existingPrimary.id] : [])]);
-      // star
-      let primary = existingPrimary;
-      if (!primary) {
-        primary = repo.create("body", system.name.replace(/ system$/i, ""), bodyPresets.find((p) => p.id === starPreset));
-        primary.fields.mass_sol = starMass;
-        primary.fields.system = system.id;
-        await repo.save(primary);
-        system.fields.primary = primary.id;
-        await repo.save(system);
-      } else if (primary.fields.mass_sol !== starMass) {
-        primary.fields.mass_sol = starMass;
-        await repo.save(primary);
-      }
+      // The builder rewrites the system record and may retune an existing star: the transaction keeps the
+      // old files in a snapshot first, and everything it writes is one undo step (F5, doc 11 §1.4).
+      const at = [system.id, ...(existingPrimary ? [existingPrimary.id] : [])];
       const active = rows.filter((r) => !r.skip);
-      let lastTerrestrialAU: number | undefined;
-      let firstGiantAU: number | undefined;
-      let lastGiantAU: number | undefined;
-      let angle = 20;
-      for (const r of active) {
-        const b = repo.create("body", r.name, bodyPresets.find((p) => p.id === r.preset));
-        b.fields.sma_au = r.au;
-        b.fields.parent = primary.id;
-        b.fields.system = system.id;
-        b.fields.map_angle_deg = angle % 360;
-        angle += 137.5; // golden-angle spread so labels don't stack
-        delete b.fields.sma_km;
-        await repo.save(b);
-        const isGiant = /jupiter|saturn|uranus|neptune|hot-jupiter|mini-neptune/.test(r.preset);
-        if (isGiant) {
-          firstGiantAU ??= r.au;
-          lastGiantAU = r.au;
-        } else if (r.au < star.frostLineAU) lastTerrestrialAU = r.au;
-      }
-      if (belts && lastTerrestrialAU && firstGiantAU) {
-        const belt = repo.create("body", "Main belt", bodyPresets.find((p) => p.id === "main-belt"));
-        belt.fields.belt_inner_au = Number((lastTerrestrialAU * 1.35).toFixed(2));
-        belt.fields.belt_outer_au = Number((firstGiantAU * 0.7).toFixed(2));
-        belt.fields.parent = primary.id;
-        belt.fields.system = system.id;
-        await repo.save(belt);
-      }
-      if (belts && lastGiantAU) {
-        const dd = W.debrisDisk(lastGiantAU, starMass);
-        const kb = repo.create("body", "Outer belt", bodyPresets.find((p) => p.id === "kuiper-belt"));
-        kb.fields.belt_inner_au = Number(dd.innerAU.toFixed(1));
-        kb.fields.belt_outer_au = Number(dd.outerAU.toFixed(1));
-        kb.fields.parent = primary.id;
-        kb.fields.system = system.id;
-        await repo.save(kb);
-      }
+      await repo.transaction(
+        `GENERATE SKELETON — ${system.name.toLocaleUpperCase("en")}`,
+        async (tx) => {
+          // star
+          let primary = existingPrimary;
+          if (!primary) {
+            primary = repo.create("body", system.name.replace(/ system$/i, ""), bodyPresets.find((p) => p.id === starPreset));
+            primary.fields.mass_sol = starMass;
+            primary.fields.system = system.id;
+            await tx.save(primary);
+            system.fields.primary = primary.id;
+            await tx.save(system);
+          } else if (primary.fields.mass_sol !== starMass) {
+            primary.fields.mass_sol = starMass;
+            await tx.save(primary);
+          }
+          let lastTerrestrialAU: number | undefined;
+          let firstGiantAU: number | undefined;
+          let lastGiantAU: number | undefined;
+          let angle = 20;
+          for (const r of active) {
+            const b = repo.create("body", r.name, bodyPresets.find((p) => p.id === r.preset));
+            b.fields.sma_au = r.au;
+            b.fields.parent = primary.id;
+            b.fields.system = system.id;
+            b.fields.map_angle_deg = angle % 360;
+            angle += 137.5; // golden-angle spread so labels don't stack
+            delete b.fields.sma_km;
+            await tx.save(b);
+            const isGiant = /jupiter|saturn|uranus|neptune|hot-jupiter|mini-neptune/.test(r.preset);
+            if (isGiant) {
+              firstGiantAU ??= r.au;
+              lastGiantAU = r.au;
+            } else if (r.au < star.frostLineAU) lastTerrestrialAU = r.au;
+          }
+          if (belts && lastTerrestrialAU && firstGiantAU) {
+            const belt = repo.create("body", "Main belt", bodyPresets.find((p) => p.id === "main-belt"));
+            belt.fields.belt_inner_au = Number((lastTerrestrialAU * 1.35).toFixed(2));
+            belt.fields.belt_outer_au = Number((firstGiantAU * 0.7).toFixed(2));
+            belt.fields.parent = primary.id;
+            belt.fields.system = system.id;
+            await tx.save(belt);
+          }
+          if (belts && lastGiantAU) {
+            const dd = W.debrisDisk(lastGiantAU, starMass);
+            const kb = repo.create("body", "Outer belt", bodyPresets.find((p) => p.id === "kuiper-belt"));
+            kb.fields.belt_inner_au = Number(dd.innerAU.toFixed(1));
+            kb.fields.belt_outer_au = Number(dd.outerAU.toFixed(1));
+            kb.fields.parent = primary.id;
+            kb.fields.system = system.id;
+            await tx.save(kb);
+          }
+        },
+        { snapshot: { cause: SNAPSHOT_CAUSE.skeleton, ids: at } },
+      );
       actions.toast(`Created ${active.length} bodies`);
       onDone();
     } finally {

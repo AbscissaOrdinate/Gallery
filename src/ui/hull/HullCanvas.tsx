@@ -40,6 +40,8 @@ interface Props {
   selection: Selection;
   onSelect: (sel: Selection) => void;
   onEdit: (edit: CanvasEdit) => void;
+  /** Pointer-down on a handle, and the end of its drag: the editor saves what is pending as its own step, so a drag is exactly one (doc 11 §1.3). */
+  onCheckpoint?: () => void;
   /** Station the advisory list last asked to be shown; drawn as a marker. */
   focus?: number;
   /** Snap grid in metres. */
@@ -63,7 +65,7 @@ interface View {
 
 const PAD = 0.08; // fraction of the drawing added as margin when fitting
 
-export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, pitch, readOnly }: Props) {
+export function HullCanvas({ hull, options, selection, onSelect, onEdit, onCheckpoint, focus, pitch, readOnly }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<View | null>(null);
@@ -153,6 +155,7 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
     if (handle && !readOnly) {
       const kind = handle.getAttribute("data-handle")!;
       const key = handle.getAttribute("data-id")!;
+      onCheckpoint?.(); // the edits so far are one step; the drag is the next
       if (kind === "station") {
         onSelect({ kind: "station", id: key });
         setDrag({ kind: "station", index: Number(key) });
@@ -200,7 +203,10 @@ export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, 
     }
   };
 
-  const endDrag = () => setDrag(null);
+  const endDrag = () => {
+    if (drag && drag.kind !== "pan") onCheckpoint?.(); // the drag is saved as its own step
+    setDrag(null);
+  };
 
   const selKey = selection ? `${selection.kind}:${selection.id}` : "";
   const length = hull.spine.length_m || 0;

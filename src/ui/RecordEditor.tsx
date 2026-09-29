@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRecordDraft } from "./useRecordDraft";
 import { actions, useApp } from "./state";
 import type { GalleryRecord, Handling, HandlingVocab, Link, TypedRecord } from "../core/types";
 import { HANDLING_LEVELS, isNote } from "../core/types";
@@ -10,7 +11,6 @@ import { AssetsPanel } from "./AssetsPanel";
 import { BodyPanel } from "./BodyPanel";
 import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
-import { sameValue } from "../core/equal";
 import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode, withCaveat } from "../core/handling";
 import { CaveatAdder } from "./CaveatAdder";
 import type { Repository } from "../core/repo";
@@ -43,50 +43,17 @@ import {
  */
 export function RecordEditor({ id, compact }: { id: string; compact?: boolean }) {
   const { repo } = useApp();
-  const loaded = repo?.get(id);
-  const [draft, setDraft] = useState<GalleryRecord | null>(() => (loaded ? structuredClone(loaded.record) : null));
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // The working copy, its autosave, and its reload after an undo or a map drag live in the hook (doc 11 §1.8).
+  // A slug that was taken is adopted by the draft, and stops the filename following the name (see below).
+  const { loaded, draft, edit, dirty, saving, flush } = useRecordDraft(id, { origin: "record", onCollision: () => void (followsName.current = false) });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [builder, setBuilder] = useState(false);
-  const timer = useRef<number | null>(null);
   // Whether the filename still follows the name (the slug was never customised). Judged once, from
   // the record as it was when the page opened: our own autosaves replace `loaded.record` with the
   // draft, so comparing against it later would always say "customised". (The page is keyed by id.)
-  // Typing in the slug field clears it for the rest of the visit.
+  // Typing in the slug field clears it for the rest of the visit, and so does a collision: the slug
+  // the repository chose is not the name's, and the next title blur must not fight it.
   const followsName = useRef(!!loaded && (!loaded.record.slug || loaded.record.slug === slugify(loaded.record.name)));
-
-  // Autosave 900 ms after the last edit; also on unmount.
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
-  const flush = async () => {
-    if (!repo || !draftRef.current || !dirtyRef.current) return;
-    setSaving(true);
-    try {
-      await repo.save(draftRef.current);
-      setDirty(false);
-      dirtyRef.current = false;
-    } catch (err) {
-      actions.error(`Save failed: ${(err as Error).message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-  useEffect(() => {
-    if (!dirty) return;
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(flush, 900);
-    return () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    };
-  }, [draft, dirty]);
-  useEffect(() => () => void flush(), []);
-  // Pick up external changes (map drags, reload, the revision log) when there are no unsaved edits.
-  useEffect(() => {
-    if (!dirtyRef.current && loaded) setDraft(structuredClone(loaded.record));
-  }, [loaded?.record.updated]);
 
   const schema = useMemo(() => (draft && repo ? repo.registry.get(draft.type) : undefined), [draft?.type, repo]);
   // The session log notes each record page opened, and what it is still missing.
@@ -101,12 +68,6 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   }, [id]);
   if (!repo || !draft || !loaded) return <div className="help">Record not found.</div>;
 
-  const edit = (patch: Partial<GalleryRecord>) => {
-    // A patch that changes nothing is not an edit: it must not dirty the record, or focus + blur would rewrite the file (F1).
-    if (Object.entries(patch).every(([k, v]) => sameValue((draft as unknown as Record<string, unknown>)[k], v))) return;
-    setDraft({ ...draft, ...patch } as GalleryRecord);
-    setDirty(true);
-  };
   const backlinks = repo.backlinks(id);
   const fieldCount = Object.keys(schema?.fields.properties ?? {}).length;
   const done = completeness(draft, schema?.fields);
@@ -141,6 +102,7 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
             size="sm"
             variant="danger"
             onClick={async () => {
+              await flush(); // a pending edit is its own step, or the unmount flush would bring the record back
               await repo.delete(id);
               logEvent({ severity: "info", source: "record", message: `Deleted ${code} — ${draft.name}`, detail: { path: loaded.location.path } });
               actions.toast("Deleted");
