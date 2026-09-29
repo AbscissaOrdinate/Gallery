@@ -132,6 +132,9 @@ export const actions = {
     set({ busy: "Opening vault…", error: null, boot });
     try {
       const repo = new Repository(adapter);
+      // Every snapshot the repository takes on a caller's behalf is a line in the session log.
+      repo.onSnapshot = (m) =>
+        logEvent({ severity: "info", source: "snapshot", message: `Snapshot ${m.id} — ${m.cause.toLocaleLowerCase("en")}, ${m.files.length} file${m.files.length === 1 ? "" : "s"}`, detail: { note: "Restore it from Settings → Snapshots." } });
       // What Gallery itself is running on comes first: the shell, the build, the interface.
       for (const l of await runtimeLines()) step(l, "OK");
       begin(`HANDSHAKE — ${adapter.label.toLocaleUpperCase("en")}`);
@@ -142,8 +145,18 @@ export const actions = {
       }
       end(isVault ? "OK" : "NEW");
       begin("RECONCILING VAULT DEFAULTS");
-      await repo.init(); // seeds anything missing (new built-in types/presets)
+      const init = await repo.init(); // seeds anything missing (new built-in types/presets)
       end("OK");
+      // Opening is maintenance, not viewing: an existing file rewritten here is copied to a snapshot first, and said once.
+      if (init.rewritten.length) {
+        logEvent({
+          severity: "info",
+          source: "vault",
+          message: `Vault upgraded — ${init.rewritten.length} file${init.rewritten.length === 1 ? "" : "s"} rewritten; the old copies are in snapshot ${init.snapshot}`,
+          detail: { components: init.rewritten, note: "Restore it from Settings → Snapshots." },
+        });
+      }
+      for (const k of init.skipped) logEvent({ severity: "caution", source: "vault", message: `Not upgraded — could not snapshot ${k.path} first: ${k.reason}`, detail: { path: k.path } });
       let pct = -1;
       const stats = await repo.load({
         config: (cfg) => {

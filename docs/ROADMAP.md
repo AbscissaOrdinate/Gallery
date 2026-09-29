@@ -1,9 +1,9 @@
 # Gallery — Roadmap and session plan
 
-Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29.
+Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1b).
 
 This file is the **single entry point** for every Code or Cowork session. It holds the queue,
-the routing rules, the owner's rulings for the current round, and the Fable spend ledger.
+the routing rules, and the owner's rulings for the current round.
 Authority order for anything technical is unchanged: `docs/UNITS.md` → `docs/CLAUDE.md` →
 `docs/STYLE.md` → numbered `gallery/` docs → this file. This file wins only on **sequencing,
 scope, and owner rulings** recorded in §5.
@@ -33,20 +33,45 @@ and the owner agrees.
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
 | S1a | Foundations — audit | Cloud Code | Sonnet @ medium | `feat/foundations-audit` | S0, C1 | `sessions/S1-foundations.md` | done (`docs/AUDIT.md`; deviations + units not audited) |
-| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | — |
+| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | in review — PR "S1b — snapshots + guard" |
 | S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | — |
 | S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
-| S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
-| S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
-| S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
-| S5a | Orbital configurations — co-orbital, barycentric pairs, rosettes, resonance chains, … (v1 set from doc 12) | Cloud Code | Opus 5.5 @ high (Fable reserve if stuck) | `feat/orbital-configs` | S4 | to write after C2 | — |
-| S5b | Starter systems as recipes — Sol, α Cen, Barnard's, Sirius, ε Eri | Cloud Code | Sonnet 5.5 @ medium; Cowork reviews data | `feat/starter-systems` | S5a | to write after C2 | — |
+| S4-A | Star types — body v5 `stage`/`spectral_type`/`status`/`provenance`, stage-aware `deriveStar`, presets from `star-types.yaml`, NS/BH glyphs, `eyeball`. **A/B run** (§3.4); PR marked "do not merge" | Cloud Code | Sonnet 5.5 @ medium | `feat/star-types-sonnet` | S1, C2 | `sessions/S4-star-types.md` | — |
+| S4-B | Star types — same brief, second run. **A/B run** (§3.4); PR marked "do not merge". Owner may skip the A/B and run S4-A only | Cloud Code | Opus 5.5 @ medium | `feat/star-types-opus` | S1, C2 | `sessions/S4-star-types.md` | — |
+| S4-J | Judge both S4 diffs against doc 12 §5, recommend one to merge, append the result to §3.4, close the other PR | Cloud Code | Sonnet 5.5 @ high | — | S4-A, S4-B | `sessions/S4-star-types.md` | — |
+| H1 | Audit fixes F8, F9, F11, F12, F15 — provisional markers on the budget panel and hull STRUCTURE figures; hull-render font sizes and literal stroke/opacity values from tokens; delete unused `--radius-1` | Cloud Code | Sonnet @ medium | `fix/audit-h1` | S1d | to write from `docs/AUDIT.md` | — |
+| S2a | Wiki core — prose parser, wiki grammar, link index, `mentions`, `fuzzy.ts`, repo index hooks (doc 11 S2.1) | Cloud Code | Opus 5.5 @ high | `feat/wiki-core` | S1 | `sessions/S2-wiki.md` | — |
+| S2b | Wiki render — `ProseField`, link/redlink/ambiguous rendering, BACKLINKS LINKED/MENTIONED; `cardModel`, `ClassificationHeader`, `RecordCard`, hover (S2.2 + S2.3) | Cloud Code | Sonnet 5.5 @ high | `feat/wiki-render` | S2a | `sessions/S2-wiki.md` | — |
+| S2c | Wiki authoring — autocomplete, redlink create, REDLINKS tool, ambiguity chooser; rename impact + dialog + rewrite transaction (S2.4 + S2.5) | Cloud Code | Opus 5.5 @ high | `feat/wiki-rename` | S2b | `sessions/S2-wiki.md` | — |
+| S3a | QoL shell — keymap + command registry, switcher, palette, shortcut sheet, save indicator, duplicate, recent/pinned, multi-select + bulk tag/delete, tag pages (S3.1–S3.3) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2c | `sessions/S3-qol-shell.md` | — |
+| S3b | Transclusion, find in page, motion tokens + tiers + Settings DISPLAY (`STYLE.md` §10), ASCII set + `WorkPanel` + progress reporters (S3.4–S3.7) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell-2` | S3a | `sessions/S3-qol-shell.md` | — |
+| S5a-1 | Orbital configurations — `configuration` v1; barycentric pair + fixes B1–B6; S/P-type advisory; tadpole; horseshoe/exchange; quasi-satellite | Cloud Code | Opus 5.5 @ high (extra-high only if stuck) | `feat/orbital-configs` | S4 | `sessions/S5-orbits-and-starters.md` | — |
+| S5a-2 | Orbital configurations 2 — rosettes (circular + elliptical), resonance labels, system v5 `nebula`, body v6 hyperbolic + unbound placement | Cloud Code | Opus 5.5 @ high (Sonnet 5.5 @ high if the S4 A/B favours Sonnet) | `feat/orbital-configs-2` | S5a-1 | `sessions/S5-orbits-and-starters.md` | — |
+| S5b | Starter systems ("Starters") — record-set loader, install dialog, installer (one undoable step after a snapshot); six recipes; `_tables/sources-astro.yaml`; provenance tooltip. Pluto/Charon data fix first (brief) | Cloud Code | Sonnet 5.5 @ high | `feat/starter-systems` | S5a-2, S1 | `sessions/S5-orbits-and-starters.md` | — |
+| C3 | Data review of the six recipes against `sources.yaml` (esp. `verify: true` rows); runs after the S5b PR is open, before merge | Cowork | Opus 5.5 @ high | — | S5b PR | `sessions/S5-orbits-and-starters.md` | — |
+| L | Local checkpoint on the owner's PC — `cargo test`, Tauri window, upgrade/second-open/undo/snapshot checks on real data, `npm run app:build`. Runs after **S1d, S3b and S5b** (and before any release zip). Run by hand, or as a local Code session on Sonnet 5.5 @ medium. **Always against a copy of the vault, never the live OneDrive folder** | Local Code (or by hand) | Sonnet 5.5 @ medium | — | S1d, S3b, S5b | `sessions/L-local-checkpoint.md` | — |
 | R2 | Doc 10: rest of 10a → 10b (strip; starter systems are fixtures) → 10c → trimmed 10d/10e | Cloud Code | Sonnet @ high; Opus @ high for 10b | `feat/record-views-*` | S5b | later | — |
 | R3 | Design suite: shell extraction → ship editor 2b → doc 09 §3.5 gaps → Editor 3 | Cloud Code | Opus 5.5 @ medium/high | `feat/design-suite-*` | R2 | later | — |
-| R4 | Doc 13 planet editor spec (Cowork) → core build | Cowork → Cloud Code | Opus @ high → **Fable 5.1** (#2) | `feat/planet-editor` | R3 | later | — |
+| C5 | Research + spec doc 13 — planet surface editor (Mollweide / globe); work breakdown of sessions scoring ≤ 15. Never touches the repo; may run beside a Code session | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C5-spec-planet.md` | done — `gallery/13-planet-editor.md` |
+| R4a | Planet editor — core kernels: HEALPix facade + neighbour table, projections + rotation, sphere utils, layer codec, brush maths; adds `@hscmap/healpix` | Cloud Code | Sonnet 5.5 @ medium | `feat/planet-r4a` | R3, C5 | `gallery/13-planet-editor.md` §11 | — |
+| R4b | Planet editor — `planetmap` schema v1, layer read/write in `Repository`, history `LayerEntry` + byte cap, transactions, snapshots, guard coverage | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4b` | R4a | `gallery/13-planet-editor.md` §11 | — |
+| R4c | Planet editor — renderer, Mollweide + globe, recentre/oblique/rotate, picking, readout, Relief + Plain modes, SURFACE tab, pins (view), mobile view-only | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4c` | R4b | `gallery/13-planet-editor.md` §11 | — |
+| R4d | Planet editor — height tools, sea level, stroke = step, dirty-tile encode, pin drag + NEW LOCATION HERE | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4d` | R4c | `gallery/13-planet-editor.md` §11 | — |
+| R4e | Planet editor — territory pen/edit/snap, territory raster, Political mode, areas, control derivation, links sync, advisories | Cloud Code | Opus 5.5 @ high | `feat/planet-r4e` | R4d | `gallery/13-planet-editor.md` §11 | — |
+| R4f | Planet editor — plates layer, seed/Voronoi, Euler poles, boundary classes, overlay, suggestions + Apply | Cloud Code | Opus 5.5 @ high | `feat/planet-r4f` | R4e | `gallery/13-planet-editor.md` §11 | — |
+| R4g | Planet editor — climate: insolation, zonal T with ice albedo, precipitation march, Köppen, climate paint layer, `koppen.yaml` + `climate-model.yaml` | Cloud Code | Sonnet 5.5 @ high (Opus review mandatory) | `feat/planet-r4g` | R4e | `gallery/13-planet-editor.md` §11 | — |
+| R4h | Planet editor — population table, territory estimates, body fallback order, Population mode, Geopolitics feed | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4h` | R4g | `gallery/13-planet-editor.md` §11 | — |
+| R4i | Planet editor — generator + reroll + presets hook + ETOPO fixture script + Sol wiring | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4i` | R4h | `gallery/13-planet-editor.md` §11 | — |
+| R4j | Planet editor — exports (SVG/PNG/GeoJSON), heightmap import, wikibox/lightbox figure, `surface` glyph motif | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4j` | R4i | `gallery/13-planet-editor.md` §11 | — |
 
 Branch rule: every session branches from current `main`; one PR per checkpoint; merge
-before the next session starts.
+before the next session starts. **Branch names are advisory** (a cloud session is assigned its
+own); **the PR title carries the session ID** (e.g. "S1b — snapshots + guard").
+
+> The S2–S5 rows follow their briefs in `docs/sessions/` (S2 three sessions, S3 two, S4 an A/B
+> pair plus a judge, S5 three plus the C3 data review). S4 runs directly after S1 and does not
+> depend on S2/S3 (its brief lets the owner run it earlier still). The local Windows/Tauri
+> checkpoint `sessions/L-local-checkpoint.md` runs after S1d, S3b and S5b.
 
 ## 3. Routing rubric (Gallery-specific)
 
@@ -68,11 +93,12 @@ before the next session starts.
 | ≤ 8 | Sonnet 5.5 @ medium (low for pure data entry) |
 | 9–12 | Sonnet 5.5 @ high; Opus 5.5 @ medium when ambiguity = 3 |
 | 13–15 | Opus 5.5 @ high |
-| ≥ 16, or blast radius **and** reversibility both 3 | Fable 5.1 candidate — owner approves against the ledger (§6). Fable 5.1 needs paid usage credits on the Pro plan; default to Opus 5.5 @ high (extra-high only if stuck) and split finer. |
+| ≥ 16, or blast radius **and** reversibility both 3 | Split finer until each session scores ≤ 15; run each on Opus 5.5 @ high (extra-high only if stuck). |
 
 Surface: **Cowork** for research, specs, owner decisions, data review. **Cloud Code** for
-builds (sees only GitHub). **Local Code** only when a task needs the OneDrive vault or a
-Tauri/Rust build.
+builds (sees only GitHub). **Local Code** only when a task needs a
+Tauri/Rust build or real vault data — always against a **copy** of the vault, never the live
+OneDrive folder.
 
 ### 3.3 Session hygiene
 
@@ -94,13 +120,14 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 | Task | Scores (B/A/P/U/R/C) | Total | Route |
 |---|---|---|---|
 | S0 prep | 1/1/1/1/1/2 | 7 | Sonnet @ medium |
-| S1 foundations | 3/2/1/2/3/3 | 14 + B&R = 3 | Fable |
-| S2 wiki core | 3/2/1/2/3/2 | 13 | Opus @ high |
-| S3 QoL shell | 2/1/1/3/1/2 | 10 | Sonnet @ high |
+| S1 foundations | 3/2/1/2/3/3 | 14 + B&R = 3 | Split into S1a–d (§2) |
+| S2 wiki core (S2a, S2c; S2b is rendering) | 3/2/1/2/3/2 | 13 | Opus @ high (S2b Sonnet @ high) |
+| S3 QoL shell (S3a, S3b) | 2/1/1/3/1/2 | 10 | Sonnet @ high |
 | S4 star types | 1/1/3/1/2/1 | 9 | A/B |
-| S5a orbital configs | 2/3/3/3/1/3 | 15 | Opus @ high |
-| S5b starter systems | 1/1/2/1/1/2 | 8 | Sonnet @ medium |
-| R4 planet editor core | 3/3/3/3/2/3 | 17 | Fable |
+| S5a-1 orbital configs | 3/2/3/3/2/2 | 15 | Opus @ high |
+| S5a-2 orbital configs 2 | 2/2/2/3/2/2 | 13 | Opus @ high (Sonnet @ high if S4 A/B says so) |
+| S5b starter systems (new bulk write path) | 3/1/2/2/2/2 | 12 | Sonnet @ high |
+| R4a–R4j planet editor | per doc 13 §11 | 8–14 | Sonnet 5.5 @ medium/high; Opus 5.5 @ high for R4e, R4f |
 
 ## 4. Check plan (every PR)
 
@@ -109,14 +136,14 @@ reviewer scores both on tests passed first time, review findings, and diff size.
   before** any UI refactor. Pure extractions: identical screenshots.
 - Schema touched → version bump + `.v<N>.json` backup + migration round-trip test.
 - Any migration or bulk write runs only after a snapshot exists (from S1 on).
-- From S1 on: the view-never-writes test passes (only `map_angle_deg` on drag may write).
+- From S1 on: the view-never-writes test passes (only a map drag or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange`, `orbit_km` may write).
 - From S1 on: every new write path goes through the history layer (undoable or explicitly
   exempt with a reason in code).
 - Review pass by a fresh session or subagent on the opposite model. Refactors reviewed via
   `git diff -M --stat`.
 - Kernel additions: hand-computed unit tests; each derived quantity gets a verification row
   once `docs/VERIFICATION.md` exists.
-- After any Fable session: log spend in §6.
+- After a session that measures usage (the S4 A/B), record the usage-bar delta in the PR description.
 
 ## 5. Owner rulings — round of 2026-09-29
 
@@ -150,29 +177,66 @@ reviewer scores both on tests passed first time, review findings, and diff size.
     Prose renders when not editing, via a small Markdown subset in core (no new dependency).
     Rename with inbound links: preview, then rewrite; old name kept as alias by default.
 
+11. **Doc 12 §6 items 1–4 accepted** (2026-09-29): (1) S5a splits into S5a-1 / S5a-2, replacing
+    the one S5a row; (2) S5b's routing moves from 8 to 12 (Sonnet @ high), and S5a-1 at 15 stays
+    Opus @ high (the Fable fallback is gone — Fable is no longer an option); (3) the `white-dwarf` and `brown-dwarf`
+    preset ids take the figures of Sirius B and Luhman 16 A — existing records are untouched,
+    since presets are copied at creation; (4) record-set recipes are called "Starters" in the UI.
+
+12. **Audit findings (`docs/AUDIT.md`, S1a) — the owner's F-list, 2026-09-29:**
+    - **F1:** the title's blur edits only when the slug actually changes, and `edit()` does
+      nothing when the patch changes nothing.
+    - **F2:** opening a vault is maintenance, not viewing. Creating missing seed files needs no
+      snapshot. Overwriting an existing file (schema upgrade, config rewrite) snapshots first
+      with cause "Before vault upgrade", writes only if the content differs, and logs one
+      session-log line. Opening twice writes nothing the second time (tested).
+    - **F19:** the view-never-writes guard spies on the storage adapter's writes under the vault
+      root, and only those. `settings.json` and `localStorage` are out of scope.
+    - **F7:** the core-purity check is added (S1b).
+    - **F13, F14:** `STYLE.md` §1 amended — shadows are allowed on floating elements (toast,
+      menus, map tooltip), not docked panels; severity left rules are allowed on rows, not cards.
+    - **F16:** stored portrait SVGs are user assets and are never used as a craft's silhouette
+      (`docs/CLAUDE.md`).
+    - **F8, F9, F11, F12, F15** move to session H1 (§2), after S1d.
+    - The snapshot API takes a cause and a list of ids, for S1c (doc 11 §1.7); `ImportDialog`
+      gets a smoke test. Import keeps its snapshot but only of files it could overwrite (the
+      derived index is left out), so an import onto no existing file takes none.
+    - **View-never-writes exception (doc 11 §1.6):** a map drag or L-point park writing
+      `map_angle_deg`, `lagrange_of`, `lagrange` or `orbit_km`.
+    - **Distance unit:** becomes a per-install preference (Settings + the map's quick switch),
+      **deferred to S3**. Until then it stays `saveConfig({ distanceUnit })` from the map, and the
+      guard exempts it by name.
+
+13. **Fable is no longer an option** (owner, 2026-09-29): removed from the routing rubric (§3.2),
+    the calibration table, the Fable ledger and its billing notes (§6). Work that scored ≥ 16 is
+    split until each session scores ≤ 15 and runs on Opus 5.5 @ high. Local checkpoints (row L)
+    run by hand or as a local Code session on Sonnet 5.5 @ medium, always against a copy of the
+    vault, never the live OneDrive folder.
+
+14. **Planet editor (doc 13 §0, owner answers 2026-09-29):** storage is a **HEALPix equal-area
+    grid** (NESTED order, tiled text sidecar files); v1 = edit core + globe (data model,
+    Mollweide and orthographic projections, height painting, territory polygons with polity links,
+    undo), v2 = tectonics, Köppen, population, v3 = seeding/presets, export, doc 10 figures;
+    tectonics and Köppen are light physics (suggestions only; Earth-like water worlds; paint-over
+    wins); starter surfaces are procedural (seeded, rerollable) plus a downsampled NOAA ETOPO 2022
+    Earth for Sol. Sessions R4a–R4j are in §2. (Doc 13 calls this "ruling 11"; that number was
+    taken, so it is 14 here.)
+
 ### Open — owner decides (batch; never guessed by Code)
 
 - v1 orbital-configuration set and per-system showcase list — C2 proposes.
-- Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; planet-map storage
-  format (R4); any doc 10 items to cut.
+- F17 (audit): the paced boot-log replay is not one of the three permitted animations — add it
+  to `STYLE.md` / the doc 11 motion tiers, or cut it.
+- Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; any doc 10 items to cut.
+  (Planet-map storage format is settled: ruling 14.)
 
 ## 6. Budget and billing
 
 Verified 2026-09-29 against Anthropic docs (links in the C0 transcript):
 - Cloud Code sessions **share rate limits with all other Claude and Claude Code usage** on the
   account; parallel tasks consume proportionately more. No separate charge for the cloud VM.
-- Fable 5.1: on Max (and premium Team/Enterprise seats) it counts against the plan, up to 50%
-  of the weekly limit, then usage credits; on Pro / standard seats it runs on usage credits
-  from the first token. Usage credits bill at API rates ($10 / $50 per Mtok in/out for Fable
-  5.1). Set a monthly spend cap in Settings → Usage before any Fable session.
-
-Fable ledger (target: 3 sessions, ≤ $100):
-
-| # | Session | Estimate | Actual | Notes |
-|---|---|---|---|---|
-| 1 | S1 foundations | $25–35 | not used — Pro plan | audit readers on Sonnet @ low |
-| 2 | R4 planet editor core | $35–45 | | after doc 13; Opus unless owner buys credits |
-| 3 | Reserve | ~$25 | | stuck bug, or S5a escalation |
+- Usage per session is not tracked here. Where a session measures it (the S4 A/B), the PR
+  description carries the owner's usage-bar delta (Settings → Usage, before/after).
 
 ## 7. Environment
 
@@ -192,7 +256,5 @@ Filled in by S0 (2026-09-29, cloud container, Node 22.22.2, Claude Code 2.1.284)
 - **Smoke browser:** Playwright wants `chromium-1243`, which is not installed. Working value:
   `SMOKE_CHROME=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
   (`/opt/pw-browsers/chromium` is a directory, not the executable).
-- **Fable 5.1 in `/model`:** not verified — `/model` is interactive and could not be run from a
-  cloud session. The owner should check in the app before S1.
 - **Known gaps:** no Tauri/Rust build in the cloud (Local Code only); the other smoke scripts
   (`-map*`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) were not run in S0.

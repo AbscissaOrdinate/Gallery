@@ -122,6 +122,25 @@ Severity: **high** breaks an invariant a later PR depends on; **med** real gap; 
 | F18 | low | `designer/ship/advisories.ts:487` | Provisional markers | Propellant `density_kg_m3` lookup with no `provisional` handling in the file; block not opened. | Check how the value is used. | No |
 | F19 | low | `ui/state.ts:178`, `ui/log.ts:47` | Guard scope | App-config and localStorage writes on every open. Not vault data, but a guard that spies only on `repo` will not see them. | Decide guard scope (vault only). | **Yes** |
 
+### Status after S1b
+
+| ID | Now |
+|---|---|
+| F1 | Fixed: the title's blur edits only when the slug changes; `edit()` ignores a patch that changes nothing (this also closes the same write from any field that reports its value on blur; the tag and alias inputs do). Covered by the guard. |
+| F2 | Ruled (ROADMAP §5.12): seeding missing files needs no snapshot; overwriting an existing file snapshots first ("Before vault upgrade"), writes only on a difference, logs once. Tested, including open-twice-writes-nothing. |
+| F6 | Snapshot service exists (`src/core/snapshots.ts`); S2 calls `repo.snapshot(cause, ids)` before the rename rewrite. |
+| F7 | Done: `tests/core-purity.test.ts`, run by `npm test` and so by CI. |
+| F13, F14, F16 | Ruled; `STYLE.md` §1 and `docs/CLAUDE.md` amended. No code change. |
+| F19 | Ruled: adapter writes under the vault root only. |
+| F8, F9, F11, F12, F15 | Scheduled as H1 (ROADMAP §2). |
+| F3, F4, F5 | Still constraints for S1c/S1d. |
+| F10, F17, F18 | Untouched. F17 is in ROADMAP §5's open list. |
+
+The guard has one named exemption: the map's **distance-unit
+switch**, which calls `saveConfig({ distanceUnit })`. It is exempted by name in the guard (a vault
+preference, `saveConfig` is "view config" in doc 11 §1.6) and tested to write only
+`gallery.config.yaml`. It is a candidate for the owner to move out of the vault config.
+
 ### Verified compliant
 
 - **Core purity:** no React/DOM imports in `src/core`. Acceptable exceptions:

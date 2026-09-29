@@ -2,6 +2,7 @@ import { useState } from "react";
 import { actions, useApp } from "./state";
 import { importDynalistOpml, dedupeSlugs, type SplitStrategy } from "../core/importers/dynalist";
 import type { NoteRecord } from "../core/types";
+import { SNAPSHOT_CAUSE } from "../core/snapshots";
 import { Button, Checkbox, Group, Panel, Row, Select, TextField } from "./kit";
 
 interface Pending {
@@ -42,13 +43,20 @@ export function ImportDialog() {
   const commit = async () => {
     setBusy(true);
     try {
+      // Settle every note's slug first, so the snapshot can name the files the import will write.
       const taken = new Set(repo.ofType("note").map((r) => r.record.slug));
-      let n = 0;
       for (const p of pending) {
         dedupeSlugs(p.notes, taken);
+        for (const note of p.notes) taken.add(note.slug);
+      }
+      // Import creates notes, so the only thing it can destroy is a file already at a target name
+      // (one that failed to load, so its slug was not "taken"). The index is derived and regenerated;
+      // with no such file there is nothing to keep and no snapshot is taken.
+      await repo.snapshot(SNAPSHOT_CAUSE.import, [], { paths: pending.flatMap((p) => p.notes.map((note) => repo.pathFor(note))) });
+      let n = 0;
+      for (const p of pending) {
         for (const note of p.notes) {
           await repo.save(note, { touch: false });
-          taken.add(note.slug);
           n++;
         }
       }

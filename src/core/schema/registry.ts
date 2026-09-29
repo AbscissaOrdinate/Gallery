@@ -2,8 +2,8 @@
  * Schema + preset registry.
  *
  * On disk:  _schemas/<type>.schema.json   and   _presets/<type>/<id>.yaml
- * Built-ins are written there on first run (never overwritten afterwards), so
- * every type and preset is editable — and you can add new ones by dropping a
+ * Built-ins are written there on first run; an older built-in copy is upgraded only after a
+ * snapshot (see seed), so every type and preset is editable — and you can add new ones by dropping a
  * file in.
  */
 import YAML from "yaml";
@@ -11,6 +11,7 @@ import type { StorageAdapter } from "../storage/adapter";
 import { joinPath } from "../storage/adapter";
 import type { Preset, TypeSchema, FieldSchema } from "../types";
 import { VAULT } from "../types";
+import { VaultUpgrade } from "../snapshots";
 import { BUILTIN_SCHEMAS } from "./builtin/schemas";
 import { BUILTIN_PRESETS } from "./builtin/presets";
 
@@ -89,14 +90,19 @@ export class Registry {
     }
   }
 
-  /** Write built-ins to disk where missing. Returns number of files written. */
-  async seed(fs: StorageAdapter): Promise<number> {
+  /**
+   * Write built-ins to disk where missing, and upgrade an older built-in copy (backing it up as
+   * `<type>.schema.v<N>.json`). Returns the number of files written. Every overwrite goes through
+   * `upgrade`, which snapshots the old file first and skips content that is already identical.
+   */
+  async seed(fs: StorageAdapter, upgrade: VaultUpgrade = new VaultUpgrade(fs)): Promise<number> {
     let n = 0;
     await fs.mkdirAll(VAULT.schemasDir);
     for (const s of BUILTIN_SCHEMAS) {
       const p = joinPath(VAULT.schemasDir, `${s.id}.schema.json`);
+      const text = JSON.stringify(s, null, 2) + "\n";
       if (!(await fs.exists(p))) {
-        await fs.writeText(p, JSON.stringify(s, null, 2) + "\n");
+        await fs.writeText(p, text);
         n++;
         continue;
       }
@@ -105,9 +111,8 @@ export class Registry {
         const disk = JSON.parse(await fs.readText(p)) as TypeSchema;
         const diskV = typeof disk.version === "number" ? disk.version : 0;
         if (!disk.custom && (s.version ?? 1) > diskV) {
-          await fs.writeText(joinPath(VAULT.schemasDir, `${s.id}.schema.v${diskV || 1}.json`), JSON.stringify(disk, null, 2) + "\n");
-          await fs.writeText(p, JSON.stringify(s, null, 2) + "\n");
-          n++;
+          await upgrade.write(joinPath(VAULT.schemasDir, `${s.id}.schema.v${diskV || 1}.json`), JSON.stringify(disk, null, 2) + "\n");
+          if (await upgrade.write(p, text)) n++;
         }
       } catch {
         /* unreadable: leave it, load() will report */

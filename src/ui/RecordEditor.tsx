@@ -10,6 +10,7 @@ import { AssetsPanel } from "./AssetsPanel";
 import { BodyPanel } from "./BodyPanel";
 import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
+import { sameValue } from "../core/equal";
 import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode, withCaveat } from "../core/handling";
 import { CaveatAdder } from "./CaveatAdder";
 import type { Repository } from "../core/repo";
@@ -49,6 +50,11 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [builder, setBuilder] = useState(false);
   const timer = useRef<number | null>(null);
+  // Whether the filename still follows the name (the slug was never customised). Judged once, from
+  // the record as it was when the page opened: our own autosaves replace `loaded.record` with the
+  // draft, so comparing against it later would always say "customised". (The page is keyed by id.)
+  // Typing in the slug field clears it for the rest of the visit.
+  const followsName = useRef(!!loaded && (!loaded.record.slug || loaded.record.slug === slugify(loaded.record.name)));
 
   // Autosave 900 ms after the last edit; also on unmount.
   const draftRef = useRef(draft);
@@ -96,6 +102,8 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   if (!repo || !draft || !loaded) return <div className="help">Record not found.</div>;
 
   const edit = (patch: Partial<GalleryRecord>) => {
+    // A patch that changes nothing is not an edit: it must not dirty the record, or focus + blur would rewrite the file (F1).
+    if (Object.entries(patch).every(([k, v]) => sameValue((draft as unknown as Record<string, unknown>)[k], v))) return;
     setDraft({ ...draft, ...patch } as GalleryRecord);
     setDirty(true);
   };
@@ -156,8 +164,9 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
       value={draft.name}
       onChange={(e) => edit({ name: e.target.value })}
       onBlur={() => {
-        // keep the filename in step with the name unless the slug was customised
-        if (draft.slug === slugify(loaded.record.name) || !draft.slug) edit({ slug: slugify(draft.name) });
+        // Keep the filename in step with the name unless the slug was customised, and only when it actually moves.
+        const next = slugify(draft.name);
+        if (followsName.current && next !== draft.slug) edit({ slug: next });
       }}
     />
   );
@@ -176,7 +185,13 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
         </Row>
       )}
       <Row label="SLUG / FILE">
-        <TextField value={draft.slug} onChange={(e) => edit({ slug: slugify(e.target.value) || draft.slug })} />
+        <TextField
+          value={draft.slug}
+          onChange={(e) => {
+            followsName.current = false; // a slug typed here is customised: the title blur must leave it alone
+            edit({ slug: slugify(e.target.value) || draft.slug });
+          }}
+        />
       </Row>
     </Group>
   );
