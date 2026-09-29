@@ -10,6 +10,7 @@ import { AssetsPanel } from "./AssetsPanel";
 import { BodyPanel } from "./BodyPanel";
 import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
+import { Button, Group, Panel, Row, Select, StatusRow, TextArea, TextField, caps } from "./kit";
 
 export function RecordEditor({ id }: { id: string }) {
   const { repo } = useApp();
@@ -48,64 +49,64 @@ export function RecordEditor({ id }: { id: string }) {
     };
   }, [draft, dirty]);
   useEffect(() => () => void flush(), []);
-  // Pick up external changes (map drags, ↻ reload) when there are no unsaved edits.
+  // Pick up external changes (map drags, reload) when there are no unsaved edits.
   useEffect(() => {
     if (!dirtyRef.current && loaded) setDraft(structuredClone(loaded.record));
   }, [loaded?.record.updated]);
 
   const schema = useMemo(() => (draft && repo ? repo.registry.get(draft.type) : undefined), [draft?.type, repo]);
-  if (!repo || !draft || !loaded) return <div className="muted">Record not found.</div>;
+  if (!repo || !draft || !loaded) return <div className="help">Record not found.</div>;
 
   const edit = (patch: Partial<GalleryRecord>) => {
     setDraft({ ...draft, ...patch } as GalleryRecord);
     setDirty(true);
   };
   const backlinks = repo.backlinks(id);
+  const fieldCount = Object.keys(schema?.fields.properties ?? {}).length;
 
   return (
-    <div className="editor">
-      <div className="row">
-        <button className="ghost" onClick={() => actions.back()} title="Back (Alt+←)">
-          ←
-        </button>
-        <span className="tag type">
-          {schema?.icon} {schema?.title ?? draft.type}
+    <div className="doc">
+      <div className="doc-head">
+        <Button size="sm" onClick={() => actions.back()} title="Back (Alt+←)">
+          Back
+        </Button>
+        <span className="doc-kind">
+          <span className="icon">{schema?.icon}</span>
+          {caps(schema?.title ?? draft.type)}
         </span>
-        <span className="muted mono" style={{ fontSize: 11 }}>
-          {loaded.location.path}
-        </span>
+        <span className="doc-path">{loaded.location.path}</span>
         <span className="grow" />
-        <span className="muted" style={{ fontSize: 11 }}>
-          {saving ? "saving…" : dirty ? "unsaved" : "saved"}
-        </span>
-        <button className="ghost" onClick={flush} disabled={!dirty}>
-          Save
-        </button>
+        <span className={"stamp " + (saving ? "sev-text-pending" : dirty ? "sev-text-caution" : "sev-text-nominal")}>{saving ? "SAVING" : dirty ? "UNSAVED" : "SAVED"}</span>
+        <Button size="sm" onClick={flush} disabled={!dirty}>
+          SAVE
+        </Button>
         {!confirmDelete ? (
-          <button className="ghost danger" onClick={() => setConfirmDelete(true)}>
-            Delete
-          </button>
+          <Button size="sm" variant="danger" onClick={() => setConfirmDelete(true)}>
+            DELETE
+          </Button>
         ) : (
           <>
-            <button
-              className="danger"
+            <Button
+              size="sm"
+              variant="danger"
               onClick={async () => {
                 await repo.delete(id);
                 actions.toast("Deleted");
                 actions.navigate({ kind: "list", type: draft.type });
               }}
             >
-              Confirm delete
-            </button>
-            <button className="ghost" onClick={() => setConfirmDelete(false)}>
+              CONFIRM DELETE
+            </Button>
+            <Button size="sm" onClick={() => setConfirmDelete(false)}>
               Cancel
-            </button>
+            </Button>
           </>
         )}
       </div>
 
       <input
-        className="title"
+        className="doc-title"
+        aria-label="Name"
         value={draft.name}
         onChange={(e) => edit({ name: e.target.value })}
         onBlur={() => {
@@ -113,87 +114,81 @@ export function RecordEditor({ id }: { id: string }) {
           if (draft.slug === slugify(loaded.record.name) || !draft.slug) edit({ slug: slugify(draft.name) });
         }}
       />
-      {loaded.problems && <div className="errorbar">{loaded.problems.join(" · ")}</div>}
+      {loaded.problems && <StatusRow severity="caution" id="LOAD" message={loaded.problems.join(" · ")} word={false} />}
 
-      <div className="field">
-        <label>Tags</label>
-        <TagInput value={draft.tags} onChange={(tags) => edit({ tags })} placeholder="tag, tag, tag" />
-      </div>
-      <div className="field">
-        <label>Aliases</label>
-        <TagInput value={draft.aliases} onChange={(aliases) => edit({ aliases })} placeholder="alternate names" />
-      </div>
-      <div className="field">
-        <label>Summary</label>
-        <input type="text" value={draft.summary ?? ""} onChange={(e) => edit({ summary: e.target.value || undefined })} placeholder="One line, shows in lists and CSV" />
-      </div>
-      <div className="field">
-        <label>Slug / file</label>
-        <span className="row">
-          <input type="text" className="mono" value={draft.slug} onChange={(e) => edit({ slug: slugify(e.target.value) || draft.slug })} style={{ maxWidth: 320 }} />
-          <span className="muted mono" style={{ fontSize: 11 }}>
-            id {draft.id}
-          </span>
-        </span>
-      </div>
+      <Panel title="RECORD" meta={draft.id}>
+        <Group>
+          <Row label="TAGS">
+            <TagInput value={draft.tags} onChange={(tags) => edit({ tags })} placeholder="tag, tag, tag" />
+          </Row>
+          <Row label="ALIASES">
+            <TagInput value={draft.aliases} onChange={(aliases) => edit({ aliases })} placeholder="alternate names" />
+          </Row>
+          <Row label="SUMMARY">
+            <TextField value={draft.summary ?? ""} onChange={(e) => edit({ summary: e.target.value || undefined })} placeholder="One line, shows in lists and CSV" />
+          </Row>
+          <Row label="SLUG / FILE">
+            <TextField value={draft.slug} onChange={(e) => edit({ slug: slugify(e.target.value) || draft.slug })} />
+          </Row>
+        </Group>
+      </Panel>
 
       {isNote(draft) ? (
-        <div className="card">
+        <Panel title="OUTLINE">
           <Outliner value={draft.outline} onChange={(outline) => edit({ outline })} />
-        </div>
+        </Panel>
       ) : (
         <>
           {draft.type === "body" && <BodyPanel body={draft} />}
           {schema && (
-            <div className="card">
+            <Panel title="CHARACTERISTICS" meta={`${fieldCount} fields`}>
               <SchemaForm schema={schema.fields} value={draft.fields} onChange={(fields) => edit({ fields })} />
-            </div>
+            </Panel>
           )}
           {draft.type === "craft" && <BudgetPanel craft={draft} />}
           {draft.type === "hull" && (
-            <div className="row" style={{ marginTop: 12 }}>
-              <button className="primary" onClick={() => actions.navigate({ kind: "hull", id: draft.id })}>
-                Open hull editor ⬠
-              </button>
+            <div className="row">
+              <Button variant="primary" onClick={() => actions.navigate({ kind: "hull", id: draft.id })}>
+                Open hull editor
+              </Button>
             </div>
           )}
           {draft.type === "system" && (
-            <div className="row" style={{ marginTop: 12 }}>
-              <button className="primary" onClick={() => actions.navigate({ kind: "map", id: draft.id })}>Open map ✦</button>
-              <button onClick={() => setBuilder((b) => !b)}>Generate skeleton…</button>
+            <div className="row">
+              <Button variant="primary" onClick={() => actions.navigate({ kind: "map", id: draft.id })}>
+                Open map
+              </Button>
+              <Button onClick={() => setBuilder((b) => !b)}>Generate skeleton…</Button>
             </div>
           )}
           {draft.type === "system" && builder && <SystemBuilder system={draft} onDone={() => setBuilder(false)} />}
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Notes (Markdown)</h3>
-            <textarea value={draft.body ?? ""} onChange={(e) => edit({ body: e.target.value || undefined })} style={{ minHeight: 120 }} placeholder="Long-form description, history, design rationale…" />
-          </div>
+          <Panel title="NOTES" meta="Markdown">
+            <TextArea className="prose" value={draft.body ?? ""} onChange={(e) => edit({ body: e.target.value || undefined })} placeholder="Long-form description, history, design rationale…" />
+          </Panel>
         </>
       )}
 
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Links</h3>
-        <LinksEditor value={draft.links} rels={schema?.rels ?? []} onChange={(links) => edit({ links })} />
+      <Panel title="LINKS" meta={`${draft.links.length} out · ${backlinks.length} in`}>
+        <Group title="OUTGOING">
+          <LinksEditor value={draft.links} rels={schema?.rels ?? []} onChange={(links) => edit({ links })} />
+        </Group>
         {backlinks.length > 0 && (
-          <>
-            <h3>Referenced by</h3>
-            <div className="chips">
-              {backlinks.map((b, i) => (
-                <span key={i} className="chip">
-                  <span className="link" onClick={() => actions.navigate({ kind: "record", id: b.from.record.id })}>
-                    {b.from.record.name}
-                  </span>
-                  <span className="muted">{b.rel}</span>
+          <Group title="REFERENCED BY" meta={String(backlinks.length)}>
+            {backlinks.map((b, i) => (
+              <Row key={i} label={caps(b.rel)}>
+                <span className="link" onClick={() => actions.navigate({ kind: "record", id: b.from.record.id })}>
+                  {b.from.record.name}
                 </span>
-              ))}
-            </div>
-          </>
+                <span className="unit">{b.from.record.type}</span>
+              </Row>
+            ))}
+          </Group>
         )}
-      </div>
+      </Panel>
 
       <AssetsPanel record={draft} onChange={(assets) => edit({ assets })} />
 
-      <div className="muted" style={{ fontSize: 11, marginTop: 12 }}>
+      <div className="doc-foot">
         created {draft.created.slice(0, 10)} · updated {draft.updated.slice(0, 16).replace("T", " ")}
         {draft.preset && <> · preset {draft.preset}</>}
       </div>
@@ -203,18 +198,13 @@ export function RecordEditor({ id }: { id: string }) {
 
 function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
   const [text, setText] = useState(value.join(", "));
-  useEffect(() => setText(value.join(", ")), [value.join(" ")]);
+  useEffect(() => setText(value.join(", ")), [value.join(" ")]);
   return (
-    <input
-      type="text"
+    <TextField
       value={text}
       placeholder={placeholder}
       onChange={(e) => setText(e.target.value)}
-      onBlur={() =>
-        onChange(
-          [...new Set(text.split(/[,;]/).map((t) => t.trim()).filter(Boolean))],
-        )
-      }
+      onBlur={() => onChange([...new Set(text.split(/[,;]/).map((t) => t.trim()).filter(Boolean))])}
       onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
     />
   );
@@ -226,28 +216,24 @@ function LinksEditor({ value, rels, onChange }: { value: Link[]; rels: string[];
   return (
     <div className="stack">
       {value.map((l, i) => (
-        <div key={i} className="row">
-          <input type="text" value={l.rel} style={{ maxWidth: 140 }} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, rel: e.target.value } : x)))} list="rel-options" />
-          <div className="grow">
-            <RefPicker value={l.to} types={[]} onChange={(to) => (to ? onChange(value.map((x, j) => (j === i ? { ...x, to } : x))) : onChange(value.filter((_, j) => j !== i)))} />
-          </div>
-          <input type="text" value={l.note ?? ""} placeholder="note" style={{ maxWidth: 160 }} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, note: e.target.value || undefined } : x)))} />
-          <button className="ghost" onClick={() => onChange(value.filter((_, j) => j !== i))}>
-            ×
-          </button>
+        <div key={i} className="row tight">
+          <TextField className="w-rel" value={l.rel} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, rel: e.target.value } : x)))} list="rel-options" aria-label="Relation" />
+          <RefPicker value={l.to} types={[]} onChange={(to) => (to ? onChange(value.map((x, j) => (j === i ? { ...x, to } : x))) : onChange(value.filter((_, j) => j !== i)))} />
+          <TextField className="w-rel" value={l.note ?? ""} placeholder="note" onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, note: e.target.value || undefined } : x)))} aria-label="Note" />
+          <Button size="sm" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+            REMOVE
+          </Button>
         </div>
       ))}
-      <div className="row">
-        <select value={rel} onChange={(e) => setRel(e.target.value)} style={{ maxWidth: 140 }}>
+      <div className="row tight">
+        <Select className="w-rel" value={rel} onChange={(e) => setRel(e.target.value)} aria-label="Relation">
           {relOptions.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
           ))}
-        </select>
-        <div className="grow">
-          <RefPicker value="" types={[]} onChange={(to) => to && onChange([...value, { rel, to }])} placeholder="Add a link to any record…" />
-        </div>
+        </Select>
+        <RefPicker value="" types={[]} onChange={(to) => to && onChange([...value, { rel, to }])} placeholder="Add a link to any record…" />
       </div>
       <datalist id="rel-options">
         {relOptions.map((r) => (

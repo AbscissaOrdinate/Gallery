@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { actions, lastVaultPath, recentVaultPaths, useApp } from "./state";
 import { isTauri, TauriFsAdapter } from "../core/storage/tauri";
+import { Button, Panel, StatusRow } from "./kit";
 
 async function pickFolder(): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -21,70 +22,69 @@ export function Welcome() {
   }, [tauri]);
 
   const openPath = (p: string, create: boolean) => actions.openVault(new TauriFsAdapter(p), { create });
+  const others = recent.filter((r) => r !== last);
 
   return (
     <div className="welcome">
-      <h1>Gallery</h1>
-      <p className="muted">
-        A file-first workbench for worldbuilding. Your vault is a plain folder — put it in OneDrive or Google Drive and it syncs like anything else.
-        Records are YAML/JSON, notes are OPML outlines, sheets are CSV, portraits are SVG.
+      <div className="wordmark">GALLERY</div>
+      <p className="prose">
+        A file-first workbench for worldbuilding. The vault is a plain folder — put it in OneDrive or Google Drive and it syncs like anything else. Records are YAML/JSON, notes are
+        OPML outlines, sheets are CSV, portraits are SVG.
       </p>
-      {app.error && <div className="errorbar">{app.error}</div>}
-      {app.busy && <div className="muted">{app.busy}</div>}
+      {app.error && <StatusRow severity="violation" id="ERROR" message={app.error} word={false} />}
+      {app.busy && <div className="help">{app.busy}</div>}
 
-      {tauri ? (
-        <>
-          {last && (
-            <button className="opt primary" onClick={() => openPath(last, false)}>
-              <b>Open last vault</b>
-              <span style={{ color: "inherit", opacity: 0.85 }}>{last}</span>
-            </button>
-          )}
-          <button
-            className="opt"
-            onClick={async () => {
-              const p = await pickFolder();
-              if (p) openPath(p, false);
-            }}
-          >
-            <b>Open an existing vault…</b>
-            <span>A folder that already contains gallery.config.yaml</span>
-          </button>
-          <button
-            className="opt"
-            onClick={async () => {
-              const p = await pickFolder();
-              if (p) openPath(p, true);
-            }}
-          >
-            <b>Create a vault in a folder…</b>
-            <span>Writes gallery.config.yaml, _schemas/, _presets/ and the type folders. Existing files are left alone.</span>
-          </button>
-          {recent.filter((r) => r !== last).length > 0 && (
-            <>
-              <h3>Recent</h3>
-              {recent
-                .filter((r) => r !== last)
-                .map((r) => (
-                  <div key={r} className="row" style={{ marginTop: 4 }}>
-                    <span className="link mono" onClick={() => openPath(r, false)}>
-                      {r}
-                    </span>
-                  </div>
-                ))}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <button className="opt primary" onClick={() => actions.openDemo()}>
-            <b>Open the demo vault (in memory)</b>
-            <span>Browser mode: nothing is written to disk. The desktop app opens real folders.</span>
-          </button>
-          <p className="muted" style={{ fontSize: 12 }}>
-            Build the desktop app with <code>npm run app:build</code> (or via the GitHub Actions workflow) to open folders on disk.
-          </p>
-        </>
+      <Panel title="OPEN A VAULT">
+        {tauri ? (
+          <>
+            {last && (
+              <Button variant="primary" className="opt" onClick={() => openPath(last, false)}>
+                <span>OPEN LAST VAULT</span>
+                <span className="sub">{last}</span>
+              </Button>
+            )}
+            <Button
+              className="opt"
+              onClick={async () => {
+                const p = await pickFolder();
+                if (p) openPath(p, false);
+              }}
+            >
+              <span>Open an existing vault…</span>
+              <span className="sub">A folder that already contains gallery.config.yaml</span>
+            </Button>
+            <Button
+              className="opt"
+              onClick={async () => {
+                const p = await pickFolder();
+                if (p) openPath(p, true);
+              }}
+            >
+              <span>CREATE A VAULT IN A FOLDER…</span>
+              <span className="sub">Writes gallery.config.yaml, _schemas/, _presets/ and the type folders. Existing files are left alone.</span>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="primary" className="opt" onClick={() => actions.openDemo()}>
+              <span>Open the demo vault (in memory)</span>
+              <span className="sub">Browser mode: nothing is written to disk. The desktop app opens real folders.</span>
+            </Button>
+            <p className="help">
+              Build the desktop app with <code>npm run app:build</code> (or via the GitHub Actions workflow) to open folders on disk.
+            </p>
+          </>
+        )}
+      </Panel>
+
+      {tauri && others.length > 0 && (
+        <Panel title="RECENT" meta={String(others.length)}>
+          {others.map((r) => (
+            <span key={r} className="link mono" onClick={() => openPath(r, false)}>
+              {r}
+            </span>
+          ))}
+        </Panel>
       )}
     </div>
   );

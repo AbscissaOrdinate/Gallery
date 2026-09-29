@@ -174,6 +174,30 @@ Reference screenshots of third-party games were used only for comparison and are
 not cover, compose it from the primitives above and add a note here rather than inventing new
 visual language.
 
+### 7.1 Notes — composed from the primitives during implementation
+
+- **Tokens added** (theme.css, "Added in implementation"): `--list-w`, `--doc-max-w`, `--dialog-w`,
+  `--label-col-narrow-w`, `--menu-max-h`, `--pip-size`, `--check-size`, `--tile-size`, `--ruler-h`,
+  `--station-mark`, `--text-control-sm` (Button label at control-sm), `--dur-spinner`.
+- **Schema-driven labels** (field titles, x-group names, table columns) are uppercased when rendered
+  (`caps()`), so the DOM text itself is uppercase; schema titles carry no units, so nothing
+  case-sensitive is touched. Authored UI copy is written uppercase directly.
+- **Nested schema objects** are flattened into rows labelled `PARENT · CHILD` rather than nested a
+  fourth level deep. Arrays of objects are a full-width row holding a table.
+- **App bar commands**: Import and Settings are navigation, so they moved into the rail as a TOOLS
+  section; the bar keeps one command (Reload).
+- **Hull editor**: view (PROFILE / PLAN) and rendering (SCHEMATIC / SILHOUETTE) are segmented switches;
+  the independent overlays are checkboxes in the canvas toolbar. The outline pane uses the catalog row
+  (tile, name, footprint; the severity word replaces the footprint when a row has a violation or
+  caution). The station ruler is a strip under the canvas whose tick and label geometry is a
+  fraction of `--ruler-h`.
+- **Inspector columns** (map side, hull side) use `--label-col-narrow-w` for the label column.
+- **Toast**: a floating confirmation at `elev-2` on `surface-300` with a `line-300` border.
+- **Map zone rings** (habitable band, frost line) take no pointer events; they are not selectable
+  and must not swallow clicks meant for what lies under them.
+- **Record glyph colours** (`glyph_color`, `star_color`) are accepted as hex only, because they land
+  inside SVG markup; anything else falls back to the vault palette.
+
 ---
 
 ## 8. Rulings recorded during implementation (2026-09-23)
@@ -190,6 +214,7 @@ Owner decisions on conflicts §2 did not cover. They carry the same weight as §
 | Polities with no `color` were auto-assigned from a hardcoded palette | **Palette in `gallery.config.yaml`** (`polityPalette`), seeded once if absent. No palette and no record colour → `ink-300`, as is unclaimed. |
 | Map overlays (economic, habitability, military) are not in the book | Composed from the palette, no new language: sequential ramp `glyph-navy-deep → glyph-navy → ink-100` (`color-mix`), habitability `map-zone → ink-100`. The legend is five discrete steps, not a gradient. Not accent (selection only on the canvas), not status (severity only). |
 | Exports of token-drawn SVG | Map and hull **Export SVG** resolve every `var(--…)` and `color-mix` to a literal colour from the live theme at export time (`src/ui/themeColors.ts`), so the file renders outside the app. |
+| `info` advisories: editors group violation → caution → nominal; §4.3 marks INFO "log only"; the book allows no fifth severity | **Editors show INFO** as a third group after CAUTION (before NOMINAL), with the §4.3 INFO row (no wash, `line-200` rule, the word INFO). It stays there once the log exists. |
 
 ## 9. Verification
 

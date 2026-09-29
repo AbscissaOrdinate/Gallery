@@ -2,6 +2,7 @@ import { useState } from "react";
 import { actions, useApp } from "./state";
 import { importDynalistOpml, dedupeSlugs, type SplitStrategy } from "../core/importers/dynalist";
 import type { NoteRecord } from "../core/types";
+import { Button, Checkbox, Group, Panel, Row, Select, TextField } from "./kit";
 
 interface Pending {
   file: string;
@@ -60,74 +61,68 @@ export function ImportDialog() {
   };
 
   return (
-    <div className="editor">
-      <h2>Import</h2>
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Dynalist (OPML)</h3>
-        <p className="muted" style={{ marginTop: 0 }}>
-          In Dynalist: document menu → Export → OPML. Each import becomes note records in <code>notes/</code>; outline structure, notes, collapsed state and
-          #tags are preserved, and the files still open in Dynalist.
+    <div className="doc">
+      <div className="page-title">Import</div>
+      <Panel title="DYNALIST (OPML)">
+        <p className="prose">
+          In Dynalist: document menu → Export → OPML. Each import becomes note records in <code>notes/</code>; outline structure, notes, collapsed state and #tags are preserved, and
+          the files still open in Dynalist.
         </p>
-        <div className="field">
-          <label>Split</label>
-          <select value={split} onChange={(e) => setSplit(e.target.value as SplitStrategy)} style={{ maxWidth: 360 }}>
-            <option value="top-level">One note per top-level item (recommended for big documents)</option>
-            <option value="document">One note per document</option>
-          </select>
-        </div>
-        {split === "top-level" && (
-          <div className="field">
-            <label>Names</label>
-            <span className="row">
-              <input type="checkbox" checked={prefix} onChange={(e) => setPrefix(e.target.checked)} style={{ width: "auto" }} />
-              <span className="muted">Prefix with the document title (“Fleets and Strikecraft › Early USSF”)</span>
-            </span>
-          </div>
-        )}
-        <div className="field">
-          <label>Extra tags</label>
-          <input type="text" value={extraTags} onChange={(e) => setExtraTags(e.target.value)} placeholder="e.g. heliaris, astropol" style={{ maxWidth: 360 }} />
-        </div>
-        <div className="field">
-          <label>Files</label>
-          <input type="file" accept=".opml,.xml" multiple onChange={(e) => parseFiles(e.target.files)} />
-        </div>
-      </div>
+        <Group>
+          <Row label="SPLIT">
+            <Select className="w-wide" value={split} onChange={(e) => setSplit(e.target.value as SplitStrategy)}>
+              <option value="top-level">One note per top-level item (recommended for big documents)</option>
+              <option value="document">One note per document</option>
+            </Select>
+          </Row>
+          {split === "top-level" && (
+            <Row label="NAMES">
+              <Checkbox checked={prefix} onChange={setPrefix} label={<span className="help">Prefix with the document title (“Fleets and Strikecraft › Early USSF”)</span>} />
+            </Row>
+          )}
+          <Row label="EXTRA TAGS">
+            <TextField className="w-wide" value={extraTags} onChange={(e) => setExtraTags(e.target.value)} placeholder="tag, tag" />
+          </Row>
+          <Row label="FILES">
+            <input type="file" accept=".opml,.xml" multiple onChange={(e) => parseFiles(e.target.files)} />
+          </Row>
+        </Group>
+      </Panel>
 
       {pending.length > 0 && (
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Preview</h3>
+        <Panel title="PREVIEW" meta={`${pending.length} files`}>
           <table className="tbl">
             <thead>
               <tr>
-                <th>File</th>
-                <th>Document</th>
-                <th className="num">Nodes</th>
-                <th className="num">Notes</th>
-                <th>First notes</th>
+                <th>FILE</th>
+                <th>DOCUMENT</th>
+                <th className="num">NODES</th>
+                <th className="num">NOTES</th>
+                <th>FIRST NOTES</th>
               </tr>
             </thead>
             <tbody>
               {pending.map((p) => (
                 <tr key={p.file}>
-                  <td className="mono">{p.file}</td>
+                  <td>{p.file}</td>
                   <td>{p.documentTitle}</td>
                   <td className="num">{p.nodeCount}</td>
                   <td className="num">{p.notes.length}</td>
-                  <td className="muted">{p.notes.slice(0, 4).map((n) => n.name).join(" · ")}{p.notes.length > 4 ? " …" : ""}</td>
+                  <td className="ink-300">
+                    {p.notes.slice(0, 4).map((n) => n.name).join(" · ")}
+                    {p.notes.length > 4 ? " …" : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="primary" onClick={commit} disabled={busy}>
-              Import {pending.reduce((a, p) => a + p.notes.length, 0)} notes
-            </button>
-            <button className="ghost" onClick={() => setPending([])}>
-              Cancel
-            </button>
+          <div className="btn-group">
+            <Button variant="primary" onClick={commit} disabled={busy}>
+              IMPORT {pending.reduce((a, p) => a + p.notes.length, 0)} NOTES
+            </Button>
+            <Button onClick={() => setPending([])}>Cancel</Button>
           </div>
-        </div>
+        </Panel>
       )}
     </div>
   );

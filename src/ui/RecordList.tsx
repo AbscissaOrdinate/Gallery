@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { actions, useApp } from "./state";
 import { isNote } from "../core/types";
+import { Empty, Pip, Select, caps, cx } from "./kit";
 
 type Sort = "updated" | "name" | "type";
 
@@ -26,34 +27,34 @@ export function RecordList() {
   const schema = type ? repo.registry.get(type) : undefined;
   return (
     <div className="listpane">
-      <div className="tools row">
-        <span className="grow">
-          <b>{schema ? schema.title : "All records"}</b> <span className="muted">{rows.length}</span>
-        </span>
-        <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} style={{ width: "auto" }}>
+      <header className="panel-head">
+        <span className="panel-title">{caps(schema ? schema.title : "All records")}</span>
+        <span className="panel-meta">{rows.length}</span>
+        <Select className="auto" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort">
           <option value="updated">Recent</option>
           <option value="name">Name</option>
           <option value="type">Type</option>
-        </select>
-      </div>
+        </Select>
+      </header>
       {rows.map(({ record: r, location, problems }) => (
-        <div key={r.id} className={"rec" + (r.id === activeId ? " active" : "")} onClick={() => actions.navigate({ kind: "record", id: r.id })}>
+        <div key={r.id} className={cx("rec", r.id === activeId && "is-selected")} onClick={() => actions.navigate({ kind: "record", id: r.id })}>
           <div className="name">
-            {r.name} {problems && <span className="warn" title={problems.join("\n")}>!</span>}
+            {r.name}
+            {problems && <Pip severity="caution" title={`CAUTION — ${problems.join("\n")}`} />}
           </div>
           <div className="meta">
-            {!type && <span className="tag type">{r.type}</span>}
+            {!type && <span>{r.type}</span>}
             {isNote(r) ? <span>outline</span> : summaryOf(r.fields)}
             {r.tags.slice(0, 4).map((t) => (
               <span key={t}>#{t}</span>
             ))}
-            <span className="mono" title={location.path} style={{ marginLeft: "auto" }}>
+            <span className="fmt" title={location.path}>
               {location.format}
             </span>
           </div>
         </div>
       ))}
-      {rows.length === 0 && <div className="muted" style={{ padding: 12 }}>Nothing here yet. Use “+ New” or Import.</div>}
+      {rows.length === 0 && <Empty>NO RECORDS. USE + NEW RECORD OR IMPORT.</Empty>}
     </div>
   );
 }

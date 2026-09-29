@@ -37,19 +37,19 @@ await page.goto(BASE);
 await page.waitForTimeout(300);
 await page.screenshot({ path: shot("01-welcome") });
 await page.getByText("Open the demo vault").click();
-await page.waitForSelector(".sidebar");
+await page.waitForSelector(".rail");
 await page.screenshot({ path: shot("02-overview") });
 
 // A body record: schema form, units, derived figures.
 await page.getByText("Body", { exact: true }).first().click();
 await page.getByText("Earth", { exact: true }).first().click();
-await page.waitForSelector(".editor .title");
+await page.waitForSelector(".doc-title");
 await page.screenshot({ path: shot("03-record-body") });
 
 // A craft: the budget panel and advisories.
 await page.getByText("Craft", { exact: true }).first().click();
 await page.locator(".listpane .rec").first().click();
-await page.waitForSelector(".editor .title");
+await page.waitForSelector(".doc-title");
 await page.waitForTimeout(300);
 await page.screenshot({ path: shot("04-record-craft") });
 

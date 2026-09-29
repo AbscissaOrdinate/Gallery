@@ -20,7 +20,7 @@ p.on("pageerror", e => errors.push("pageerror: " + e.message));
 p.on("console", m => { if (m.type() === "error" && !/favicon|404/.test(m.text())) errors.push("console: " + m.text()); });
 await p.goto("http://localhost:4173/");
 await p.getByText("Open the demo vault").click();
-await p.waitForSelector(".sidebar");
+await p.waitForSelector(".rail");
 await p.getByText("Heliaris system", { exact: true }).first().click();
 await p.waitForSelector(".mapsvg");
 await p.waitForTimeout(500);

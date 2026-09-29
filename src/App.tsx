@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useApp, actions } from "./ui/state";
+import { useApp, actions, type View } from "./ui/state";
 import { Welcome } from "./ui/Welcome";
 import { Sidebar } from "./ui/Sidebar";
 import { RecordList } from "./ui/RecordList";
@@ -9,6 +9,8 @@ import { ImportDialog } from "./ui/ImportDialog";
 import { SystemMap } from "./ui/SystemMap";
 import { HullEditor } from "./ui/hull/HullEditor";
 import { isTauri } from "./core/storage/tauri";
+import type { Repository } from "./core/repo";
+import { Button, Panel, StatusRow, caps } from "./ui/kit";
 
 export function App() {
   const app = useApp();
@@ -32,56 +34,72 @@ export function App() {
   if (!app.repo) return <Welcome />;
 
   const v = app.view;
+  const wide = v.kind === "map" || v.kind === "hull";
   return (
-    <div className={"app" + (v.kind === "map" || v.kind === "hull" ? " map" : "")}>
-      <div className="topbar">
-        <span className="brand">GALLERY</span>
-        <span className="path grow" title={app.repo.fs.label}>
-          {app.repo.config.name} · {app.repo.fs.label}
-        </span>
+    <div className={"app" + (wide ? " wide" : "")}>
+      {/* Application bar: wordmark, breadcrumb, search, and no more than two commands (RecordPage plate). */}
+      <header className="appbar">
+        <span className="wordmark">GALLERY</span>
+        <Crumbs repo={app.repo} view={v} />
         <input
           id="global-search"
           type="search"
-          placeholder="Search names, tags, aliases…  (Ctrl+K)"
-          style={{ width: 300 }}
+          className="search"
+          placeholder="Search names, tags, aliases… (Ctrl+K)"
           value={app.query}
           onChange={(e) => {
             actions.setQuery(e.target.value);
             if (v.kind !== "list") actions.navigate({ kind: "list" });
           }}
         />
-        <button className="ghost" onClick={() => actions.navigate({ kind: "import" })}>
-          Import
-        </button>
-        <button className="ghost" onClick={() => actions.navigate({ kind: "settings" })}>
-          Settings
-        </button>
-        <button className="ghost" onClick={() => actions.reload()} title="Re-read the folder (after OneDrive sync or external edits)">
-          ↻
-        </button>
-        {!isTauri() && <span className="tag">browser demo</span>}
-      </div>
+        <Button onClick={() => actions.reload()} title="Re-read the folder (after OneDrive sync or external edits)">
+          Reload
+        </Button>
+      </header>
       <Sidebar />
-      {v.kind !== "map" && v.kind !== "hull" && <RecordList />}
-      <div className={"main" + (v.kind === "map" || v.kind === "hull" ? " mapmain" : "")}>
+      {!wide && <RecordList />}
+      <main className={"main" + (wide ? " canvas" : "")}>
         {app.error && (
-          <div className="errorbar row">
-            <span className="grow">{app.error}</span>
-            <button className="ghost" onClick={() => actions.error(null)}>
-              ×
-            </button>
-          </div>
+          <StatusRow severity="violation" id="ERROR" message={app.error} detail="Click to dismiss." word={false} onClick={() => actions.error(null)} />
         )}
-        {app.busy && <div className="muted">{app.busy}</div>}
+        {app.busy && <div className="help">{app.busy}</div>}
         {v.kind === "record" && <RecordEditor key={v.id} id={v.id} />}
         {v.kind === "map" && <SystemMap key={v.id} id={v.id} />}
         {v.kind === "hull" && <HullEditor key={v.id} id={v.id} />}
         {v.kind === "settings" && <Settings />}
         {v.kind === "import" && <ImportDialog />}
         {(v.kind === "list" || v.kind === "welcome") && <Overview />}
-      </div>
+      </main>
       {app.toast && <div className="toast">{app.toast}</div>}
     </div>
+  );
+}
+
+/** vault › kind › record, in data-sm; the last part in ink-100. */
+function Crumbs({ repo, view }: { repo: Repository; view: View }) {
+  const parts: string[] = [repo.config.name];
+  const typeTitle = (t: string | undefined) => (t ? repo.registry.get(t)?.title ?? t : undefined);
+  if (view.kind === "list") parts.push(typeTitle(view.type) ?? "All records");
+  if (view.kind === "record") {
+    const r = repo.record(view.id);
+    if (r) parts.push(typeTitle(r.type) ?? r.type, r.name);
+  }
+  if (view.kind === "map") parts.push("Maps", repo.record(view.id)?.name ?? view.id);
+  if (view.kind === "hull") parts.push("Hull", repo.record(view.id)?.name ?? view.id, "editor");
+  if (view.kind === "settings") parts.push("Settings");
+  if (view.kind === "import") parts.push("Import");
+  return (
+    <span className="crumbs" title={repo.fs.label}>
+      {parts.map((p, i) => (
+        <span key={i} className={i === parts.length - 1 ? "here" : undefined}>
+          {i > 0 && <span className="sep">›</span>}
+          {p}
+        </span>
+      ))}
+      <span className="sep">·</span>
+      {repo.fs.label}
+      {!isTauri() && " · browser demo"}
+    </span>
   );
 }
 
@@ -90,53 +108,47 @@ function Overview() {
   if (!repo) return null;
   const problems = stats?.problems ?? [];
   return (
-    <div className="editor">
-      <h2>{repo.config.name}</h2>
-      <p className="muted">
-        {stats?.records ?? 0} records · schemas and presets are editable files in <code>_schemas/</code> and <code>_presets/</code> · index at{" "}
-        <code>_index.csv</code>, per-type sheets in <code>_exports/</code>.
+    <div className="doc">
+      <div className="page-title">{repo.config.name}</div>
+      <p className="help">
+        {stats?.records ?? 0} records · schemas and presets are editable files in <code>_schemas/</code> and <code>_presets/</code> · index at <code>_index.csv</code>, per-type sheets
+        in <code>_exports/</code>.
       </p>
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Types</h3>
+      <Panel title="TYPES" meta={`${repo.registry.types().length} kinds`} bodyClassName="flush">
         <table className="tbl">
           <thead>
             <tr>
               <th></th>
-              <th>Type</th>
-              <th>Folder</th>
-              <th className="num">Records</th>
-              <th className="num">Presets</th>
-              <th>Description</th>
+              <th>TYPE</th>
+              <th>FOLDER</th>
+              <th className="num">RECORDS</th>
+              <th className="num">PRESETS</th>
+              <th>DESCRIPTION</th>
             </tr>
           </thead>
           <tbody>
             {repo.registry.types().map((t) => (
-              <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => actions.navigate({ kind: "list", type: t.id })}>
-                <td style={{ color: "var(--accent-500)" }}>{t.icon}</td>
-                <td>{t.title}</td>
-                <td className="mono">{t.folder}/</td>
+              <tr key={t.id} className="is-link" onClick={() => actions.navigate({ kind: "list", type: t.id })}>
+                <td className="glyph">{t.icon}</td>
+                <td className="t-label-md">{t.title}</td>
+                <td>{t.folder}/</td>
                 <td className="num">{stats?.byType[t.id] ?? 0}</td>
                 <td className="num">{repo.registry.presetsFor(t.id).length}</td>
-                <td className="muted">{t.description}</td>
+                <td className="help">{t.description}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Panel>
       {(problems.length > 0 || repo.registry.problems.length > 0) && (
-        <div className="card warn">
-          <h3 style={{ marginTop: 0 }}>Load problems</h3>
+        <Panel title="LOAD PROBLEMS" meta={String(problems.length + repo.registry.problems.length)} bodyClassName="flush">
           {repo.registry.problems.map((p, i) => (
-            <div key={"r" + i} className="mono">
-              {p}
-            </div>
+            <StatusRow key={"r" + i} severity="caution" id="SCHEMA" message={p} word={false} />
           ))}
           {problems.map((p) => (
-            <div key={p.path}>
-              <span className="mono">{p.path}</span> — {p.problems.join("; ")}
-            </div>
+            <StatusRow key={p.path} severity="caution" id={caps(p.path.split("/")[0] ?? "")} message={p.problems.join("; ")} detail={p.path} word={false} />
           ))}
-        </div>
+        </Panel>
       )}
     </div>
   );

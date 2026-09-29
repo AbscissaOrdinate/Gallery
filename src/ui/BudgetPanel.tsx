@@ -1,18 +1,19 @@
+import type { ReactNode } from "react";
 import { useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import { analyseShip } from "../core/designer/ship";
-import { byDomain } from "../core/designer/violations";
 import { provisionalParams } from "../core/designer/constraints";
+import { AdvisoryList, AsciiBar, Empty, Group, Panel, Row, Value, ratioSeverity } from "./kit";
 
-const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "—");
+const fmt = (n: number, d = 1) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : undefined);
 
 /**
- * The craft record's budget rail.
+ * The craft record's budget panel.
  *
- * The three-pane ship editor is the next pass; this keeps the record editor's
- * existing panel working against the new kernel, and adds the two things the
- * kernel made possible that the old panel could not show: the per-mode power
- * and heat columns, and which numbers rest on a provisional figure.
+ * The three-pane ship editor is a later pass; this keeps the record editor's
+ * panel working against the kernel: grouped figures, per-mode power and heat,
+ * section fill as ASCII bars, which numbers rest on a provisional figure, and
+ * the advisories grouped by severity. Nothing here refuses a save.
  */
 export function BudgetPanel({ craft }: { craft: TypedRecord }) {
   const { repo } = useApp();
@@ -25,115 +26,114 @@ export function BudgetPanel({ craft }: { craft: TypedRecord }) {
     provisionalParams: provisionalParams(eff),
   });
   /** `mark` puts the provisional marker on the figure itself, not only in the note below. */
-  const Stat = ({ k, v, unit, warn, mark }: { k: string; v: string; unit?: string; warn?: boolean; mark?: boolean }) => (
-    <div className="stat">
-      <div className="k">{k}</div>
-      <div className={"v" + (warn ? " warn" : "")}>
-        {mark && <span className="provisional inline" title="Rests on a provisional figure" />}
-        {v}
-        {unit && <small>{unit}</small>}
-      </div>
-    </div>
+  const S = ({ k, v, unit, bad, mark, extra }: { k: string; v: string | undefined; unit?: string; bad?: boolean; mark?: boolean; extra?: ReactNode }) => (
+    <Row label={k}>
+      <Value v={v} unit={unit} tone={bad ? "violation" : undefined} provisional={mark} />
+      {extra}
+    </Row>
   );
   const ratedProvisional = b.provisional.includes("rated displacement and structure fraction");
-  // `flagged`, not `warn`: `.warn` sets a colour, and on a card this size that
-  // inherits down into every stat and every table cell, so the one figure that
-  // is actually in trouble stops standing out. `flagged` only borders.
-  const worst = advisories[0]?.severity;
+  const propFraction = b.propellantCapacity_t > 0 ? b.propellant_t / b.propellantCapacity_t : undefined;
+
   return (
-    <div className={"card" + (worst === "error" || worst === "warn" ? " flagged" : "")}>
-      <h3 style={{ marginTop: 0 }}>Budget (computed from hull + loadout)</h3>
-      <div className="budget">
-        <Stat k="Dry mass" v={fmt(b.dryMass_t, 0)} unit="t" />
-        <Stat k="Wet mass" v={fmt(b.wetMass_t, 0)} unit="t" />
-        <Stat k={b.structureSource === "hand" ? "Structure (hand-set)" : "Structure"} v={fmt(b.structuralMass_t, 0)} unit={b.armorMass_t > 0 ? `t · ${fmt(b.armorMass_t, 0)} t armour` : "t"} />
+    <Panel title="BUDGET" meta="computed from hull + loadout" className="budget-panel">
+      {b.lines.length === 0 && <Empty>NO MODULES IN THE LOADOUT. ADD MODULES ABOVE TO SEE BUDGETS.</Empty>}
+      <Group title="MASS">
+        <S k="DRY MASS" v={fmt(b.dryMass_t, 0)} unit="t" />
+        <S k="WET MASS" v={fmt(b.wetMass_t, 0)} unit="t" />
+        <S k={b.structureSource === "hand" ? "STRUCTURE (HAND-SET)" : "STRUCTURE"} v={fmt(b.structuralMass_t, 0)} unit={b.armorMass_t > 0 ? `t · ${fmt(b.armorMass_t, 0)} t armour` : "t"} />
         {b.ratedMass_t !== undefined && (
-          <Stat
-            k="Rated full load"
+          <S
+            k="RATED FULL LOAD"
             v={fmt(b.ratedMass_t, 0)}
-            unit={b.structureFraction !== undefined ? `t · ${fmt(b.structureFraction * 100, 0)}% hull` : "t"}
-            warn={(b.structureFraction ?? 0) >= 1}
+            unit="t"
+            bad={(b.structureFraction ?? 0) > 1}
             mark={ratedProvisional}
+            extra={b.structureFraction !== undefined && <AsciiBar fraction={b.structureFraction} />}
           />
         )}
-        <Stat
-          k="Propellant"
+        <S
+          k="PROPELLANT"
           v={`${fmt(b.propellant_t, 0)}${b.propellantCapacity_t ? ` / ${fmt(b.propellantCapacity_t, 0)}` : ""}`}
           unit="t"
-          warn={b.propellantCapacity_t > 0 && b.propellant_t > b.propellantCapacity_t}
+          bad={propFraction !== undefined && propFraction > 1}
+          extra={propFraction !== undefined && <AsciiBar fraction={propFraction} />}
         />
-        <Stat k={b.stages.length > 1 ? `Δv (${b.stages.length} stages)` : "Δv"} v={fmt(b.deltaV_kms, 1)} unit="km/s" />
-        <Stat k="Thrust" v={fmt(b.thrust_kN, 0)} unit="kN" />
-        <Stat k="Isp" v={fmt(b.isp_s, 0)} unit="s" />
-        <Stat k="Accel (wet → dry)" v={`${fmt(b.accelWet_g, 2)} → ${fmt(b.accelDry_g, 2)}`} unit="g" />
-        <Stat k="Power" v={`${fmt(b.powerOut_MW, 1)} − ${fmt(b.powerIn_MW, 1)}`} unit={`= ${fmt(b.powerMargin_MW, 1)} MW`} warn={b.powerIn_MW > 0 && b.powerMargin_MW < 0} />
-        <Stat k="Heat" v={`${fmt(b.heatReject_MW, 0)} − ${fmt(b.heatOut_MW, 0)}`} unit={`= ${fmt(b.heatMargin_MW, 0)} MW`} warn={b.heatOut_MW > 0 && b.heatMargin_MW < 0} />
-        <Stat k="Cost" v={fmt(b.cost, 0)} unit="M$" />
-        <Stat k="Crew" v={fmt(b.crew, 0)} unit={b.crewOnWatch > 0 ? `· ${fmt(b.crewOnWatch, 0)} on watch` : undefined} />
-        {b.attitude && <Stat k="Turn 90° (pitch/yaw)" v={b.attitude.slew90_s > 0 ? fmt(b.attitude.slew90_s, 0) : "—"} unit="s" warn={b.attitude.slew90_s === 0} />}
-        {b.attitude?.roll && <Stat k="Roll 90°" v={b.attitude.roll.slew90_s > 0 ? fmt(b.attitude.roll.slew90_s, 0) : "—"} unit="s" />}
-      </div>
+      </Group>
 
-      {b.modes.length > 1 && (
-        <table className="tbl modes" style={{ marginTop: 8 }}>
-          <thead>
-            <tr>
-              <th>Mode</th>
-              <th>Power in / out</th>
-              <th>Heat, low-T</th>
-              <th>Heat, high-T</th>
-              <th>Radiated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {b.modes.map((m) => (
-              <tr key={m.id}>
-                <td>{m.name}</td>
-                <td className={m.powerMargin_MW < 0 ? "warn" : undefined}>
-                  {fmt(m.powerIn_MW)} / {fmt(m.powerOut_MW)} MW
-                </td>
-                <td className={m.marginLow_MW < 0 ? "warn" : undefined}>{fmt(m.heatLow_MW)} MW</td>
-                <td className={m.marginHigh_MW < 0 ? "warn" : undefined}>{fmt(m.heatHigh_MW)} MW</td>
-                <td>{fmt(m.radiated_kw, 0)} kW</td>
+      <Group title="PROPULSION">
+        <S k={b.stages.length > 1 ? `ΔV (${b.stages.length} STAGES)` : "ΔV"} v={fmt(b.deltaV_kms, 1)} unit="km/s" />
+        <S k="THRUST" v={fmt(b.thrust_kN, 0)} unit="kN" />
+        <S k="ISP" v={fmt(b.isp_s, 0)} unit="s" />
+        <S k="ACCEL (WET → DRY)" v={`${fmt(b.accelWet_g, 2)} → ${fmt(b.accelDry_g, 2)}`} unit="g" />
+        {b.attitude && <S k="TURN 90° (PITCH/YAW)" v={b.attitude.slew90_s > 0 ? fmt(b.attitude.slew90_s, 0) : undefined} unit="s" bad={b.attitude.slew90_s === 0} />}
+        {b.attitude?.roll && <S k="ROLL 90°" v={b.attitude.roll.slew90_s > 0 ? fmt(b.attitude.roll.slew90_s, 0) : undefined} unit="s" />}
+      </Group>
+
+      <Group title="POWER & HEAT">
+        <S k="POWER OUT − IN" v={`${fmt(b.powerOut_MW, 1)} − ${fmt(b.powerIn_MW, 1)} = ${fmt(b.powerMargin_MW, 1)}`} unit="MW" bad={b.powerIn_MW > 0 && b.powerMargin_MW < 0} />
+        <S k="HEAT REJECTED − MADE" v={`${fmt(b.heatReject_MW, 0)} − ${fmt(b.heatOut_MW, 0)} = ${fmt(b.heatMargin_MW, 0)}`} unit="MW" bad={b.heatOut_MW > 0 && b.heatMargin_MW < 0} />
+        {b.modes.length > 1 && (
+          <table className="tbl modes">
+            <thead>
+              <tr>
+                <th>MODE</th>
+                <th className="num">POWER IN / OUT</th>
+                <th className="num">HEAT, LOW-T</th>
+                <th className="num">HEAT, HIGH-T</th>
+                <th className="num">RADIATED</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {b.modes.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.name}</td>
+                  <td className={"num" + (m.powerMargin_MW < 0 ? " tone-violation" : "")}>
+                    {fmt(m.powerIn_MW)} / {fmt(m.powerOut_MW)} <span className="unit">MW</span>
+                  </td>
+                  <td className={"num" + (m.marginLow_MW < 0 ? " tone-violation" : "")}>
+                    {fmt(m.heatLow_MW)} <span className="unit">MW</span>
+                  </td>
+                  <td className={"num" + (m.marginHigh_MW < 0 ? " tone-violation" : "")}>
+                    {fmt(m.heatHigh_MW)} <span className="unit">MW</span>
+                  </td>
+                  <td className="num">
+                    {fmt(m.radiated_kw, 0)} <span className="unit">kW</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Group>
+
+      <Group title="CREW & COST">
+        <S k="CREW" v={fmt(b.crew, 0)} unit={b.crewOnWatch > 0 ? `· ${fmt(b.crewOnWatch, 0)} on watch` : undefined} />
+        <S k="COST" v={fmt(b.cost, 0)} unit="M$" />
+      </Group>
 
       {b.sections.length > 0 && (
-        <div className="chips" style={{ marginTop: 8 }}>
-          {b.sections.map((s) => (
-            <span key={s.id} className={"chip" + (s.over_m3 > 0 ? " warn" : "")}>
-              {s.id}: {fmt(s.used_m3, 0)} / {fmt(s.usable_m3, 0)} m³
-            </span>
-          ))}
-        </div>
+        <Group title="SECTIONS" meta={`${b.sections.length}`}>
+          {b.sections.map((s) => {
+            const f = s.usable_m3 > 0 ? s.used_m3 / s.usable_m3 : undefined;
+            return (
+              <Row key={s.id} label={s.id.toLocaleUpperCase("en")}>
+                <AsciiBar fraction={f} severity={s.over_m3 > 0 ? "violation" : ratioSeverity(f)} />
+                <Value v={`${fmt(s.used_m3, 0)} / ${fmt(s.usable_m3, 0)}`} unit="m³" tone={s.over_m3 > 0 ? "violation" : undefined} />
+              </Row>
+            );
+          })}
+        </Group>
       )}
 
-      {b.provisional.length > 0 && <div className="muted provisional">Provisional: {b.provisional.join("; ")}.</div>}
+      {b.provisional.length > 0 && <div className="provisional">Provisional: {b.provisional.join("; ")}.</div>}
       {b.assumptions.map((a, i) => (
-        <div key={i} className="muted" style={{ marginTop: 4 }}>
+        <div key={i} className="help">
           {a}
         </div>
       ))}
 
-      {advisories.length > 0 &&
-        byDomain(advisories).map((group) => (
-          <div key={group.domain}>
-            <div className="muted" style={{ marginTop: 6 }}>
-              {group.domain}
-            </div>
-            <ul className="advisories" style={{ margin: "2px 0 0", paddingLeft: 18 }}>
-              {group.violations.map((v, i) => (
-                <li key={i} className={v.severity}>
-                  {v.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      {b.lines.length === 0 && <div className="muted">Add modules to the loadout above to see budgets.</div>}
-    </div>
+      <AdvisoryList advisories={advisories} detailOf={(v) => (v.field ? `field ${v.field}${v.mode ? ` · mode ${v.mode}` : ""}` : v.mode ? `mode ${v.mode}` : undefined)} />
+    </Panel>
   );
 }

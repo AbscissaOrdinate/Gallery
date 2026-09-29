@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { actions, useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import * as W from "../core/astro/worldsmith";
+import { Button, Checkbox, Group, NumberField, Panel, Row, Select, TextField } from "./kit";
 
 interface Row {
   n: number;
@@ -135,76 +136,102 @@ export function SystemBuilder({ system, onDone }: { system: TypedRecord; onDone:
   };
 
   return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}>Generate a skeleton (Worldsmith classical system)</h3>
-      <div className="grid2">
-        <div className="field">
-          <label>Star preset</label>
-          <select value={starPreset} disabled={!!existingPrimary} onChange={(e) => { setStarPreset(e.target.value); const p = bodyPresets.find((x) => x.id === e.target.value); if (typeof p?.fields.mass_sol === "number") setStarMass(p.fields.mass_sol as number); }}>
-            {bodyPresets.filter((p) => /^(star|brown|white)/.test(p.id)).map((p) => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label>Star mass</label>
-          <span className="row"><input type="number" step="any" min={0.075} value={starMass} onChange={(e) => setStarMass(Number(e.target.value))} style={{ maxWidth: 120 }} /><span className="unit">M☉ {existingPrimary ? `(updates ${existingPrimary.name})` : ""}</span></span>
-        </div>
-        <div className="field">
-          <label>First orbit</label>
-          <span className="row"><input type="number" step="any" min={0} value={first} onChange={(e) => setFirst(Number(e.target.value))} style={{ maxWidth: 120 }} /><span className="unit">AU</span></span>
-        </div>
-        <div className="field">
-          <label>Spacing factor</label>
-          <span className="row"><input type="number" step="any" min={0} value={spacing} onChange={(e) => setSpacing(Number(e.target.value))} style={{ maxWidth: 120 }} /><span className="unit">aₙ = a₁ + s·2ⁿ⁻¹</span></span>
-        </div>
-        <div className="field">
-          <label>Orbits</label>
-          <input type="number" min={1} max={20} value={count} onChange={(e) => setCount(Number(e.target.value))} style={{ maxWidth: 120 }} />
-        </div>
-        <div className="field">
-          <label>Belts</label>
-          <span className="row"><input type="checkbox" checked={belts} onChange={(e) => setBelts(e.target.checked)} style={{ width: "auto" }} /><span className="muted">main belt before the first giant · outer belt at the giants' resonances</span></span>
-        </div>
+    <Panel title="GENERATE A SKELETON" meta="Worldsmith classical system">
+      <Group title="STAR AND ORBITS">
+        <Row label="STAR PRESET">
+          <Select
+            className="w-field"
+            value={starPreset}
+            disabled={!!existingPrimary}
+            onChange={(e) => {
+              setStarPreset(e.target.value);
+              const p = bodyPresets.find((x) => x.id === e.target.value);
+              if (typeof p?.fields.mass_sol === "number") setStarMass(p.fields.mass_sol as number);
+            }}
+          >
+            {bodyPresets
+              .filter((p) => /^(star|brown|white)/.test(p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+          </Select>
+        </Row>
+        <Row label="STAR MASS">
+          <NumberField className="w-num" step="any" min={0.075} value={starMass} onValue={(v) => setStarMass(v ?? 0)} unit="M☉" />
+          {existingPrimary && <span className="help">updates {existingPrimary.name}</span>}
+        </Row>
+        <Row label="FIRST ORBIT">
+          <NumberField className="w-num" step="any" min={0} value={first} onValue={(v) => setFirst(v ?? 0)} unit="AU" />
+        </Row>
+        <Row label="SPACING FACTOR">
+          <NumberField className="w-num" step="any" min={0} value={spacing} onValue={(v) => setSpacing(v ?? 0)} />
+          <span className="unit">aₙ = a₁ + s·2ⁿ⁻¹</span>
+        </Row>
+        <Row label="ORBITS">
+          <NumberField className="w-num" min={1} max={20} value={count} onValue={(v) => setCount(v ?? 1)} />
+        </Row>
+        <Row label="BELTS">
+          <Checkbox checked={belts} onChange={setBelts} label={<span className="help">main belt before the first giant · outer belt at the giants’ resonances</span>} />
+        </Row>
+      </Group>
+      <div className="help">
+        {star.spectral} · L {star.luminositySol.toFixed(3)} L☉ · HZ {star.hzInnerAU.toFixed(2)}–{star.hzOuterAU.toFixed(2)} AU · frost line {star.frostLineAU.toFixed(2)} AU · inner limit{" "}
+        {star.innerLimitAU.toFixed(4)} AU
       </div>
-      <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>
-        {star.spectral} · L {star.luminositySol.toFixed(3)} L☉ · HZ {star.hzInnerAU.toFixed(2)}–{star.hzOuterAU.toFixed(2)} AU · frost line {star.frostLineAU.toFixed(2)} AU · inner limit {star.innerLimitAU.toFixed(4)} AU
-      </div>
-      <div className="row">
-        <button className="primary" onClick={plan}>Plan orbits</button>
-        <button className="ghost" onClick={onDone}>Cancel</button>
+      <div className="btn-group">
+        <Button onClick={plan}>PLAN ORBITS</Button>
+        <Button onClick={onDone}>Cancel</Button>
       </div>
       {rows && (
         <>
-          <table className="tbl" style={{ marginTop: 10 }}>
+          <table className="tbl">
             <thead>
-              <tr><th>#</th><th className="num">AU</th><th>Zone</th><th>Preset</th><th>Name</th><th></th></tr>
+              <tr>
+                <th>#</th>
+                <th className="num">AU</th>
+                <th>ZONE</th>
+                <th>PRESET</th>
+                <th>NAME</th>
+                <th>USE</th>
+              </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={r.n} style={{ opacity: r.skip ? 0.45 : 1 }}>
+                <tr key={r.n} className={r.skip ? "is-muted" : undefined}>
                   <td>{r.n}</td>
                   <td className="num">{r.au}</td>
-                  <td className="muted">{r.note}</td>
+                  <td className="ink-300">{r.note}</td>
                   <td>
-                    <select value={r.preset} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, preset: e.target.value } : x)))}>
-                      {bodyPresets.filter((p) => !/^(star|brown|white|barycenter|main-belt|kuiper)/.test(p.id)).map((p) => (
-                        <option key={p.id} value={p.id}>{p.title}</option>
-                      ))}
-                    </select>
+                    <Select value={r.preset} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, preset: e.target.value } : x)))}>
+                      {bodyPresets
+                        .filter((p) => !/^(star|brown|white|barycenter|main-belt|kuiper)/.test(p.id))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title}
+                          </option>
+                        ))}
+                    </Select>
                   </td>
-                  <td><input type="text" value={r.name} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} /></td>
-                  <td><input type="checkbox" checked={!r.skip} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, skip: !e.target.checked } : x)))} title="include" style={{ width: "auto" }} /></td>
+                  <td>
+                    <TextField value={r.name} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                  </td>
+                  <td>
+                    <Checkbox checked={!r.skip} onChange={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, skip: !v } : x)))} title="Include" />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="primary" onClick={create} disabled={busy}>Create {rows.filter((r) => !r.skip).length} bodies{belts ? " + belts" : ""}</button>
-            <span className="muted" style={{ fontSize: 11 }}>{presetTitle(rows[0]?.preset ?? "")}…</span>
+          <div className="btn-group">
+            <Button variant="primary" onClick={create} disabled={busy}>
+              CREATE {rows.filter((r) => !r.skip).length} BODIES{belts ? " + BELTS" : ""}
+            </Button>
+            <span className="help">{presetTitle(rows[0]?.preset ?? "")}…</span>
           </div>
         </>
       )}
-    </div>
+    </Panel>
   );
 }
