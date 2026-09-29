@@ -174,8 +174,8 @@ function mergeParts(a: string[], b: string[]): string[] {
   return [...words, ...(fields.size ? [`fields: ${[...fields].join(", ")}`] : [])];
 }
 
-/** Keep a long field list readable in one line. */
-function render(parts: string[]): string {
+/** Keep a long field list readable in one line. Also labels undo steps (`core/history.ts`). */
+export function renderChange(parts: string[]): string {
   return parts
     .map((p) => {
       if (!p.startsWith("fields: ")) return p;
@@ -199,8 +199,8 @@ export function nextRevisions(prev: GalleryRecord | undefined, next: GalleryReco
   if (!parts.length) return log.length ? log : undefined;
   const last = log[log.length - 1];
   const recent = last && last.change !== "created" && Date.parse(now) - Date.parse(last.at) < REVISION_COALESCE_MS;
-  if (last && recent && !parts.includes("created")) log[log.length - 1] = { at: now, change: render(mergeParts(unrender(last.change), parts)) };
-  else log.push({ at: now, change: render(parts) });
+  if (last && recent && !parts.includes("created")) log[log.length - 1] = { at: now, change: renderChange(mergeParts(unrender(last.change), parts)) };
+  else log.push({ at: now, change: renderChange(parts) });
   return log.slice(-REVISION_CAP);
 }
 

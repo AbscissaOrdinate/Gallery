@@ -100,7 +100,7 @@ describe("repository snapshots", () => {
       r.name += " (edited)";
       await repo.save(r);
     }
-    for (const r of some.slice(5, 12)) await repo.delete(r.id, { snapshot: false });
+    for (const r of some.slice(5, 12)) await repo.delete(r.id);
     await repo.saveConfig({ name: "Wrecked" });
     expect(vaultFiles(fs)).not.toEqual(before);
 
@@ -175,7 +175,7 @@ describe("repository snapshots", () => {
     expect(vaultFiles(fs)).toEqual(dirty);
   });
 
-  it("delete snapshots the file first (cause 'Before delete') unless told the caller already did", async () => {
+  it("delete snapshots the file first (cause 'Before delete') unless its transaction's snapshot holds it", async () => {
     const { fs, repo } = await demo();
     const seen: string[] = [];
     repo.onSnapshot = (m) => seen.push(m.cause);
@@ -188,8 +188,8 @@ describe("repository snapshots", () => {
     expect(snap.ids).toEqual([a.record.id]);
     expect(await fs.readText(`_snapshots/${snap.id}/files/${path}`)).toBe(text);
 
-    await repo.delete(b.record.id, { snapshot: false });
-    expect(seen).toHaveLength(1);
+    await repo.transaction("DELETE 1 RECORD", (tx) => tx.delete(b.record.id), { snapshot: { cause: SNAPSHOT_CAUSE.bulkDelete, ids: [b.record.id] } });
+    expect(seen).toEqual([SNAPSHOT_CAUSE.delete, SNAPSHOT_CAUSE.bulkDelete]);
     // Restoring brings the deleted record back.
     await repo.restoreSnapshot(snap.id);
     expect(repo.get(a.record.id)).toBeDefined();
