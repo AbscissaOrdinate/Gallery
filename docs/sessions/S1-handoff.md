@@ -74,15 +74,17 @@ throws "Nested transaction"; `adopt` drops `LoadedRecord.migrated`/`problems`. *
 scope:** `save` renaming onto a path another record holds overwrites it (undo makes it worse) —
 queued as a separate task.
 
-**Interpretations (flag if wrong — each is one line to flip)**
+**Owner rulings on the interpretations (PR #13 review — keep both)**
 - Coalescing window: after a burst folds in, the step's `at` becomes the new push time, so the
-  4 s is measured from the *last* burst (steady typing with short pauses stays one step). The
-  spec's `now − prev.at` does not say whether `at` moves.
+  4 s is measured from the *last* burst (steady typing with short pauses stays one step).
 - `undo()`/`redo()` with nothing to apply return `{ ok: false, label: "", refused: [] }`.
 - The step label is the record's name upper-cased with `toLocaleUpperCase("en")`.
 
 **Not done (S1d — PR 3b, UI wiring)**
 - Wire `repo.onLog` in `state.openVault` (next to `onSnapshot`) to the session log.
+- **`ApplyResult` with `ok: false`, `label: ""` and an empty `refused` means "nothing to undo/redo"**
+  (owner ruling): `actions.undo()`/`redo()` must **not** toast `UNDO REFUSED` for it — no refusal
+  toast, no log line. Only a non-empty `refused` is a refusal.
 - Everything in doc 11 §1.8: `useRecordDraft`, `drafts.ts`, `keys.ts`, `actions.undo/redo`
   (flushAll first; toast `UNDONE — <label>` / `UNDO REFUSED — <file> CHANGED ON DISK`), origins
   for the record/hull editors and map settings, hull `checkpoint()`.

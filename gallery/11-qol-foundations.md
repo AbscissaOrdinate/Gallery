@@ -92,7 +92,7 @@ transaction's own label.
 ### 1.4 Repository API changes
 
 ```ts
-save(r, opts?: { touch?: boolean; history?: false; origin?: string; tx?: Tx }): Promise<LoadedRecord>
+save(r, opts?: { touch?: boolean; history?: false; origin?: string; label?: string; tx?: Tx }): Promise<LoadedRecord> // label: step label override (map drag MOVE/PARK, §1.3); ignored inside a tx
 delete(id, opts?: { history?: false; tx?: Tx }): Promise<void>
 transaction<T>(label: string, fn: (tx: Tx) => Promise<T>,
                opts?: { snapshot?: { cause: string; ids: string[] } }): Promise<T>
