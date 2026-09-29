@@ -510,3 +510,219 @@ describe("migration, reload, restore", () => {
     expect(recordFiles(fs)).toEqual(restored);
   });
 });
+
+describe("review follow-ups", () => {
+  it("F4: a record edited in place (the map drag) still undoes byte-identically", async () => {
+    const { fs, repo } = await demo();
+    const lr = repo.get(polity(repo).id)!;
+    const original = await fs.readText(lr.location.path);
+    (lr.record as TypedRecord).fields.map_test = 42; // mutate the live record, as SystemMap does
+    await repo.save(lr.record, { label: "MOVE TEST" });
+    expect(repo.history.peekUndo()!.label).toBe("MOVE TEST");
+    expect((await repo.undo()).ok).toBe(true);
+    expect(await fs.readText(lr.location.path)).toBe(original);
+    expect((repo.record(lr.record.id) as TypedRecord).fields.map_test).toBeUndefined();
+  });
+
+  it("refuses to undo a rename when the old path is taken, a create edited on disk, or a delete whose record is back", async () => {
+    const { fs, repo } = await demo();
+    const r = polity(repo, 0);
+    const oldPath = repo.get(r.id)!.location.path;
+    r.name = "Moved Away";
+    r.slug = "moved-away";
+    await repo.save(r);
+    await fs.writeText(oldPath, "someone else\n");
+    expect(await repo.undo()).toMatchObject({ ok: false, refused: [{ path: oldPath, reason: "a file is already there" }] });
+
+    const { fs: fs2, repo: repo2 } = await demo();
+    const c = repo2.create("polity", "Fresh");
+    const { location } = await repo2.save(c);
+    await fs2.writeText(location.path, "edited\n");
+    expect(await repo2.undo()).toMatchObject({ ok: false, refused: [{ path: location.path, reason: "changed on disk" }] });
+
+    const { fs: fs3, repo: repo3 } = await demo();
+    const d = polity(repo3, 1);
+    const dPath = repo3.get(d.id)!.location.path;
+    const dText = await fs3.readText(dPath);
+    await repo3.delete(d.id);
+    const elsewhere = dPath.replace(/[^/]+$/, "copied-back.polity.yaml");
+    await fs3.writeText(elsewhere, dText); // the same record, under another name
+    await repo3.load();
+    expect(await repo3.undo()).toMatchObject({ ok: false, refused: [{ path: dPath, reason: "the record is loaded again" }] });
+    expect(await fs3.exists(dPath)).toBe(false);
+  });
+
+  it("refuses to redo a transaction when one of its files changed, stacks unchanged", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    await repo.transaction("PAIR", async (tx) => {
+      a.summary = "a";
+      await tx.save(a);
+      b.summary = "b";
+      await tx.save(b);
+    });
+    await repo.undo();
+    await fs.writeText(repo.get(a.id)!.location.path, "external\n");
+    const dump = fs.dump();
+    const s = stacks(repo);
+    expect((await repo.redo()).ok).toBe(false);
+    expect(fs.dump()).toEqual(dump);
+    expect(stacks(repo)).toEqual(s);
+  });
+
+  it("a step stopped part-way by an I/O error resumes on retry without re-checking what it already wrote", async () => {
+    const inner = new MemoryAdapter();
+    await demoVault(inner);
+    let failRemove = false;
+    const flaky = new Proxy(inner, {
+      get(t, k, rcv) {
+        if (k === "remove") return async (p: string) => (failRemove ? Promise.reject(new Error("locked")) : t.remove(p));
+        return Reflect.get(t, k, rcv);
+      },
+    });
+    const repo = new Repository(flaky);
+    await repo.init();
+    await repo.load();
+    const log: LogInput[] = [];
+    repo.onLog = (l) => log.push(l);
+    const created = repo.create("polity", "Made First");
+    const a = polity(repo, 0);
+    const aPath = repo.get(a.id)!.location.path;
+    const aText = await inner.readText(aPath);
+    await repo.transaction("TWO", async (tx) => {
+      await tx.save(created);
+      a.summary = "second";
+      await tx.save(a);
+    });
+    const createdPath = repo.get(created.id)!.location.path;
+    failRemove = true;
+    await expect(repo.undo()).rejects.toThrow("locked"); // undo runs a's edit first, then the create
+    expect(log.at(-1)!.detail!.components).toEqual([aPath]);
+    expect(await inner.readText(aPath)).toBe(aText);
+    failRemove = false;
+    expect((await repo.undo()).ok).toBe(true);
+    expect(await inner.exists(createdPath)).toBe(false);
+    expect(await inner.readText(aPath)).toBe(aText);
+    expect(repo.history.peekRedo()!.label).toBe("TWO");
+    expect((await repo.redo()).ok).toBe(true);
+    expect(await inner.exists(createdPath)).toBe(true);
+  });
+
+  it("a save made while an undo is being written waits for it, and is never clobbered", async () => {
+    const inner = new MemoryAdapter();
+    await demoVault(inner);
+    let hold: Promise<void> | null = null;
+    let entered!: () => void;
+    const reached = new Promise<void>((r) => (entered = r));
+    const slow = new Proxy(inner, {
+      get(t, k, rcv) {
+        if (k === "writeText")
+          return async (p: string, c: string) => {
+            if (hold && !p.startsWith("_")) {
+              const h = hold;
+              hold = null;
+              entered();
+              await h;
+            }
+            return t.writeText(p, c);
+          };
+        return Reflect.get(t, k, rcv);
+      },
+    });
+    const repo = new Repository(slow);
+    await repo.init();
+    await repo.load();
+    const r = polity(repo);
+    const path = repo.get(r.id)!.location.path;
+    r.summary = "first";
+    await repo.save(r);
+    let release!: () => void;
+    hold = new Promise<void>((res) => (release = res));
+    const undoing = repo.undo();
+    await reached; // the undo passed its preflight and is writing
+    const fresh = structuredClone(r);
+    fresh.summary = "typed during the undo";
+    const saving = repo.save(fresh);
+    await new Promise((res) => setTimeout(res, 10));
+    release();
+    expect((await undoing).ok).toBe(true);
+    await saving;
+    expect(await inner.readText(path)).toContain("typed during the undo");
+    expect(repo.history.past).toHaveLength(1); // the fresh save, on top of the undone state
+    expect(repo.history.future).toHaveLength(0); // a new step clears redo
+    expect((await repo.undo()).ok).toBe(true); // …and it undoes cleanly to the pre-"first" file
+  });
+
+  it("two quick undos apply two steps, one after the other", async () => {
+    const { fs, repo } = await demo();
+    const r = polity(repo);
+    const path = repo.get(r.id)!.location.path;
+    const original = await fs.readText(path);
+    r.summary = "one";
+    await repo.save(r);
+    r.tags = [...r.tags, "two"];
+    await repo.save(r);
+    const [x, y] = await Promise.all([repo.undo(), repo.undo()]);
+    expect([x.ok, y.ok]).toEqual([true, true]);
+    expect(await fs.readText(path)).toBe(original);
+    expect(repo.history.future).toHaveLength(2);
+  });
+
+  it("an editor's next burst does not fold over an external edit picked up by a reload", async () => {
+    const { fs, repo } = await demo();
+    const r = polity(repo);
+    const path = repo.get(r.id)!.location.path;
+    r.summary = "a";
+    await repo.save(r, { origin: "ed" });
+    await fs.writeText(path, (await fs.readText(path)).replace(/^name: .*$/m, "name: Outside Edit"));
+    await repo.load();
+    const again = structuredClone(repo.record(r.id)!) as TypedRecord;
+    again.summary = "ab";
+    await repo.save(again, { origin: "ed" });
+    expect(repo.history.past).toHaveLength(2);
+    await repo.undo();
+    expect(repo.record(r.id)!.name).toBe("Outside Edit");
+  });
+
+  it("a transaction's own delete snapshot is named on its step when it has none of its own", async () => {
+    const { repo } = await demo();
+    const r = polity(repo);
+    await repo.transaction("DELETE ONE", (tx) => tx.delete(r.id));
+    const [snap] = await repo.snapshots();
+    expect(repo.history.peekUndo()!.snapshot).toBe(snap.id);
+  });
+
+  it("a restore that fails part-way keeps what it wrote as an INCOMPLETE step, and memory follows the disk", async () => {
+    const inner = new MemoryAdapter();
+    await demoVault(inner);
+    let failOn: string | undefined;
+    const flaky = new Proxy(inner, {
+      get(t, k, rcv) {
+        if (k === "writeText") return async (p: string, c: string) => (p === failOn ? Promise.reject(new Error("disk full")) : t.writeText(p, c));
+        return Reflect.get(t, k, rcv);
+      },
+    });
+    const repo = new Repository(flaky);
+    await repo.init();
+    await repo.load();
+    const log: LogInput[] = [];
+    repo.onLog = (l) => log.push(l);
+    const [a, b] = [polity(repo, 0), polity(repo, 1)];
+    const snap = (await repo.snapshot("Test", [a.id, b.id]))!;
+    const aOriginal = await inner.readText(repo.get(a.id)!.location.path);
+    a.summary = "edited";
+    await repo.save(a);
+    b.summary = "edited";
+    await repo.save(b);
+    failOn = snap.files[1].path; // the second file restored
+    await expect(repo.restoreSnapshot(snap.id)).rejects.toThrow("disk full");
+    const step = repo.history.peekUndo()!;
+    expect(step.label).toBe(`RESTORE SNAPSHOT ${snap.id} — INCOMPLETE`);
+    expect(step.entries.map((e) => e.id)).toEqual([snap.files[0].id]);
+    expect(log.at(-1)).toMatchObject({ severity: "violation", message: `RESTORE SNAPSHOT ${snap.id} — INCOMPLETE` });
+    const restoredId = snap.files[0].id!;
+    expect(await inner.readText(repo.get(restoredId)!.location.path)).toBe(restoredId === a.id ? aOriginal : await inner.readText(snap.files[0].path));
+    expect(repo.record(restoredId)!.summary).not.toBe("edited");
+  });
+});
+

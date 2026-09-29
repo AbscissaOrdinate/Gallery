@@ -42,6 +42,8 @@ export interface SaveOptions {
   history?: false;
   /** The editor instance making the write; consecutive bursts from one origin coalesce (§1.3). */
   origin?: string;
+  /** The step's label, when the default `EDIT <NAME> — …` does not say it (map drag: `MOVE <NAME>`, §1.3). Ignored inside a transaction. */
+  label?: string;
   /** Append to this open transaction instead of making a step of its own. */
   tx?: Tx;
 }
@@ -60,6 +62,8 @@ interface TxState {
   entries: Entry[];
   /** The snapshot taken before the first entry, if any. */
   snapshot?: SnapshotManifest;
+  /** Without one, the first "Before delete" snapshot a delete inside it took: named in a refusal. */
+  deleteSnapshot?: string;
   open: boolean;
 }
 
@@ -126,6 +130,17 @@ export class Repository {
   private tx?: TxState;
   /** Undo/redo run one at a time, so two quick presses never apply the same step twice. */
   private applying: Promise<unknown> = Promise.resolve();
+  /**
+   * The write gate. Saves, deletes and open transactions count themselves in `writers`; an
+   * undo/redo starts only when there are none, and while it runs (`applyRun`) new writes wait for
+   * it. So nothing can write a file between an apply's preflight and its writes (§1.5: never
+   * clobber). Writes do not wait for each other, and a transaction's own writes pass freely.
+   */
+  private writers = 0;
+  private idle: (() => void)[] = [];
+  private applyRun?: Promise<unknown>;
+  /** Entries of a step an I/O error stopped part-way, so a retry in the same direction resumes it. */
+  private partial = new WeakMap<Step, { dir: "undo" | "redo"; state: Map<Entry, "wrote" | "done"> }>();
 
   /** The session's undo history (doc 11 §1). Kept across `load()`; ends with this Repository. */
   readonly history = new History();
@@ -404,6 +419,15 @@ export class Repository {
    * or one entry of `opts.tx` (doc 11 §1.3–1.4).
    */
   async save(r: GalleryRecord, opts: SaveOptions = {}): Promise<LoadedRecord> {
+    await this.enterWrite();
+    try {
+      return await this.saveNow(r, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async saveNow(r: GalleryRecord, opts: SaveOptions): Promise<LoadedRecord> {
     const tx = this.openTx(opts.tx);
     const prior = this.byId.get(r.id);
     const before = prior ? await this.currentSide(r.id) : null;
@@ -441,8 +465,8 @@ export class Repository {
     this.saved.set(r.id, copy);
     this.lastText.set(r.id, { path, text });
     this.bump(r.id);
+    if (opts.history !== false) this.fileEntry({ id: r.id, before, after: { path, text, record: copy } }, tx, opts.origin, undefined, opts.label);
     this.emit();
-    if (opts.history !== false) this.fileEntry({ id: r.id, before, after: { path, text, record: copy } }, tx, opts.origin);
     if (!tx && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return loaded;
   }
@@ -453,6 +477,15 @@ export class Repository {
    * own snapshot already holds that file (bulk delete: one "Before bulk delete" snapshot).
    */
   async delete(id: string, opts: DeleteOptions = {}): Promise<void> {
+    await this.enterWrite();
+    try {
+      await this.deleteNow(id, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async deleteNow(id: string, opts: DeleteOptions): Promise<void> {
     const tx = this.openTx(opts.tx);
     const lr = this.byId.get(id);
     if (!lr) return;
@@ -464,8 +497,8 @@ export class Repository {
     this.saved.delete(id);
     this.lastText.delete(id);
     this.bump(id);
-    this.emit();
     if (opts.history !== false) this.fileEntry({ id, before, after: null }, tx, undefined, snap?.id);
+    this.emit();
     if (!tx && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
   }
 
@@ -494,16 +527,40 @@ export class Repository {
     return s;
   }
 
+  /** A save, delete or transaction begins: wait out any undo/redo being applied, then count in. */
+  private async enterWrite(): Promise<void> {
+    while (this.applyRun) await this.applyRun.catch(() => undefined);
+    this.writers++;
+  }
+  private exitWrite() {
+    if (--this.writers === 0) for (const wake of this.idle.splice(0)) wake();
+  }
+  /** Run an undo/redo once no write is in flight, holding writes off until it is done. */
+  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.writers > 0 || this.applyRun) {
+      if (this.applyRun) await this.applyRun.catch(() => undefined);
+      else await new Promise<void>((wake) => this.idle.push(wake));
+    }
+    const run = fn();
+    this.applyRun = run;
+    try {
+      return await run;
+    } finally {
+      if (this.applyRun === run) this.applyRun = undefined;
+    }
+  }
+
   /** File a single write: into the open transaction, or as a step of its own. */
-  private fileEntry(e: Entry, tx: TxState | undefined, origin?: string, snapshot?: string) {
+  private fileEntry(e: Entry, tx: TxState | undefined, origin?: string, snapshot?: string, label?: string) {
     if (!e.before && !e.after) return;
     if (tx) {
       tx.entries.push(e);
+      if (snapshot && !tx.deleteSnapshot) tx.deleteSnapshot = snapshot;
       return;
     }
     // The same bytes at the same path: there is nothing to undo.
     if (e.before && e.after && e.before.path === e.after.path && e.before.text === e.after.text) return;
-    this.history.push({ label: entryLabel(e), origin, entries: [e], ...(snapshot ? { snapshot } : {}) }, Date.now());
+    this.history.push({ label: label ?? entryLabel(e), origin, entries: [e], ...(snapshot ? { snapshot } : {}) }, Date.now());
   }
 
   private log(line: LogInput) {
@@ -516,10 +573,25 @@ export class Repository {
    * records first (callers declaring ≥ 10 ids must, §1.7); a delete inside the transaction then
    * takes no snapshot of its own. Writes made outside `tx` meanwhile are steps of their own. If
    * `fn` throws after writing, the partial step is kept (label `— INCOMPLETE`) so it can be undone,
-   * a violation is logged, and the error is rethrown. Nesting is a programming error and throws.
+   * a violation is logged, and the error is rethrown. Nesting is a programming error and throws. An
+   * undo/redo waits for an open transaction to finish, so `fn` must never await one.
    */
   async transaction<T>(label: string, fn: (tx: Tx) => Promise<T>, opts: { snapshot?: { cause: string; ids: string[] } } = {}): Promise<T> {
     if (this.tx) throw new Error(`Nested transaction: "${label}" started inside "${this.tx.label}"`);
+    await this.enterWrite();
+    const other = this.tx as TxState | undefined; // one may have opened while we waited
+    if (other) {
+      this.exitWrite();
+      throw new Error(`Nested transaction: "${label}" started inside "${other.label}"`);
+    }
+    try {
+      return await this.runTx(label, fn, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async runTx<T>(label: string, fn: (tx: Tx) => Promise<T>, opts: { snapshot?: { cause: string; ids: string[] } }): Promise<T> {
     const handle: Tx = {
       label,
       save: (r, o = {}) => this.save(r, { touch: o.touch, tx: handle }),
@@ -546,18 +618,19 @@ export class Repository {
     state.open = false;
     if (this.tx === state) this.tx = undefined;
     if (!state.entries.length) return;
-    this.history.push({ label: failed ? `${state.label} — INCOMPLETE` : state.label, entries: state.entries, ...(state.snapshot ? { snapshot: state.snapshot.id } : {}) }, Date.now());
+    const snapshot = state.snapshot?.id ?? state.deleteSnapshot;
+    this.history.push({ label: failed ? `${state.label} — INCOMPLETE` : state.label, entries: [...state.entries], ...(snapshot ? { snapshot } : {}) }, Date.now());
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
   }
 
   /** Revert the latest step. Refuses, writing nothing, when any of its files changed on disk since (§1.5). */
   undo(): Promise<ApplyResult> {
-    return this.serial(() => this.applyTop("undo"));
+    return this.serial(() => this.exclusive(() => this.applyTop("undo")));
   }
 
   /** Re-apply the latest undone step, under the same rule. */
   redo(): Promise<ApplyResult> {
-    return this.serial(() => this.applyTop("redo"));
+    return this.serial(() => this.exclusive(() => this.applyTop("redo")));
   }
 
   private serial<T>(fn: () => Promise<T>): Promise<T> {
@@ -583,12 +656,15 @@ export class Repository {
    * the text the step left there, and a path to be created must be free (and, for a record coming
    * back, its id not loaded). Any failure refuses the whole step — nothing written, both stacks as
    * they were. Never clobbers, never partly applies. An I/O error part-way is logged with the files
-   * written so far and rethrown; the step stays on its stack.
+   * written so far and rethrown; the step stays on its stack, and a retry in the same direction
+   * resumes it — the entries already applied are checked to still hold, not applied again.
    */
   private async apply(step: Step, dir: "undo" | "redo"): Promise<ApplyResult> {
     const order = dir === "undo" ? [...step.entries].reverse() : step.entries;
-    const moves = order.map((e) => (dir === "undo" ? { id: e.id, from: e.after, to: e.before } : { id: e.id, from: e.before, to: e.after }));
+    const moves = order.map((e) => (dir === "undo" ? { entry: e, id: e.id, from: e.after, to: e.before } : { entry: e, id: e.id, from: e.before, to: e.after }));
     const verb = dir === "undo" ? "UNDO" : "REDO";
+    const prior = this.partial.get(step);
+    const progress = new Map(prior?.dir === dir ? prior.state : []);
 
     const view = new Map<string, string | null>(); // path → text this step will have left there; null = absent
     const loaded = new Map<string, boolean>();
@@ -605,14 +681,26 @@ export class Repository {
     const refuse = (path: string, reason: string) => {
       if (!refused.some((r) => r.path === path)) refused.push({ path, reason });
     };
+    const expect = async (p: string, text: string) => {
+      const t = await textAt(p);
+      if (t !== text) refuse(p, t === null ? "missing or unreadable" : "changed on disk");
+    };
     for (const m of moves) {
-      if (m.from) {
-        const t = await textAt(m.from.path);
-        if (t !== m.from.text) refuse(m.from.path, t === null ? "missing or unreadable" : "changed on disk");
-      } else if (loaded.get(m.id) ?? this.byId.has(m.id)) {
-        refuse(m.to!.path, "the record is loaded again");
+      const moved = !!m.from && !!m.to && m.from.path !== m.to.path;
+      const done = progress.get(m.entry);
+      if (done === "done") {
+        // Applied before an I/O error stopped the step: it must still hold.
+        if (m.to) await expect(m.to.path, m.to.text);
+        if (m.from && m.from.path !== m.to?.path && (await existsAt(m.from.path))) refuse(m.from.path, "changed on disk");
+      } else if (done === "wrote" && moved) {
+        // The new file was written, the old one not yet removed.
+        await expect(m.to!.path, m.to!.text);
+        await expect(m.from!.path, m.from!.text);
+      } else {
+        if (m.from) await expect(m.from.path, m.from.text);
+        else if (loaded.get(m.id) ?? this.byId.has(m.id)) refuse(m.to!.path, "the record is loaded again");
+        if (m.to && m.to.path !== m.from?.path && (await existsAt(m.to.path))) refuse(m.to.path, "a file is already there");
       }
-      if (m.to && m.to.path !== m.from?.path && (await existsAt(m.to.path))) refuse(m.to.path, "a file is already there");
       if (m.from) view.set(m.from.path, null);
       if (m.to) view.set(m.to.path, m.to.text);
       loaded.set(m.id, !!m.to);
@@ -628,24 +716,30 @@ export class Repository {
     const written: string[] = [];
     try {
       for (const m of moves) {
-        if (m.to) {
+        const done = progress.get(m.entry);
+        if (done === "done") continue;
+        if (m.to && done !== "wrote") {
           await this.fs.mkdirAll(dirname(m.to.path));
           await this.fs.writeText(m.to.path, m.to.text);
           written.push(m.to.path);
           this.adopt(m.id, m.to);
+          progress.set(m.entry, "wrote");
         }
         if (m.from && m.from.path !== m.to?.path) {
           await this.fs.remove(m.from.path);
           written.push(m.from.path);
           if (!m.to) this.adopt(m.id, null);
         }
+        progress.set(m.entry, "done");
       }
     } catch (err) {
+      this.partial.set(step, { dir, state: progress });
       this.emit();
       if (written.length && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
       this.log({ severity: "violation", source: "history", message: `${verb} FAILED PART-WAY — ${step.label}`, detail: { components: written, note: `${(err as Error).message}. Written so far: ${written.join(", ") || "nothing"}. The step stays available.` } });
       throw err;
     }
+    this.partial.delete(step);
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     this.log({ severity: "info", source: "history", message: `${dir === "undo" ? "UNDONE" : "REDONE"} — ${step.label}` });
@@ -717,6 +811,8 @@ export class Repository {
 
   private async restoreInTx(id: string): Promise<RestoreResult> {
     const state = this.tx!;
+    // Start from the disk as it is, so the step's `before` is what the restore really overwrites.
+    await this.load();
     const manifest = await readManifest(this.fs, id);
     const remove: string[] = [];
     const touched = new Set<string>();
@@ -740,8 +836,14 @@ export class Repository {
     }
     const pre = new Map<string, FileSide | null>();
     for (const rid of touched) pre.set(rid, await this.currentSide(rid));
-    const result = await restoreSnapshot(this.fs, id, { remove });
-    if (result.safety) {
+    let result: RestoreResult | undefined;
+    let failure: unknown;
+    try {
+      result = await restoreSnapshot(this.fs, id, { remove });
+    } catch (err) {
+      failure = err; // part-way: what was written still becomes the (INCOMPLETE) step
+    }
+    if (result?.safety) {
       this.onSnapshot?.(result.safety);
       state.snapshot = result.safety;
     }
@@ -751,6 +853,7 @@ export class Repository {
       if (before?.path === after?.path && before?.text === after?.text) continue;
       state.entries.push({ id: rid, before, after });
     }
+    if (!result) throw failure;
     // The transaction regenerates the CSV once it has entries; a restore of other files only still does.
     if (!state.entries.length && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return result;

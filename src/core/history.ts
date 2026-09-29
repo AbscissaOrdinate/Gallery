@@ -67,13 +67,16 @@ const sameParts = (a: string[], b: string[]) => a.length === b.length && a.every
 /**
  * Whether `next` folds into `prev` (§1.3): `prev` is the top of `past` and nothing has been undone
  * since, both come from the same editor (`origin`), each is one edit of the same record, the edits
- * touch the same parts, and `next` follows within `COALESCE_MS` of the last write in `prev`.
+ * touch the same parts, and `next` follows within `COALESCE_MS` of the last write in `prev`. Also,
+ * `next` must start from exactly the file `prev` left: if anything else wrote it in between (an
+ * external edit picked up by a reload), folding would let undo wipe that write.
  */
 function coalesces(prev: Step, next: NewStep, now: number, futureEmpty: boolean): boolean {
   if (!futureEmpty || prev.origin === undefined || prev.origin !== next.origin) return false;
   if (prev.entries.length !== 1 || next.entries.length !== 1) return false;
   const [a, b] = [prev.entries[0], next.entries[0]];
   if (a.id !== b.id || !a.before || !a.after || !b.before || !b.after) return false;
+  if (a.after.path !== b.before.path || a.after.text !== b.before.text) return false;
   if (!sameParts(describeChange(a.before.record, a.after.record), describeChange(b.before.record, b.after.record))) return false;
   return now - prev.at < COALESCE_MS;
 }
@@ -92,17 +95,16 @@ export class History {
 
   /**
    * Record a step. It clears `future`, folds into the previous step when §1.3 allows (keeping the
-   * earlier `before`, taking the new `after`), and trims `past` to `depth`. Returns the step as it
-   * now stands on top of `past`.
+   * earlier `before`, taking the new `after`, relabelled for the whole span), and trims `past` to
+   * `depth`. Returns the step as it now stands on top of `past`. A folded step keeps its identity.
    */
   push(step: NewStep, now: number): Step {
     const top = this.past[this.past.length - 1];
     if (top && coalesces(top, step, now, this.future.length === 0)) {
-      const [a, b] = [top.entries[0], step.entries[0]];
-      const merged: Step = { ...top, at: now, label: step.label, entries: [{ id: a.id, before: a.before, after: b.after }] };
-      this.past[this.past.length - 1] = merged;
+      const entry: Entry = { id: top.entries[0].id, before: top.entries[0].before, after: step.entries[0].after };
+      Object.assign(top, { at: now, label: entryLabel(entry), entries: [entry] });
       this.emit();
-      return merged;
+      return top;
     }
     const s: Step = { ...step, seq: ++this.seq, at: now };
     this.past.push(s);

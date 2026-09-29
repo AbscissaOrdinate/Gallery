@@ -99,14 +99,16 @@ describe("History — coalescing (§1.3)", () => {
   it("folds a burst into the previous step: earlier before, newer after", () => {
     const h = new History();
     h.push(edit("m", { a: 1 }, { a: 2 }), 1000);
-    const s = h.push({ ...edit("m", { a: 2 }, { a: 3 }), label: "EDIT M (latest)" }, 1000 + COALESCE_MS - 1);
+    const first = h.past[0];
+    const s = h.push(edit("m", { a: 2 }, { a: 3 }), 1000 + COALESCE_MS - 1);
+    expect(s).toBe(first); // folded in place: a commit naming the step still finds it
     expect(h.past).toHaveLength(1);
     expect(h.past[0]).toBe(s);
     expect(s.seq).toBe(1);
     expect(s.entries).toHaveLength(1);
     expect(s.entries[0].before!.record).toEqual(rec("m", { a: 1 }));
     expect(s.entries[0].after!.record).toEqual(rec("m", { a: 3 }));
-    expect(s.label).toBe("EDIT M (latest)");
+    expect(s.label).toBe("EDIT MARS — fields: a"); // labelled for the whole span
     expect(s.at).toBe(1000 + COALESCE_MS - 1);
   });
 
@@ -145,6 +147,22 @@ describe("History — coalescing (§1.3)", () => {
     h.push({ ...edit("m", { a: 1 }, { a: 2 }), entries: [...edit("m", { a: 1 }, { a: 2 }).entries, ...edit("n", {}, { a: 1 }).entries] }, 0);
     h.push(edit("m", { a: 2 }, { a: 3 }), 100);
     expect(h.past).toHaveLength(2);
+  });
+
+  it("does not fold when the file changed between the bursts (an external edit picked up by a reload)", () => {
+    const h = new History();
+    h.push(edit("m", { a: 1 }, { a: 2 }), 0);
+    h.push(edit("m", { a: 2, ext: true }, { a: 3, ext: true }), 100);
+    expect(h.past).toHaveLength(2);
+  });
+
+  it("relabels a folded rename for the whole span", () => {
+    const h = new History();
+    const e = (a: string, b: string): NewStep => ({ label: "x", origin: "editor-1", entries: [{ id: "m", before: side("m", {}, a), after: side("m", {}, b) }] });
+    h.push(e("Ares", "AresX"), 0);
+    h.push(e("AresX", "AresXY"), 100);
+    expect(h.past).toHaveLength(1);
+    expect(h.past[0].label).toBe("RENAME ARES → ARESXY — file");
   });
 
   it("does not fold when something has been undone (redo is pending)", () => {
