@@ -1,0 +1,12 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+.DS_Store
+*.log
+test-results
+screenshots/
+
+# Deliverable bundles live in the OneDrive Worldbuilding folder, not in git.
+gallery-app-src.zip
+gallery-vault.zip

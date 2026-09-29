@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Gallery main window: core commands + folder picker",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

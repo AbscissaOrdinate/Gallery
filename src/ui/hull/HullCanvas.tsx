@@ -1,0 +1,460 @@
+/**
+ * The hull canvas.
+ *
+ * All the drawing decisions live in `core/designer/hull/render.ts`, which is
+ * pure and has no idea React exists. This file does three things that module
+ * cannot: it puts the scene on screen, it lets you drag the geometry, and it
+ * shows which advisory you clicked. The scene is rebuilt from the record on
+ * every render — `docs/CLAUDE.md`: the hull SVG is generated at render time,
+ * never stored.
+ *
+ * Coordinates: the scene is in hull-frame metres with **y up and x aft from the
+ * bow**. SVG is y-down, so one flip on the root group handles that and
+ * everything inside stays in the units the geometry uses. The same group also
+ * mirrors x when the scene is drawn bow-right, which is the default and matches
+ * the fleet plates; the record is bow-at-zero either way. Text counter-flips so
+ * the glyphs stay upright, and the pointer mapping inverts the same transform
+ * so a drag lands where it is aimed.
+ *
+ * Labels are the one exception to "everything inside is in metres": `LABEL_PX`
+ * is in screen pixels, so `px()` converts it down into scene metres and the
+ * glyph comes out screen-constant at any zoom. That is the same convention
+ * `SystemMap` uses and the same one `toSvg` honours against its `pxPerMetre`.
+ */
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { LABEL_PX, renderHull, slotAnchor, type RenderOptions, type SceneElement } from "../../core/designer/hull/render";
+import { snapStation } from "../../core/designer/hull/record";
+import type { HullGeometry } from "../../core/designer/hull/types";
+
+export type Selection = { kind: "station" | "section" | "slot" | "appendage" | "zone"; id: string } | null;
+
+/** A geometry edit the canvas asks the editor to make. The canvas holds no state of its own. */
+export type CanvasEdit =
+  | { kind: "station"; index: number; x: number; half_height_m: number }
+  | { kind: "slot"; id: string; x: number }
+  | { kind: "appendage"; id: string; station: number };
+
+interface Props {
+  hull: HullGeometry;
+  options: RenderOptions;
+  selection: Selection;
+  onSelect: (sel: Selection) => void;
+  onEdit: (edit: CanvasEdit) => void;
+  /** Station the advisory list last asked to be shown; drawn as a marker. */
+  focus?: number;
+  /** Snap grid in metres. */
+  pitch: number;
+  /** Drag handles off — used by the read-only fleet strip. */
+  readOnly?: boolean;
+}
+
+type Drag =
+  | { kind: "station"; index: number }
+  | { kind: "slot"; id: string }
+  | { kind: "appendage"; id: string }
+  | { kind: "pan"; sx: number; sy: number; vx: number; vy: number };
+
+interface View {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const PAD = 0.08; // fraction of the drawing added as margin when fitting
+
+export function HullCanvas({ hull, options, selection, onSelect, onEdit, focus, pitch, readOnly }: Props) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [view, setView] = useState<View | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const userMoved = useRef(false);
+
+  const scene = renderHull(hull, options);
+  const b = scene.bounds;
+  // Presentation only: the scene stays bow-at-zero. `flip` mirrors the view so
+  // the ship points right, matching the fleet plates.
+  const flip = scene.bowSide !== "left";
+  /** Scene x to outer (pre-group) x, and back — the mirror is its own inverse. */
+  const ox = (x: number) => (flip ? -x : x);
+
+  /** Frame the whole drawing. Called on mount and whenever the hull's extent changes. */
+  const fit = useCallback(() => {
+    const el = wrapRef.current;
+    const w = Math.max(1, b.x1 - b.x0);
+    const h = Math.max(1, b.y1 - b.y0);
+    const padX = w * PAD;
+    const padY = h * PAD;
+    let vw = w + padX * 2;
+    let vh = h + padY * 2;
+    // Match the pane's aspect so the hull is never stretched.
+    const aspect = el && el.clientHeight > 0 ? el.clientWidth / el.clientHeight : vw / vh;
+    if (vw / vh > aspect) vh = vw / aspect;
+    else vw = vh * aspect;
+    const left = flip ? -b.x1 : b.x0;
+    setView({ x: left - padX - (vw - w - padX * 2) / 2, y: -b.y1 - padY - (vh - h - padY * 2) / 2, w: vw, h: vh });
+  }, [b.x0, b.x1, b.y0, b.y1, flip]);
+
+  useEffect(() => {
+    if (!userMoved.current) fit();
+  }, [fit]);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (!userMoved.current) fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  /** Client pixels → hull-frame metres (y up). */
+  const toHull = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    const m = svg?.getScreenCTM();
+    if (!svg || !m) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const p = pt.matrixTransform(m.inverse());
+    return { x: flip ? -p.x : p.x, y: -p.y };
+  }, [flip]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || !view) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+      const p = toHull(e.clientX, e.clientY);
+      const [ax, ay] = [ox(p.x), -p.y]; // anchor the zoom in outer coordinates
+      userMoved.current = true;
+      setView((v) => (v ? { x: ax - (ax - v.x) * k, y: ay - (ay - v.y) * k, w: v.w * k, h: v.h * k } : v));
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, [toHull, !!view]);
+
+  if (!view) return <div className="hullwrap" ref={wrapRef} />;
+
+  const perMetre = (wrapRef.current?.clientWidth ?? 800) / view.w;
+  /** A screen-constant size, in metres, so handles stay grabbable at any zoom. */
+  const px = (n: number) => n / perMetre;
+
+  const stations = hull.spine.stations;
+  // The spine's handles shape the half-height, so they belong to the side
+  // view. From above they would drag the height while showing the beam.
+  const plan = options.view === "plan";
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    const handle = (e.target as Element).closest("[data-handle]");
+    if (handle && !readOnly) {
+      const kind = handle.getAttribute("data-handle")!;
+      const key = handle.getAttribute("data-id")!;
+      if (kind === "station") {
+        onSelect({ kind: "station", id: key });
+        setDrag({ kind: "station", index: Number(key) });
+      } else if (kind === "slot") {
+        onSelect({ kind: "slot", id: key });
+        setDrag({ kind: "slot", id: key });
+      } else if (kind === "appendage") {
+        onSelect({ kind: "appendage", id: key });
+        setDrag({ kind: "appendage", id: key });
+      }
+      return;
+    }
+    const pick = (e.target as Element).closest("[data-pick]");
+    if (pick) {
+      const [kind, id] = pick.getAttribute("data-pick")!.split(":");
+      onSelect({ kind: kind as NonNullable<Selection>["kind"], id: id! });
+      return;
+    }
+    onSelect(null);
+    setDrag({ kind: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y });
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!drag) return;
+    if (drag.kind === "pan") {
+      const scale = view.w / (wrapRef.current?.clientWidth || 1);
+      userMoved.current = true;
+      setView((v) => (v ? { ...v, x: drag.vx - (e.clientX - drag.sx) * scale, y: drag.vy - (e.clientY - drag.sy) * scale } : v));
+      return;
+    }
+    const p = toHull(e.clientX, e.clientY);
+    // Clamp to the hull. Dragging a station past the stern would silently make
+    // the profile longer than the length the budgets use; lengthening the hull
+    // is the Length field's job, not a side effect of a drag.
+    const span = hull.spine.length_m > 0 ? hull.spine.length_m : Infinity;
+    const x = Math.min(span, Math.max(0, snapStation(p.x, e.altKey ? 0 : pitch))); // Alt overrides the grid
+    if (drag.kind === "station") {
+      // Vertical drag shapes the profile; the mirror means we only ever edit the
+      // upper half, so a drag below the axis reads as its absolute value.
+      onEdit({ kind: "station", index: drag.index, x, half_height_m: Math.max(0, Math.abs(p.y)) });
+    } else if (drag.kind === "slot") {
+      onEdit({ kind: "slot", id: drag.id, x });
+    } else if (drag.kind === "appendage") {
+      onEdit({ kind: "appendage", id: drag.id, station: x });
+    }
+  };
+
+  const endDrag = () => setDrag(null);
+
+  const selKey = selection ? `${selection.kind}:${selection.id}` : "";
+  const length = hull.spine.length_m || 0;
+  const ticks: number[] = [];
+  if (pitch > 0 && length > 0 && length / pitch < 400) for (let x = 0; x <= length + 1e-9; x += pitch) ticks.push(x);
+
+  const canvas = (
+    <div className="hullwrap" ref={wrapRef}>
+      <svg
+        ref={svgRef}
+        className="hullsvg"
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+        style={{ cursor: drag?.kind === "pan" ? "grabbing" : drag ? "grabbing" : "default" }}
+      >
+        <g transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}>
+          {/* Station grid, behind everything. */}
+          {ticks.map((x) => (
+            <line key={"g" + x} x1={x} y1={b.y0} x2={x} y2={b.y1} stroke="var(--line-100)" strokeWidth={px(0.5)} />
+          ))}
+          {scene.elements.map((el) => (
+            <SceneNode key={el.id} el={el} scale={px} selectedKey={selKey} hover={hover} onHover={setHover} flip={flip} />
+          ))}
+
+          {/* Focused advisory: a full-height marker at the anchor station. */}
+          {focus !== undefined && Number.isFinite(focus) && (
+            <line x1={focus} y1={b.y0} x2={focus} y2={b.y1} stroke="var(--status-amber-mark)" strokeWidth={px(1.5)} strokeDasharray={`${px(6)} ${px(4)}`} pointerEvents="none" />
+          )}
+
+          {!readOnly &&
+            !plan &&
+            stations.map((s, i) => {
+              const on = selection?.kind === "station" && selection.id === String(i);
+              return (
+                <g key={"h" + i} data-handle="station" data-id={String(i)} style={{ cursor: "move" }}>
+                  {/* An invisible disc gives a comfortable grab target at any zoom. */}
+                  <circle cx={s.x} cy={s.half_height_m} r={px(9)} fill="transparent" />
+                  <circle cx={s.x} cy={s.half_height_m} r={px(3.5)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke={on ? "var(--accent-500)" : "var(--glyph-navy)"} strokeWidth={px(1.2)} />
+                </g>
+              );
+            })}
+
+          {!readOnly &&
+            (hull.external_slots ?? []).map((s) => {
+              // Exactly where the renderer puts the slot's marker, in either view.
+              const { y } = slotAnchor(hull, s, options.view);
+              const on = selection?.kind === "slot" && selection.id === s.id;
+              return (
+                <g key={"s" + s.id} data-handle="slot" data-id={s.id} style={{ cursor: "ew-resize" }}>
+                  <circle cx={s.x} cy={y} r={px(10)} fill="transparent" />
+                  <rect x={s.x - px(4)} y={y - px(4)} width={px(8)} height={px(8)} fill={on ? "var(--accent-500)" : "var(--surface-200)"} stroke={on ? "var(--accent-500)" : "var(--glyph-navy)"} strokeWidth={px(1.2)} />
+                </g>
+              );
+            })}
+        </g>
+      </svg>
+      <div className="hullzoom">
+        {length ? `${length.toLocaleString(undefined, { maximumFractionDigits: 1 })} m` : "—"} · {pitch} m grid · {perMetre.toFixed(2)} px/m
+        {userMoved.current && (
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              userMoved.current = false;
+              fit();
+            }}
+          >
+            Fit
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {canvas}
+      {!readOnly && <StationRuler view={view} flip={flip} length={length} pitch={pitch} span={selectionSpan(hull, selection)} wrap={wrapRef.current} />}
+    </>
+  );
+}
+
+/** The station range a selection occupies, in metres from the bow. */
+function selectionSpan(hull: HullGeometry, sel: Selection): [number, number] | undefined {
+  if (!sel) return undefined;
+  if (sel.kind === "station") {
+    const s = hull.spine.stations[Number(sel.id)];
+    return s ? [s.x, s.x] : undefined;
+  }
+  if (sel.kind === "section") {
+    const s = (hull.sections ?? []).find((t) => t.id === sel.id);
+    return s ? [Math.min(s.x0, s.x1), Math.max(s.x0, s.x1)] : undefined;
+  }
+  if (sel.kind === "zone") {
+    const z = (hull.armor_zones ?? []).find((t) => t.id === sel.id);
+    return z ? [Math.min(z.x0, z.x1), Math.max(z.x0, z.x1)] : undefined;
+  }
+  if (sel.kind === "slot") {
+    const t = (hull.external_slots ?? []).find((u) => u.id === sel.id);
+    return t ? [t.x, t.x] : undefined;
+  }
+  const ap = (hull.appendages ?? []).find((u) => u.id === sel.id);
+  return ap ? [ap.station, ap.station] : undefined;
+}
+
+/**
+ * The station ruler (HullEditor plate): a strip on surface-sunk under the
+ * canvas, in screen pixels, following the canvas's pan and zoom. Major ticks
+ * in map-orbit with data-xs figures in ink-300, minor ticks in line-100, and
+ * the selection's span as an accent-500 bar with its range beneath in
+ * accent-300. The ruler is how placement is read; the canvas carries no
+ * coordinate labels of its own.
+ */
+function StationRuler({ view, flip, length, pitch, span, wrap }: { view: View; flip: boolean; length: number; pitch: number; span?: [number, number]; wrap: HTMLDivElement | null }) {
+  const ref = useRef<SVGSVGElement | null>(null);
+  // Every dimension below is a fraction of the strip's height, which is the
+  // --ruler-h token; nothing here is a free-standing pixel size.
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setH(el.clientHeight);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+  const cw = wrap?.clientWidth ?? 0;
+  const ch = wrap?.clientHeight ?? 0;
+  if (!cw || !ch || !length || !h) return <svg ref={ref} className="hullruler" aria-hidden />;
+  // Same mapping as the canvas: uniform scale, letterboxed and centred (xMidYMid meet).
+  const k = Math.min(cw / view.w, ch / view.h);
+  const off = (cw - view.w * k) / 2;
+  const sx = (x: number) => ((flip ? -x : x) - view.x) * k + off;
+  const top = h * 0.12; // selection bar depth
+  const minor = pitch > 0 && pitch * k >= h * 0.12 ? pitch : undefined;
+  // Label every n-th station so figures sit at least about 1.3 strip heights apart.
+  const step = Math.max(pitch || 1, Math.ceil((h * 1.33) / k / (pitch || 1)) * (pitch || 1));
+  const ticks: { x: number; major: boolean }[] = [];
+  const unit = minor ?? step;
+  for (let x = 0, i = 0; x <= length + 1e-9 && i < 2000; x += unit, i++) ticks.push({ x, major: Math.abs(x / step - Math.round(x / step)) < 1e-6 });
+  return (
+    <svg ref={ref} className="hullruler" aria-label="Station ruler">
+      {ticks.map((t) => (
+        <line key={t.x} x1={sx(t.x)} x2={sx(t.x)} y1={top} y2={top + h * (t.major ? 0.28 : 0.14)} stroke={t.major ? "var(--map-orbit)" : "var(--line-100)"} />
+      ))}
+      {ticks
+        .filter((t) => t.major)
+        .map((t) => (
+          <text key={"l" + t.x} x={sx(t.x)} y={top + h * 0.6} textAnchor="middle" className="ruler-label">
+            {Math.round(t.x)}
+          </text>
+        ))}
+      {span && (
+        <>
+          <rect x={Math.min(sx(span[0]), sx(span[1])) - (span[0] === span[1] ? top / 2 : 0)} y={0} width={Math.max(top, Math.abs(sx(span[1]) - sx(span[0])))} height={top} fill="var(--accent-500)" />
+          {(
+            <text x={(sx(span[0]) + sx(span[1])) / 2} y={h * 0.94} textAnchor="middle" className="ruler-sel">
+              {span[0] === span[1] ? `SELECTED — STA ${span[0].toFixed(1)} m` : `SELECTED — STA ${span[0].toFixed(1)}–${span[1].toFixed(1)} m`}
+            </text>
+          )}
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** One scene element as SVG. Colours are theme tokens — the renderer never emits a literal. */
+function SceneNode({
+  el,
+  scale,
+  selectedKey,
+  hover,
+  onHover,
+  flip,
+}: {
+  el: SceneElement;
+  scale: (n: number) => number;
+  selectedKey: string;
+  hover: string | null;
+  onHover: (id: string | null) => void;
+  flip: boolean;
+}) {
+  const pickKey = pickable(el);
+  const on = pickKey !== undefined && pickKey === selectedKey;
+  // A label is never a pointer target itself, so it borrows the hover state of
+  // the thing it annotates — `SystemMap`'s convention, and what makes a label
+  // legible on demand without making every label large all the time.
+  const hot = hover === el.id || (el.kind === "text" && el.owner !== undefined && hover === el.owner);
+  const common = {
+    fill: el.fill ? `var(--${el.fill})` : "none",
+    stroke: on ? "var(--accent-500)" : el.stroke ? `var(--${el.stroke})` : "none",
+    strokeWidth: scale((el.strokeWidth ?? 1) * (on ? 2.2 : hot ? 1.6 : 1)),
+    opacity: el.opacity,
+    strokeDasharray: el.dashed ? `${scale(5)} ${scale(4)}` : undefined,
+    ...(pickKey !== undefined
+      ? { "data-pick": pickKey, style: { cursor: "pointer" }, onPointerEnter: () => onHover(el.id), onPointerLeave: () => onHover(null) }
+      : { pointerEvents: "none" as const }),
+  };
+  switch (el.kind) {
+    case "path":
+      return <path d={el.d} {...common} />;
+    case "polygon":
+      return <polygon points={el.points.map(([x, y]) => `${x},${y}`).join(" ")} {...common} />;
+    case "line":
+      return <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} {...common} />;
+    case "circle":
+      return <circle cx={el.cx} cy={el.cy} r={el.r} {...common} />;
+    case "text":
+      // Counter-flip so glyphs read upright whichever way the group is
+      // mirrored: the element transform inverts the group's linear part, and
+      // the anchor is negated on each flipped axis.
+      return (
+        <text
+          x={flip ? -el.x : el.x}
+          y={-el.y}
+          transform={flip ? "scale(-1,-1)" : "scale(1,-1)"}
+          textAnchor={el.anchor ?? "start"}
+          // `el.size` is screen pixels (`LABEL_PX`); `scale` puts it into the
+          // scene metres this group is drawn in, so it stays that many pixels
+          // on the glass however far the view is zoomed.
+          fontSize={scale((el.size ?? LABEL_PX.fallback) * (hot ? 1.35 : 1))}
+          fill={el.fill ? `var(--${el.fill})` : "var(--ink-200)"}
+          fontWeight={hot ? 600 : undefined}
+          stroke="none"
+          pointerEvents="none"
+        >
+          {el.text}
+        </text>
+      );
+  }
+}
+
+/**
+ * Which scene elements are clickable, and what they select. Anything else is
+ * decoration and stays out of the way of a pan.
+ */
+function pickable(el: SceneElement): string | undefined {
+  if (el.kind === "text") return undefined; // labels are decoration, never targets
+  for (const [prefix, kind] of [
+    ["section-", "section"],
+    ["slot-", "slot"],
+    ["appendage-", "appendage"],
+    ["armor-", "zone"],
+  ] as const) {
+    if (!el.id.startsWith(prefix)) continue;
+    const id = el.id
+      .slice(prefix.length)
+      .replace(/-m$/, "") // an appendage's mirror selects its original
+      .replace(/-(top|bottom)$/, "") // both halves of an armour belt select the zone
+      .replace(/@\d+$/, ""); // any member of a ring selects its slot
+    return `${kind}:${id}`;
+  }
+  return undefined;
+}

@@ -1,0 +1,224 @@
+<!-- @dsCard group="Screens" height=1080 width=1920 subtitle="Typed record for a ship class, 1920x1080 — banners, badge block, nested fields, redactions, backlinks" -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--surface-100);color:var(--ink-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+.lxs{font:600 10px/14px var(--font-sans);letter-spacing:.09em}
+.lsm{font:600 11px/16px var(--font-sans);letter-spacing:.06em}
+.lmd{font:500 13px/18px var(--font-sans)}
+.bd{font:400 14px/20px var(--font-sans)}
+.tsm{font:600 15px/20px var(--font-sans);letter-spacing:.02em}
+.tmd{font:600 18px/24px var(--font-sans)}
+.tlg{font:600 24px/28px var(--font-sans)}
+.disp{font:600 34px/36px var(--font-sans);letter-spacing:-.01em}
+.dxs{font:400 10px/14px var(--font-mono)}
+.dsm{font:400 11px/16px var(--font-mono)}
+.dmd{font:400 12px/18px var(--font-mono)}
+.dlg{font:400 14px/20px var(--font-mono)}
+.dxl{font:500 20px/24px var(--font-mono)}
+.ban{font:700 12px/16px var(--font-mono);letter-spacing:.14em}
+.stmp{font:700 11px/14px var(--font-mono);letter-spacing:.18em}
+.asc{font:400 12px/12px var(--font-mono);white-space:pre}
+.code{font:400 12px/20px var(--font-mono)}
+.mut{color:var(--ink-200)}.met{color:var(--ink-300)}.dis{color:var(--ink-400)}
+.acc{color:var(--accent-300)}.red{color:var(--status-red)}.amb{color:var(--status-amber)}.grn{color:var(--status-green)}
+.nav{color:var(--glyph-navy)}
+.panel{background:var(--surface-200);border:1px solid var(--line-200)}
+.phead{background:var(--surface-300);border-bottom:1px solid var(--line-200);padding:0 12px;height:26px;display:flex;align-items:center;justify-content:space-between;color:var(--ink-200)}
+.grp{background:var(--surface-300);border:1px solid var(--line-200)}
+.fld{background:var(--surface-400);border:1px solid var(--line-200)}
+.row{display:flex;align-items:center}
+.hr{height:1px;background:var(--line-100)}
+html,body{width:1920px;height:1080px;overflow:hidden}
+.scr{width:1920px;height:1080px;display:flex;flex-direction:column;background:var(--surface-100)}
+.appbar{height:34px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;
+        padding:0 12px;gap:16px}
+.brand{letter-spacing:.14em;color:var(--ink-100);font:600 13px/18px var(--font-sans)}
+.crumb{color:var(--ink-300)}
+.search{margin-left:auto;width:360px;height:24px;background:var(--surface-400);border:1px solid var(--line-200);
+        display:flex;align-items:center;padding:0 8px;color:var(--ink-300)}
+.abtn{height:24px;padding:0 10px;border:1px solid var(--line-200);background:var(--surface-200);color:var(--ink-200);
+      display:flex;align-items:center;font:500 13px/18px var(--font-sans)}
+.mid{flex:1;display:flex;min-height:0}
+.rail{width:204px;background:var(--surface-200);border-right:1px solid var(--line-200);padding:8px 0;overflow:hidden}
+.rsec{color:var(--ink-300);padding:8px 12px 4px;display:block}
+.ri{height:22px;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--ink-200)}
+.ri .c{margin-left:auto;color:var(--ink-300)}
+.ri.on{background:var(--accent-700);color:var(--accent-300);border-left:3px solid var(--accent-500);padding-left:9px}
+.ri .g{color:var(--glyph-navy);width:10px;text-align:center;font:400 11px/11px var(--font-mono)}
+.doc{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface-100)}
+.ban{height:24px;background:var(--class-secret);color:var(--ink-100);display:flex;align-items:center;justify-content:center}
+.paper{flex:1;overflow:hidden;padding:24px 24px 0;display:flex;gap:16px}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+.hdr{background:var(--surface-200);border:1px solid var(--line-200);padding:16px;display:flex;gap:16px;align-items:flex-start}
+.htxt{flex:1;min-width:0}
+.chips{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-200);background:var(--surface-300);color:var(--ink-200);padding:0 8px;height:20px;
+      border-radius:999px;display:inline-flex;align-items:center}
+.badge{background:var(--surface-300);border:1px solid var(--line-200);border-radius:2px;padding:10px 12px;
+       display:grid;grid-template-columns:auto auto;gap:5px 18px;min-width:256px}
+.badge .lxs{color:var(--ink-300)}
+.bv{text-align:right}
+.bsep{grid-column:1/-1;height:1px;background:var(--line-100)}
+.cols{display:flex;gap:16px;min-height:0}
+.panel{background:var(--surface-200);border:1px solid var(--line-200);display:flex;flex-direction:column;min-width:0}
+.ph{height:26px;background:var(--surface-300);border-bottom:1px solid var(--line-200);display:flex;align-items:center;
+    justify-content:space-between;padding:0 12px;color:var(--ink-200)}
+.pb{padding:12px;display:flex;flex-direction:column;gap:10px}
+.grp{background:var(--surface-300);border:1px solid var(--line-200);padding:8px 10px}
+.gh{color:var(--ink-200);display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.fr{display:grid;grid-template-columns:172px 1fr;align-items:center;gap:12px;height:24px}
+.fr + .fr{border-top:1px solid var(--line-100)}
+.fr .lsm{color:var(--ink-200)}
+.fv{color:var(--ink-100)}
+.fv .u{color:var(--ink-300);margin-left:4px}
+.bar{background:var(--redact);border:1px solid var(--line-200);height:15px;display:flex;align-items:center;justify-content:center;color:var(--redact)}
+.bar.rev{color:var(--ink-300)}
+.side{width:320px;display:flex;flex-direction:column;gap:16px}
+.bl{display:flex;align-items:center;gap:8px;height:24px;padding:0 10px;color:var(--ink-100)}
+.bl + .bl{border-top:1px solid var(--line-100)}
+.bl .k{color:var(--glyph-navy);width:14px;text-align:center;font:400 11px/11px var(--font-mono)}
+.bl .t{color:var(--ink-300);margin-left:auto}
+.prose{color:var(--ink-200)}
+.hist{display:grid;grid-template-columns:78px 1fr;gap:4px 10px;padding:10px}
+.hist .dxs{color:var(--ink-300)}
+.foot{height:24px;background:var(--surface-200);border-top:1px solid var(--line-200);display:flex;align-items:center;
+      padding:0 12px;gap:18px;color:var(--ink-300)}
+</style>
+<div class="scr">
+  <div class="appbar">
+    <span class="brand">GALLERY</span>
+    <span class="dsm crumb">vault &rsaquo; hull &rsaquo; <span style="color:var(--ink-100)">Vauxhall-class</span></span>
+    <div class="search dsm">Search names, tags, aliases&hellip; (Ctrl+K)</div>
+    <div class="abtn">EXPORT</div><div class="abtn">HISTORY</div>
+  </div>
+
+  <div class="mid">
+    <div class="rail">
+      <span class="lxs rsec">VAULT</span>
+      <div class="ri lmd"><span class="g">&#9679;</span>All records<span class="dsm c">58</span></div>
+      <div class="ri lmd"><span class="g">&#9776;</span>Note<span class="dsm c">1</span></div>
+      <div class="ri lmd"><span class="g">&#9873;</span>Polity<span class="dsm c">3</span></div>
+      <div class="ri lmd"><span class="g">&#9670;</span>Location<span class="dsm c">22</span></div>
+      <div class="ri lmd"><span class="g">&#9679;</span>Body<span class="dsm c">19</span></div>
+      <div class="ri lmd"><span class="g">&#10033;</span>Star system<span class="dsm c">1</span></div>
+      <div class="ri lmd"><span class="g">&#9723;</span>Module<span class="dsm c">9</span></div>
+      <div class="ri on lmd"><span class="g">&#9639;</span>Hull<span class="dsm c">1</span></div>
+      <div class="ri lmd"><span class="g">&#10148;</span>Craft<span class="dsm c">2</span></div>
+      <span class="lxs rsec">MAPS</span>
+      <div class="ri lmd"><span class="g">&#10033;</span>Heliaris system</div>
+      <span class="lxs rsec">SAVED QUERIES</span>
+      <div class="ri lmd"><span class="g">&#187;</span>Incomplete records<span class="dsm c" style="color:var(--status-amber)">7</span></div>
+      <div class="ri lmd"><span class="g">&#187;</span>Cleared for release<span class="dsm c">12</span></div>
+    </div>
+
+    <div class="doc">
+      <div class="ban">SECRET//SI//REL TO CMW &mdash; ONI-TECH-0412 &mdash; UJCN</div>
+      <div class="paper">
+        <div class="main">
+          <div class="hdr">
+            <div class="htxt">
+              <div class="tlg">Vauxhall-class Light Cruiser</div>
+              <div class="tmd mut" style="margin-top:4px">Coalition Defence Force &middot; 6 in commission &middot; laid down 481</div>
+              <div class="chips">
+                <span class="chip dsm">hull</span><span class="chip dsm">cruiser</span><span class="chip dsm">railgun</span>
+                <span class="chip dsm">nuclear</span><span class="chip dsm">ujcn</span>
+              </div>
+            </div>
+            <div class="badge">
+              <span class="lxs">CLEARANCE</span><span class="stmp bv">LEVEL 4</span>
+              <div class="bsep"></div>
+              <span class="lxs">DISRUPTION</span><span class="stmp bv amb">KENEQ</span>
+              <div class="bsep"></div>
+              <span class="lxs">RISK</span><span class="stmp bv red">CRITICAL</span>
+              <div class="bsep"></div>
+              <span class="lxs">SURVEY</span><span class="stmp bv met">72% COMPLETE</span>
+            </div>
+          </div>
+
+          <div class="cols" style="flex:1">
+            <div class="panel" style="flex:1">
+              <div class="ph"><span class="tsm">CHARACTERISTICS</span><span class="dsm met">18 fields &middot; 4 pending</span></div>
+              <div class="pb">
+                <div class="grp">
+                  <div class="gh"><span class="lsm">GENERAL</span><span class="dsm met">surveyed 497-08-02</span></div>
+                  <div class="fr"><span class="lsm">HULL NUMBER SERIES</span><span class="dmd fv">CL-138 &ndash; CL-143</span></div>
+                  <div class="fr"><span class="lsm">DISPLACEMENT</span><span class="dmd fv">21,732<span class="u">t</span></span></div>
+                  <div class="fr"><span class="lsm">LENGTH OVERALL</span><span class="dmd fv">214.6<span class="u">m</span></span></div>
+                  <div class="fr"><span class="lsm">ARMOUR THICKNESS</span><span class="dmd fv">66<span class="u">cm</span></span></div>
+                  <div class="fr"><span class="lsm">CREW COMPLEMENT</span><span class="dmd fv">374 / 374</span></div>
+                </div>
+
+                <div class="grp">
+                  <div class="gh"><span class="lsm">PROPULSION</span><span class="stmp amb">3 FIELDS PENDING</span></div>
+                  <div class="fr"><span class="lsm">DRIVE MODULES</span><span class="dmd fv">2&times; FM230 &lsquo;Whiplash&rsquo;, 1&times; FM580 &lsquo;Raider&rsquo;</span></div>
+                  <div class="fr"><span class="lsm">TOP SPEED</span><span class="bar stmp rev" style="width:46%">DATA PENDING</span></div>
+                  <div class="fr"><span class="lsm">FLANK SPEED</span><span class="bar stmp" style="width:38%">DATA PENDING</span></div>
+                  <div class="fr"><span class="lsm">LINEAR THRUST</span><span class="dmd fv">28.38<span class="u">MN</span></span></div>
+                  <div class="fr"><span class="lsm">REACTOR OUTPUT</span><span class="bar stmp" style="width:62%">DATA PENDING</span></div>
+                </div>
+
+                <div class="grp">
+                  <div class="gh"><span class="lsm">ARMAMENT</span><span class="dsm met">typed &rarr; module</span></div>
+                  <div class="fr"><span class="lsm">PRIMARY</span><span class="dmd fv">5&times; Mk64 Cannon &mdash; 250&nbsp;mm</span></div>
+                  <div class="fr"><span class="lsm">VERTICAL LAUNCH</span><span class="dmd fv">1&times; VLS-3, 6 cells</span></div>
+                  <div class="fr"><span class="lsm">POINT DEFENCE</span><span class="dmd fv">2&times; Mk20 &lsquo;Defender&rsquo; PDT</span></div>
+                  <div class="fr"><span class="lsm">SIGNATURE (RADAR)</span><span class="dmd fv">43,600.38<span class="u">m&sup2;</span></span></div>
+                </div>
+
+                <div class="grp">
+                  <div class="gh"><span class="lsm">ASSESSMENT</span><span class="dsm met">prose field</span></div>
+                  <p class="bd prose">Built for the Emerald corridor patrol and overweight for it. The class trades magazine depth against a heavy primary battery; two of six hulls have been re-surveyed since the Onyx engagement and both returned reactor failsafe discrepancies.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="side">
+              <div class="panel">
+                <div class="ph"><span class="tsm">BACKLINKS</span><span class="dsm met">11</span></div>
+                <div style="padding:2px 0">
+                  <div class="bl dmd"><span class="k">&#9639;</span>CDF Mark The Time<span class="dsm t">hull</span></div>
+                  <div class="bl dmd"><span class="k">&#9639;</span>CDF The Proven Fact<span class="dsm t">hull</span></div>
+                  <div class="bl dmd"><span class="k">&#9639;</span>CDF Exit Criteria Met<span class="dsm t">hull</span></div>
+                  <div class="bl dmd"><span class="k">&#9723;</span>Mk64 Cannon<span class="dsm t">module</span></div>
+                  <div class="bl dmd"><span class="k">&#9723;</span>FM230 &lsquo;Whiplash&rsquo;<span class="dsm t">module</span></div>
+                  <div class="bl dmd"><span class="k">&#9873;</span>Coalition Defence Force<span class="dsm t">polity</span></div>
+                  <div class="bl dmd"><span class="k">&#9670;</span>NAVSHPYD Amethyst<span class="dsm t">location</span></div>
+                  <div class="bl dmd"><span class="k">&#9776;</span>Onyx engagement<span class="dsm t">note</span></div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="ph"><span class="tsm">HANDLING</span></div>
+                <div class="pb" style="gap:6px">
+                  <div class="fr" style="grid-template-columns:120px 1fr"><span class="lsm">ORIGINATOR</span><span class="dmd fv">ONI-R4</span></div>
+                  <div class="fr" style="grid-template-columns:120px 1fr"><span class="lsm">DECLASSIFY ON</span><span class="dmd fv">2522-01-01</span></div>
+                  <div class="fr" style="grid-template-columns:120px 1fr"><span class="lsm">DERIVED FROM</span><span class="code fv">ONI-TECH-0387</span></div>
+                </div>
+              </div>
+
+              <div class="panel" style="flex:1">
+                <div class="ph"><span class="tsm">REVISIONS</span><span class="dsm met">last 5</span></div>
+                <div class="hist">
+                  <span class="dxs">497-09-11</span><span class="dsm">Armament re-typed to module records</span>
+                  <span class="dxs">497-08-02</span><span class="dsm">Survey 72% &mdash; propulsion withheld</span>
+                  <span class="dxs">497-06-28</span><span class="dsm">Risk raised to CRITICAL</span>
+                  <span class="dxs">497-05-14</span><span class="dsm">Class laid in from ONI-TECH-0387</span>
+                  <span class="dxs">497-05-02</span><span class="dsm">Record created</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ban" style="margin-top:12px">SECRET//SI//REL TO CMW &mdash; ONI-TECH-0412 &mdash; UJCN</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="dsm">ONI-TECH-0412</span>
+    <span class="dsm">kind: <span style="color:var(--ink-100)">hull</span></span>
+    <span class="dsm">11 backlinks</span>
+    <span class="dsm" style="color:var(--status-amber)">4 fields pending</span>
+    <span class="dsm" style="margin-left:auto">NODE 3 &middot; 05 SEP 497 06:14</span>
+  </div>
+</div>
