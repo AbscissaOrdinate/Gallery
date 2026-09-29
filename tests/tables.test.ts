@@ -197,7 +197,8 @@ describe("repository integration", () => {
     await fs.writeText(`${VAULT.tablesDir}/radiators.yaml`, RADIATORS);
     await repo.load();
 
-    expect(repo.tables.fileNames()).toEqual(["radiators"]);
+    // body-tints is seeded by init() (docs/STYLE.md §8); radiators is the file under test.
+    expect(repo.tables.fileNames()).toEqual(["body-tints", "radiators"]);
     expect(repo.tables.rows("radiators")).toHaveLength(4);
     expect(repo.designProblems).toEqual([]);
     // init() seeded _constraints/default.yaml, and load() read it back.

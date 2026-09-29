@@ -186,6 +186,10 @@ Owner decisions on conflicts §2 did not cover. They carry the same weight as §
 | SystemMap: "`accent-500` for nothing but the selection"; its own plate, Tabs and Input use `accent-500` for the segmented switch, checkboxes and rail selection | **Scoped to the canvas.** Inside the map canvas `accent-500` is only the selection. Toolbar, rail and inspector chrome follow Tabs / Input / RecordPage as the plate does. |
 | StatusBadge pip at `radius-1` vs §1 (radius 0 except badge and chips) | **§1 wins.** Pips are square, `radius-0`. `radius-1` is unused. |
 | §4.3 names kernel severities `violation / caution / info`; the kernel's `Severity` is `error / warn / info` | UI mapping only, kernel unchanged: `error` → VIOLATION, `warn` → CAUTION, `info` → INFO. |
+| Body glyph colours: §2 keeps the motifs with "tints from the record", but most records set no `glyph_color` and glyph.ts carried its own palette | **Palette as vault data.** Default colours per motif (base, detail, cloud, cap, bands), per star class and for planetary rings live in `<vault>/_tables/body-tints.yaml`, seeded once if missing from `src/core/schema/builtin/bodyTints.ts` (the old palette flattened and desaturated 25%). The record's own colour wins. Anything neither supplies falls back to an ink token. No shading gradients or star glow. |
+| Polities with no `color` were auto-assigned from a hardcoded palette | **Palette in `gallery.config.yaml`** (`polityPalette`), seeded once if absent. No palette and no record colour → `ink-300`, as is unclaimed. |
+| Map overlays (economic, habitability, military) are not in the book | Composed from the palette, no new language: sequential ramp `glyph-navy-deep → glyph-navy → ink-100` (`color-mix`), habitability `map-zone → ink-100`. The legend is five discrete steps, not a gradient. Not accent (selection only on the canvas), not status (severity only). |
+| Exports of token-drawn SVG | Map and hull **Export SVG** resolve every `var(--…)` and `color-mix` to a literal colour from the live theme at export time (`src/ui/themeColors.ts`), so the file renders outside the app. |
 
 ## 9. Verification
 

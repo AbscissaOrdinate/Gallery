@@ -29,6 +29,7 @@ import { CLASS_CODES } from "../../core/designer/hull/classes";
 import { structureOf } from "../../core/designer/hull/structure";
 import { provisionalParams } from "../../core/designer/constraints";
 import type { Preset } from "../../core/types";
+import { resolveThemeColors } from "../themeColors";
 
 const fmt = (n: number, d = 0) => (Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "—");
 
@@ -137,7 +138,8 @@ export function HullEditor({ id }: { id: string }) {
   };
 
   const exportSvg = async () => {
-    const svg = toSvg(renderHull(hull, { mode: "silhouette", showBeam: false }), { title: draft.name, pxPerMetre: 6 });
+    // Resolve theme tokens so the file keeps its colours outside the app.
+    const svg = resolveThemeColors(toSvg(renderHull(hull, { mode: "silhouette", showBeam: false }), { title: draft.name, pxPerMetre: 6 }));
     try {
       const path = await repo.putTextAsset(`${draft.slug}-silhouette.svg`, svg);
       actions.toast(`Wrote ${path}`);

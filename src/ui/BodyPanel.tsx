@@ -3,6 +3,7 @@ import { actions, useApp } from "./state";
 import type { TypedRecord } from "../core/types";
 import { deriveBody } from "../core/astro/derive";
 import { glyphSvg } from "../core/astro/glyph";
+import { glyphPaletteFrom } from "../core/astro/tints";
 import * as E from "../core/astro/ewocs";
 
 const fmt = (n: number | undefined, d = 2) => (n === undefined || !Number.isFinite(n) ? "—" : n >= 1e5 ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: d }));
@@ -27,7 +28,7 @@ export function BodyPanel({ body }: { body: TypedRecord }) {
   return (
     <div className={"card" + (d.warnings.length ? " warn" : "")}>
       <div className="row" style={{ alignItems: "flex-start" }}>
-        <div className="svgbox" style={{ padding: 4, width: 84, height: 84, flex: "none" }} dangerouslySetInnerHTML={{ __html: glyphSvg(d.glyph, 76) }} />
+        <div className="svgbox" style={{ padding: 4, width: 84, height: 84, flex: "none" }} dangerouslySetInnerHTML={{ __html: glyphSvg(d.glyph, 76, glyphPaletteFrom(repo.tables)) }} />
         <div className="grow">
           <h3 style={{ marginTop: 0 }}>Derived (Worldsmith · EWoCS)</h3>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{d.ewocs.shorthand || <span className="muted">— set kind, mass and classification —</span>}</div>

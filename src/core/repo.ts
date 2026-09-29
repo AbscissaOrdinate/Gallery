@@ -12,6 +12,8 @@ import { indexCsv, typeCsv } from "./codec/csv";
 import { derivedColumns } from "./astro/derive";
 import { loadTables, TableSet } from "./designer/tables";
 import { migrateRecord } from "./schema/migrate";
+import { seedBodyTints } from "./astro/tints";
+import { POLITY_PALETTE_SEED } from "./schema/builtin/polityPalette";
 import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSelection, type ConstraintSet, type EffectiveConstraints } from "./designer/constraints";
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
@@ -54,7 +56,17 @@ export class Repository {
   async init(): Promise<void> {
     const cfgPath = VAULT.configFile;
     if (!(await this.fs.exists(cfgPath))) {
-      await this.fs.writeText(cfgPath, YAML.stringify(this.config));
+      await this.fs.writeText(cfgPath, YAML.stringify({ ...this.config, polityPalette: [...POLITY_PALETTE_SEED] }));
+    } else {
+      // Seed vault data added after the vault was made; never overwrite a value.
+      try {
+        const raw = YAML.parse(await this.fs.readText(cfgPath)) as Partial<VaultConfig> | null;
+        if (raw && typeof raw === "object" && !Array.isArray(raw.polityPalette)) {
+          await this.fs.writeText(cfgPath, YAML.stringify({ ...raw, polityPalette: [...POLITY_PALETTE_SEED] }));
+        }
+      } catch {
+        // An unreadable config is load()'s to report, not init's to rewrite.
+      }
     }
     await this.registry.seed(this.fs);
     for (const t of this.registry.types()) await this.fs.mkdirAll(t.folder);
@@ -62,6 +74,7 @@ export class Repository {
     await this.fs.mkdirAll(VAULT.constraintsDir);
     await this.fs.mkdirAll(VAULT.tablesDir);
     await seedConstraints(this.fs);
+    await seedBodyTints(this.fs);
     await this.fs.mkdirAll(VAULT.exportsDir);
   }
 

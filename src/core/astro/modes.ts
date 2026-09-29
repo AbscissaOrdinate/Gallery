@@ -18,44 +18,41 @@ export const MAP_MODES: { id: MapMode; label: string; description: string }[] = 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 
-/** Categorical palette that reads on the navy ground (used when a polity has no colour). */
-export const POLITY_PALETTE = ["#c9663a", "#4f8fd6", "#6fbf95", "#d9a83a", "#b46fd1", "#e07a6a", "#5fc6c9", "#9aa0a6", "#8fbf3a", "#d16f9e"];
+/** Drawn for a body or location no polity controls. */
+export const UNCLAIMED_COLOR = "var(--ink-300)";
 
-export function polityColor(polity: TypedRecord | undefined, index: number): string {
+/**
+ * A polity's map colour: its own `color` field, else a pick from the vault's
+ * `polityPalette` (gallery.config.yaml), else neutral ink. Colours are record
+ * or vault data, never renderer constants (docs/STYLE.md §1, §8).
+ */
+export function polityColor(polity: TypedRecord | undefined, index: number, palette: readonly string[] = []): string {
   const c = polity ? str(polity.fields.color) : undefined;
   if (c && /^#[0-9a-fA-F]{6}$/.test(c)) return c;
-  if (!polity) return "#5b6780";
+  if (!polity) return UNCLAIMED_COLOR;
+  const usable = palette.filter((p) => /^#[0-9a-fA-F]{6}$/.test(p));
+  if (!usable.length) return UNCLAIMED_COLOR;
   let h = 0;
   for (const ch of polity.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return POLITY_PALETTE[(index >= 0 ? index : h) % POLITY_PALETTE.length];
+  return usable[(index >= 0 ? index : h) % usable.length];
 }
 
-/** Sequential ramp (navy → rust) for 0..1. */
+const pct = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 100);
+
+/**
+ * Sequential ramp for 0..1 (economic, military overlays), composed from theme
+ * tokens: glyph-navy-deep → glyph-navy → ink-100. Not accent (selection only on
+ * the canvas) and not status (severity only). docs/STYLE.md §8.
+ */
 export function rampColor(t: number): string {
   const x = Math.max(0, Math.min(1, t));
-  const stops: [number, [number, number, number]][] = [
-    [0, [61, 72, 97]],
-    [0.35, [135, 96, 74]],
-    [0.7, [201, 102, 58]],
-    [1, [241, 200, 177]],
-  ];
-  for (let i = 1; i < stops.length; i++) {
-    if (x <= stops[i][0]) {
-      const [t0, c0] = stops[i - 1];
-      const [t1, c1] = stops[i];
-      const k = (x - t0) / (t1 - t0);
-      const c = c0.map((v, j) => Math.round(v + (c1[j] - v) * k));
-      return `rgb(${c[0]},${c[1]},${c[2]})`;
-    }
-  }
-  return "rgb(241,200,177)";
+  return x <= 0.5
+    ? `color-mix(in srgb, var(--glyph-navy) ${pct(x * 2)}%, var(--glyph-navy-deep))`
+    : `color-mix(in srgb, var(--ink-100) ${pct((x - 0.5) * 2)}%, var(--glyph-navy))`;
 }
+/** Habitability ramp for 0..1: map-zone → ink-100. */
 export function greenRamp(t: number): string {
-  const x = Math.max(0, Math.min(1, t));
-  const r = Math.round(61 + (111 - 61) * x);
-  const g = Math.round(72 + (191 - 72) * x);
-  const b = Math.round(97 + (149 - 97) * x);
-  return `rgb(${r},${g},${b})`;
+  return `color-mix(in srgb, var(--ink-100) ${pct(t)}%, var(--map-zone))`;
 }
 
 export interface ControlShare {

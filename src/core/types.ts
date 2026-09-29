@@ -166,6 +166,8 @@ export interface VaultConfig {
   writeCsv: boolean;
   /** How distances are displayed: light-time (default), AU/km, or million km. Records always store AU and km. */
   distanceUnit: "light" | "au" | "mkm";
+  /** Political-map colours for polities whose record sets no `color`. Vault data, seeded once (docs/STYLE.md §8). */
+  polityPalette?: string[];
   version: 1;
 }
 

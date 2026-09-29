@@ -8,6 +8,7 @@
 // build of the base branch into a second directory to get a before/after pair.
 import { chromium } from "@playwright/test";
 import { existsSync, mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const BASE = process.argv[2] ?? "http://localhost:4173/";
@@ -57,6 +58,22 @@ await page.getByText("Heliaris system", { exact: true }).first().click();
 await page.waitForSelector(".mapsvg");
 await page.waitForTimeout(500);
 await page.screenshot({ path: shot("05-map") });
+
+// Overlay modes: polity colours from records and the vault palette, token ramps.
+const modeSelect = page.locator("select[title='Display mode']");
+await modeSelect.selectOption("political");
+await page.waitForTimeout(300);
+await page.screenshot({ path: shot("05b-map-political") });
+await modeSelect.selectOption("economic");
+await page.waitForTimeout(300);
+await page.screenshot({ path: shot("05c-map-economic") });
+await modeSelect.selectOption("plain");
+
+// An exported map must carry literal colours: theme tokens mean nothing outside the app.
+const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export SVG" }).click()]);
+const exported = await readFile(await download.path(), "utf8");
+if (/var\(--|color-mix\(/.test(exported)) errors.push("export: map SVG still contains theme tokens");
+if (!/fill="#[0-9a-f]{6}"/.test(exported)) errors.push("export: map SVG has no literal fills");
 
 // The hull editor.
 await page.getByText("Hull", { exact: true }).first().click();
