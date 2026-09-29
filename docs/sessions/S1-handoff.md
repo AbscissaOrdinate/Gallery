@@ -81,7 +81,7 @@ exists until doc 10b).
 
 **Owner rulings applied after review (PR #12)**
 - `docs/sessions/S1-foundations.md` restored to the S1a text (the upload on `main` had reverted it);
-  Fable removed from the ROADMAP (ruling 13); rows L (local checkpoints) and C5 added to §2.
+  Fable removed from the ROADMAP (ruling 13); rows L (local checkpoints) and C5 (done: `gallery/13-planet-editor.md`) added to §2; R4 replaced by R4a–R4j (doc 13 §11) and ruling 14 records doc 13's owner answers.
 - Distance unit → a per-install preference (Settings + the map's quick switch), **deferred to S3**.
   Until then it stays `saveConfig` from the map and the guard exempts it by name (recorded in
   ROADMAP §5.12).

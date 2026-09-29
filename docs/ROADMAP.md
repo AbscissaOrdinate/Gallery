@@ -52,8 +52,17 @@ and the owner agrees.
 | L | Local checkpoint on the owner's PC — `cargo test`, Tauri window, upgrade/second-open/undo/snapshot checks on real data, `npm run app:build`. Runs after **S1d, S3b and S5b** (and before any release zip). Run by hand, or as a local Code session on Sonnet 5.5 @ medium. **Always against a copy of the vault, never the live OneDrive folder** | Local Code (or by hand) | Sonnet 5.5 @ medium | — | S1d, S3b, S5b | `sessions/L-local-checkpoint.md` | — |
 | R2 | Doc 10: rest of 10a → 10b (strip; starter systems are fixtures) → 10c → trimmed 10d/10e | Cloud Code | Sonnet @ high; Opus @ high for 10b | `feat/record-views-*` | S5b | later | — |
 | R3 | Design suite: shell extraction → ship editor 2b → doc 09 §3.5 gaps → Editor 3 | Cloud Code | Opus 5.5 @ medium/high | `feat/design-suite-*` | R2 | later | — |
-| C5 | Research + spec doc 13 — planet surface editor (Mollweide / globe); work breakdown of sessions scoring ≤ 15. Never touches the repo; may run beside a Code session | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C5-spec-planet.md` | — |
-| R4 | Planet editor core build — sessions per doc 13 §Work breakdown | Cloud Code | Opus 5.5 @ high / Sonnet 5.5 @ high per doc 13 | `feat/planet-editor` | R3, C5 | later | — |
+| C5 | Research + spec doc 13 — planet surface editor (Mollweide / globe); work breakdown of sessions scoring ≤ 15. Never touches the repo; may run beside a Code session | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C5-spec-planet.md` | done — `gallery/13-planet-editor.md` |
+| R4a | Planet editor — core kernels: HEALPix facade + neighbour table, projections + rotation, sphere utils, layer codec, brush maths; adds `@hscmap/healpix` | Cloud Code | Sonnet 5.5 @ medium | `feat/planet-r4a` | R3, C5 | `gallery/13-planet-editor.md` §11 | — |
+| R4b | Planet editor — `planetmap` schema v1, layer read/write in `Repository`, history `LayerEntry` + byte cap, transactions, snapshots, guard coverage | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4b` | R4a | `gallery/13-planet-editor.md` §11 | — |
+| R4c | Planet editor — renderer, Mollweide + globe, recentre/oblique/rotate, picking, readout, Relief + Plain modes, SURFACE tab, pins (view), mobile view-only | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4c` | R4b | `gallery/13-planet-editor.md` §11 | — |
+| R4d | Planet editor — height tools, sea level, stroke = step, dirty-tile encode, pin drag + NEW LOCATION HERE | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4d` | R4c | `gallery/13-planet-editor.md` §11 | — |
+| R4e | Planet editor — territory pen/edit/snap, territory raster, Political mode, areas, control derivation, links sync, advisories | Cloud Code | Opus 5.5 @ high | `feat/planet-r4e` | R4d | `gallery/13-planet-editor.md` §11 | — |
+| R4f | Planet editor — plates layer, seed/Voronoi, Euler poles, boundary classes, overlay, suggestions + Apply | Cloud Code | Opus 5.5 @ high | `feat/planet-r4f` | R4e | `gallery/13-planet-editor.md` §11 | — |
+| R4g | Planet editor — climate: insolation, zonal T with ice albedo, precipitation march, Köppen, climate paint layer, `koppen.yaml` + `climate-model.yaml` | Cloud Code | Sonnet 5.5 @ high (Opus review mandatory) | `feat/planet-r4g` | R4e | `gallery/13-planet-editor.md` §11 | — |
+| R4h | Planet editor — population table, territory estimates, body fallback order, Population mode, Geopolitics feed | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4h` | R4g | `gallery/13-planet-editor.md` §11 | — |
+| R4i | Planet editor — generator + reroll + presets hook + ETOPO fixture script + Sol wiring | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4i` | R4h | `gallery/13-planet-editor.md` §11 | — |
+| R4j | Planet editor — exports (SVG/PNG/GeoJSON), heightmap import, wikibox/lightbox figure, `surface` glyph motif | Cloud Code | Sonnet 5.5 @ high | `feat/planet-r4j` | R4i | `gallery/13-planet-editor.md` §11 | — |
 
 Branch rule: every session branches from current `main`; one PR per checkpoint; merge
 before the next session starts. **Branch names are advisory** (a cloud session is assigned its
@@ -118,7 +127,7 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 | S5a-1 orbital configs | 3/2/3/3/2/2 | 15 | Opus @ high |
 | S5a-2 orbital configs 2 | 2/2/2/3/2/2 | 13 | Opus @ high (Sonnet @ high if S4 A/B says so) |
 | S5b starter systems (new bulk write path) | 3/1/2/2/2/2 | 12 | Sonnet @ high |
-| R4 planet editor core | 3/3/3/3/2/3 | 17 | Split ≤ 15 per session per doc 13 (C5), Opus 5.5 @ high |
+| R4a–R4j planet editor | per doc 13 §11 | 8–14 | Sonnet 5.5 @ medium/high; Opus 5.5 @ high for R4e, R4f |
 
 ## 4. Check plan (every PR)
 
@@ -204,13 +213,22 @@ reviewer scores both on tests passed first time, review findings, and diff size.
     run by hand or as a local Code session on Sonnet 5.5 @ medium, always against a copy of the
     vault, never the live OneDrive folder.
 
+14. **Planet editor (doc 13 §0, owner answers 2026-09-29):** storage is a **HEALPix equal-area
+    grid** (NESTED order, tiled text sidecar files); v1 = edit core + globe (data model,
+    Mollweide and orthographic projections, height painting, territory polygons with polity links,
+    undo), v2 = tectonics, Köppen, population, v3 = seeding/presets, export, doc 10 figures;
+    tectonics and Köppen are light physics (suggestions only; Earth-like water worlds; paint-over
+    wins); starter surfaces are procedural (seeded, rerollable) plus a downsampled NOAA ETOPO 2022
+    Earth for Sol. Sessions R4a–R4j are in §2. (Doc 13 calls this "ruling 11"; that number was
+    taken, so it is 14 here.)
+
 ### Open — owner decides (batch; never guessed by Code)
 
 - v1 orbital-configuration set and per-system showcase list — C2 proposes.
 - F17 (audit): the paced boot-log replay is not one of the three permitted animations — add it
   to `STYLE.md` / the doc 11 motion tiers, or cut it.
-- Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; planet-map storage
-  format (R4); any doc 10 items to cut.
+- Standing: `_tables/RECONCILIATION.md` conflicts; `max_gimbal_deg`; any doc 10 items to cut.
+  (Planet-map storage format is settled: ruling 14.)
 
 ## 6. Budget and billing
 
