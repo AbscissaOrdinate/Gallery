@@ -220,6 +220,12 @@ table.tbl th, table.tbl td { text-align: left; padding: var(--space-2) var(--spa
 table.tbl th { font: var(--text-label-xs); letter-spacing: var(--track-label-xs); color: var(--ink-300); background: var(--surface-300); }
 table.tbl tbody tr:hover td { background: var(--surface-400); }
 table.tbl tbody tr.is-link { cursor: pointer; }
+/* A section's kinds on treelines (overview). */
+table.tree-tbl td.tree-cell { white-space: nowrap; width: 1%; }
+.tree-cell .tree { font: var(--text-data-sm); color: var(--line-300); white-space: pre; }
+.tree-cell .glyph { color: var(--glyph-navy); margin-right: var(--space-4); }
+table.tree-tbl td { white-space: nowrap; }
+table.tree-tbl td.help { white-space: normal; }
 table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.tbl tr.is-muted td { opacity: var(--opacity-disabled); }
 .chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -250,6 +256,17 @@ table.tbl tr.is-muted td { opacity: var(--opacity-disabled); }
 .rail-item .icon { width: var(--space-6); text-align: center; color: var(--glyph-navy); flex: none; }
 .rail-item .name { flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rail-item .count { font: var(--text-data-sm); color: var(--ink-300); }
+/* The rail is a tree: a section header, then its kinds on treelines. */
+.rail-item .tree { font: var(--text-data-sm); color: var(--line-300); white-space: pre; flex: none; margin-right: calc(var(--space-4) * -1); }
+.rail-group { display: flex; align-items: center; gap: var(--space-3); height: var(--control-md); padding: 0 var(--space-5); }
+.rail-group:hover { background: var(--surface-400); }
+.rail-fold, .rail-fold:hover, .rail-group-name, .rail-group-name:hover { height: auto; background: none; }
+.rail-fold { flex: none; width: var(--space-6); padding: 0; border: none; background: none; font: var(--text-data-sm); color: var(--ink-300); cursor: pointer; text-align: center; }
+.rail-fold:hover { color: var(--ink-100); }
+.rail-group-name { flex: 1; min-width: 0; padding: 0; border: none; background: none; text-align: left; justify-content: flex-start; font: var(--text-label-xs); letter-spacing: var(--track-label-xs); color: var(--ink-200); cursor: pointer; }
+.rail-group-name:hover { color: var(--ink-100); }
+.rail-group .count { font: var(--text-data-sm); color: var(--ink-300); }
+.rail-group.is-selected .rail-group-name, .rail-group.is-selected .rail-fold { color: var(--accent-300); }
 .rail .chips { padding: 0 var(--space-5); }
 .rail-form { margin: 0 var(--space-5) var(--space-4); }
 
@@ -276,6 +293,7 @@ input.doc-title:focus { border-bottom-color: var(--line-300); }
 .page-title { font: var(--text-title-md); color: var(--ink-100); }
 
 /* Floating things take elevation: a toast and a map tooltip at elev-2. */
+.toast::before { content: "› "; color: var(--accent-300); }
 .toast { position: fixed; bottom: var(--space-6); left: 50%; transform: translateX(-50%); z-index: 10; background: var(--surface-300); border: var(--border-1) solid var(--line-300); box-shadow: var(--elev-2); padding: var(--space-3) var(--space-5); font: var(--text-data-sm); color: var(--ink-100); }
 
 /* Pickers and menus. */
@@ -295,22 +313,38 @@ input.doc-title:focus { border-bottom-color: var(--line-300); }
 .svgbox.portrait { width: calc(var(--space-10) * 2); height: calc(var(--space-10) * 2); padding: var(--space-2); }
 
 /* ── Outliner ────────────────────────────────────────────────────────── */
-.outliner { font: var(--text-body); }
-.ol-node { display: flex; align-items: flex-start; gap: var(--space-1); padding: var(--space-1) 0; }
-.ol-node .bullet { width: var(--space-6); text-align: center; color: var(--ink-300); cursor: pointer; user-select: none; padding-top: var(--space-2); font: var(--text-data-xs); }
-.ol-node .bullet.collapsed { color: var(--glyph-navy); }
-.ol-node .text { flex: 1; border: none; background: transparent; padding: var(--space-1) var(--space-2); resize: none; min-height: 0; height: auto; overflow: hidden; font: var(--text-body); color: var(--ink-100); }
+/* The outline is a monospace tree (├─ └─ │), like the OPML it is stored as. */
+.outliner { font: var(--text-code); }
+.ol-node, .ol-note-row { display: flex; align-items: flex-start; }
+.ol-tree { flex: none; font: var(--text-code); color: var(--line-300); white-space: pre; user-select: none; padding-top: var(--space-1); }
+.ol-node .bullet { flex: none; width: 2ch; font: var(--text-code); color: var(--glyph-navy); cursor: pointer; user-select: none; padding-top: var(--space-1); }
+.ol-node .bullet.leaf { color: var(--line-300); cursor: default; }
+.ol-node .bullet.collapsed { color: var(--accent-300); }
+.ol-node .text { flex: 1; border: none; background: transparent; padding: var(--space-1) var(--space-2); resize: none; min-height: 0; height: auto; overflow: hidden; font: var(--text-code); color: var(--ink-100); }
 .ol-node .text:focus { background: var(--surface-400); }
-.ol-note { margin-left: var(--space-8); width: calc(100% - var(--space-8)); color: var(--ink-200); font: var(--text-body); border: none; background: transparent; resize: none; padding: 0 var(--space-2) var(--space-1); min-height: 0; height: auto; }
+.ol-note { flex: 1; color: var(--ink-300); font: var(--text-code); border: none; background: transparent; resize: none; padding: var(--space-1) var(--space-2); min-height: 0; height: auto; }
 .ol-note:focus { background: var(--surface-400); }
-.ol-children { margin-left: var(--space-7); border-left: var(--border-1) solid var(--line-100); padding-left: var(--space-1); }
 .ol-help { font: var(--text-label-md); color: var(--ink-300); margin-top: var(--space-4); }
 
 /* ── Welcome ─────────────────────────────────────────────────────────── */
-.welcome { width: var(--dialog-w); max-width: calc(100% - var(--space-9)); margin: var(--space-10) auto; display: flex; flex-direction: column; gap: var(--space-6); }
-.welcome .opt { width: 100%; height: auto; padding: var(--space-4) var(--space-5); flex-direction: column; align-items: flex-start; gap: var(--space-1); text-align: left; white-space: normal; }
-.welcome .opt .sub { font: var(--text-data-sm); color: var(--ink-300); }
-.welcome .opt.btn-primary .sub { color: var(--on-accent); }
+/* The welcome screen is the boot's terminal before a vault is open: wordmark, rule, commands. */
+.welcome { width: calc(var(--dialog-w) + var(--inspector-w)); max-width: calc(100% - var(--space-9)); margin: 0 auto; padding: calc(var(--space-10) * 2) 0 var(--space-10); display: flex; flex-direction: column; gap: var(--space-6); }
+.term-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.term-group > .t-label-xs { padding-bottom: var(--space-2); }
+.term-cmd { display: flex; align-items: baseline; justify-content: flex-start; gap: var(--space-4); width: 100%; height: auto; white-space: normal; padding: var(--space-3) var(--space-5); border: none; border-left: var(--border-3) solid transparent; background: none; text-align: left; cursor: pointer; color: var(--ink-100); }
+.term-cmd:hover, .term-cmd:focus-visible { background: var(--accent-700); border-left-color: var(--accent-500); }
+.term-cmd .prompt { font: var(--text-data-md); color: var(--accent-300); flex: none; }
+.term-cmd .body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.term-cmd .label { font: var(--text-data-md); }
+.term-cmd.is-primary .label { color: var(--accent-300); }
+.term-cmd .sub { font: var(--text-data-xs); color: var(--ink-300); }
+.term-recent { display: flex; align-items: baseline; justify-content: flex-start; height: auto; gap: var(--space-2); padding: var(--space-1) var(--space-5); border: none; background: none; text-align: left; cursor: pointer; font: var(--text-data-sm); color: var(--ink-200); }
+.term-recent:hover { color: var(--accent-300); }
+.term-recent .tree { color: var(--line-300); white-space: pre; }
+.welcome .welcome-foot { padding: var(--space-8) 0 0; }
+.caveat-add { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; flex-basis: 100%; }
+.caveat-add .row { min-width: 0; }
+.caveat-add .input { flex: 1; min-width: 0; }
 
 /* ── Toolbars ────────────────────────────────────────────────────────── */
 .toolbar { display: flex; align-items: center; gap: var(--space-4); height: var(--control-lg); padding: 0 var(--space-5); background: var(--surface-300); border-bottom: var(--border-1) solid var(--line-200); flex: none; min-width: 0; }
@@ -386,8 +420,8 @@ input.doc-title:focus { border-bottom-color: var(--line-300); }
 
 /* Field widths, composed from tokens. */
 .w-num { width: calc(var(--space-10) * 4); max-width: 100%; min-width: 0; flex: 0 1 auto; }
-.w-field { width: calc(var(--space-10) * 5); max-width: 100%; flex: none; }
-.w-rel { width: calc(var(--space-10) * 3); flex: none; }
+.w-field, :is(input, select).w-field { width: calc(var(--space-10) * 5); max-width: 100%; flex: none; }
+.w-rel, :is(input, select).w-rel { width: calc(var(--space-10) * 3); flex: none; }
 .w-wide { width: calc(var(--space-10) * 8); max-width: 100%; }
 td.w-ref { min-width: calc(var(--space-10) * 5); }
 .frow.stacked { grid-template-columns: minmax(0, 1fr); }
@@ -405,11 +439,15 @@ td.w-ref { min-width: calc(var(--space-10) * 5); }
 .banner.lvl-confidential { background: var(--class-confidential); }
 .banner.lvl-unclassified { background: var(--class-unclassified); }
 .rp-scroll { flex: 1; min-height: 0; overflow: auto; border-left: var(--border-1) solid var(--line-200); border-right: var(--border-1) solid var(--line-200); }
-.rp-grid { display: grid; grid-template-columns: minmax(0, 1fr) var(--inspector-w); gap: var(--space-6); padding: var(--space-8); align-items: start; }
+/* A clear margin under the banner, so the document starts a step below its marking. */
+.rp-grid { display: grid; grid-template-columns: minmax(0, 1fr) var(--inspector-w); gap: var(--space-6); padding: var(--space-10) var(--space-8) var(--space-8); align-items: start; }
+/* The command line above the title is ruled off from it. */
+.recordpage .doc-head { padding-bottom: var(--space-4); margin-bottom: var(--space-5); border-bottom: var(--border-1) solid var(--line-100); }
 .rp-doc { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
 .rp-side { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .rp-head { display: flex; gap: var(--space-8); align-items: flex-start; }
-.rp-head .grow { display: flex; flex-direction: column; gap: var(--space-2); }
+.rp-head .grow { display: flex; flex-direction: column; gap: var(--space-2); flex: 1; min-width: 0; }
+.rp-head .grow input { width: 100%; }
 input.doc-subtitle { font: var(--text-title-md); color: var(--ink-200); height: auto; padding: var(--space-1) 0; border: none; border-bottom: var(--border-1) solid transparent; background: transparent; }
 input.doc-subtitle:hover { border-bottom-color: var(--line-200); }
 input.doc-subtitle:focus { border-bottom-color: var(--line-300); }

@@ -1,6 +1,7 @@
 import { actions, useApp } from "./state";
 import { BOOT_MODES, DEFAULT_BOOT_MODE, HANDLING_LEVELS, VAULT, type BootMode, type HandlingLevel, type OperatorConfig } from "../core/types";
-import { LEVEL_WORD } from "../core/handling";
+import { LEVEL_WORD, withCaveat, withoutCaveat } from "../core/handling";
+import { CaveatAdder } from "./CaveatAdder";
 import { Button, Checkbox, Group, Panel, Row, Select, StatusRow, TextField } from "./kit";
 
 export function Settings() {
@@ -52,6 +53,21 @@ export function Settings() {
         {repo.registry.problems.map((p, i) => (
           <StatusRow key={i} severity="caution" id="SCHEMA" message={p} word={false} />
         ))}
+      </Panel>
+      <Panel title="CAVEATS" meta={`${cfg.handling?.caveats.length ?? 0} in the vault list`}>
+        <Group>
+          {(cfg.handling?.caveats ?? []).map((c) => (
+            <Row key={c} label={c}>
+              <Button size="sm" onClick={() => repo.saveConfig({ handling: withoutCaveat(cfg.handling, c) })} title="Records that carry it keep it">
+                REMOVE
+              </Button>
+            </Row>
+          ))}
+          <Row label="ADD">
+            <CaveatAdder saveLabel="" onAdd={(c) => repo.saveConfig({ handling: withCaveat(cfg.handling, c) })} />
+          </Row>
+        </Group>
+        <p className="help">Offered as checkboxes in every record's HANDLING panel. A caveat written on one record only is kept on that record.</p>
       </Panel>
       <Panel title="BOOT" meta="COSMETIC · NEVER GATES">
         <Group>

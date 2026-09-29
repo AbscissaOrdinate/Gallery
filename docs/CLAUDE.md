@@ -43,7 +43,7 @@ scripts; set `SMOKE_CHROME` to use an installed one).
 ```
 src/core/           pure logic, no React imports anywhere in here
   astro/            Worldsmith + EWoCS body physics, map layout, display modes, units
-  codec/            record YAML/JSON, OPML, CSV
+  codec/            record YAML/JSON, OPML, CSV, SVG asset sanitizer
   schema/           type registry + built-in schemas and presets
   designer/         craft budget roll-up, expression layer, archetypes, hull geometry
                     (note: designer/, not design/ — the designer prompt §3 says
@@ -81,6 +81,11 @@ gallery/            project docs 01–07; each phase adds one
   unit". This supersedes the `/ 1e6` in the designer prompt §2.3 example.
 - **No `eval`, no `new Function`, no dynamic code execution** in the expression layer or
   anywhere else. Tokenizer → shunting-yard → AST → interpreter.
+- **Vault files are untrusted markup.** An SVG read from the vault is inlined only through
+  `sanitizeSvg` (`src/core/codec/svg.ts`), an allowlist rebuild — never a regex strip. It
+  keeps shapes, text, groups, clip paths and gradients, and refuses anything that is not
+  well-formed XML. Markup the app builds itself (`glyph.ts`, `hull/render.ts`) skips it, so
+  every record value those interpolate must be escaped or validated (colours: hex only).
 - **Nothing is ever blocked from saving.** Every check is an advisory with a severity
   (`error | warn | info`), a message, and the field it points at. A captured hull, an export
   variant or a deliberately experimental craft must always save — with a banner, never a
