@@ -80,6 +80,8 @@ exists until doc 10b).
 - `onSnapshot` is set in `state.openVault` and logs source `snapshot` (prefix `SNP`).
 
 **Owner rulings applied after review (PR #12)**
+- `docs/sessions/S1-foundations.md` restored to the S1a text (the upload on `main` had reverted it);
+  Fable removed from the ROADMAP (ruling 13); rows L (local checkpoints) and C5 added to §2.
 - Distance unit → a per-install preference (Settings + the map's quick switch), **deferred to S3**.
   Until then it stays `saveConfig` from the map and the guard exempts it by name (recorded in
   ROADMAP §5.12).

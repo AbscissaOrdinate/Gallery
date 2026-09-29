@@ -3,7 +3,7 @@
 Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1b).
 
 This file is the **single entry point** for every Code or Cowork session. It holds the queue,
-the routing rules, the owner's rulings for the current round, and the Fable spend ledger.
+the routing rules, and the owner's rulings for the current round.
 Authority order for anything technical is unchanged: `docs/UNITS.md` → `docs/CLAUDE.md` →
 `docs/STYLE.md` → numbered `gallery/` docs → this file. This file wins only on **sequencing,
 scope, and owner rulings** recorded in §5.
@@ -45,13 +45,15 @@ and the owner agrees.
 | S2c | Wiki authoring — autocomplete, redlink create, REDLINKS tool, ambiguity chooser; rename impact + dialog + rewrite transaction (S2.4 + S2.5) | Cloud Code | Opus 5.5 @ high | `feat/wiki-rename` | S2b | `sessions/S2-wiki.md` | — |
 | S3a | QoL shell — keymap + command registry, switcher, palette, shortcut sheet, save indicator, duplicate, recent/pinned, multi-select + bulk tag/delete, tag pages (S3.1–S3.3) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2c | `sessions/S3-qol-shell.md` | — |
 | S3b | Transclusion, find in page, motion tokens + tiers + Settings DISPLAY (`STYLE.md` §10), ASCII set + `WorkPanel` + progress reporters (S3.4–S3.7) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell-2` | S3a | `sessions/S3-qol-shell.md` | — |
-| S5a-1 | Orbital configurations — `configuration` v1; barycentric pair + fixes B1–B6; S/P-type advisory; tadpole; horseshoe/exchange; quasi-satellite | Cloud Code | Opus 5.5 @ high (extra-high only if stuck; Fable reserve #3) | `feat/orbital-configs` | S4 | `sessions/S5-orbits-and-starters.md` | — |
+| S5a-1 | Orbital configurations — `configuration` v1; barycentric pair + fixes B1–B6; S/P-type advisory; tadpole; horseshoe/exchange; quasi-satellite | Cloud Code | Opus 5.5 @ high (extra-high only if stuck) | `feat/orbital-configs` | S4 | `sessions/S5-orbits-and-starters.md` | — |
 | S5a-2 | Orbital configurations 2 — rosettes (circular + elliptical), resonance labels, system v5 `nebula`, body v6 hyperbolic + unbound placement | Cloud Code | Opus 5.5 @ high (Sonnet 5.5 @ high if the S4 A/B favours Sonnet) | `feat/orbital-configs-2` | S5a-1 | `sessions/S5-orbits-and-starters.md` | — |
 | S5b | Starter systems ("Starters") — record-set loader, install dialog, installer (one undoable step after a snapshot); six recipes; `_tables/sources-astro.yaml`; provenance tooltip. Pluto/Charon data fix first (brief) | Cloud Code | Sonnet 5.5 @ high | `feat/starter-systems` | S5a-2, S1 | `sessions/S5-orbits-and-starters.md` | — |
 | C3 | Data review of the six recipes against `sources.yaml` (esp. `verify: true` rows); runs after the S5b PR is open, before merge | Cowork | Opus 5.5 @ high | — | S5b PR | `sessions/S5-orbits-and-starters.md` | — |
+| L | Local checkpoint on the owner's PC — `cargo test`, Tauri window, upgrade/second-open/undo/snapshot checks on real data, `npm run app:build`. Runs after **S1d, S3b and S5b** (and before any release zip). Run by hand, or as a local Code session on Sonnet 5.5 @ medium. **Always against a copy of the vault, never the live OneDrive folder** | Local Code (or by hand) | Sonnet 5.5 @ medium | — | S1d, S3b, S5b | `sessions/L-local-checkpoint.md` | — |
 | R2 | Doc 10: rest of 10a → 10b (strip; starter systems are fixtures) → 10c → trimmed 10d/10e | Cloud Code | Sonnet @ high; Opus @ high for 10b | `feat/record-views-*` | S5b | later | — |
 | R3 | Design suite: shell extraction → ship editor 2b → doc 09 §3.5 gaps → Editor 3 | Cloud Code | Opus 5.5 @ medium/high | `feat/design-suite-*` | R2 | later | — |
-| R4 | Doc 13 planet editor spec (Cowork) → core build | Cowork → Cloud Code | Opus @ high → **Fable 5.1** (#2) | `feat/planet-editor` | R3 | later | — |
+| C5 | Research + spec doc 13 — planet surface editor (Mollweide / globe); work breakdown of sessions scoring ≤ 15. Never touches the repo; may run beside a Code session | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C5-spec-planet.md` | — |
+| R4 | Planet editor core build — sessions per doc 13 §Work breakdown | Cloud Code | Opus 5.5 @ high / Sonnet 5.5 @ high per doc 13 | `feat/planet-editor` | R3, C5 | later | — |
 
 Branch rule: every session branches from current `main`; one PR per checkpoint; merge
 before the next session starts. **Branch names are advisory** (a cloud session is assigned its
@@ -82,11 +84,12 @@ own); **the PR title carries the session ID** (e.g. "S1b — snapshots + guard")
 | ≤ 8 | Sonnet 5.5 @ medium (low for pure data entry) |
 | 9–12 | Sonnet 5.5 @ high; Opus 5.5 @ medium when ambiguity = 3 |
 | 13–15 | Opus 5.5 @ high |
-| ≥ 16, or blast radius **and** reversibility both 3 | Fable 5.1 candidate — owner approves against the ledger (§6). Fable 5.1 needs paid usage credits on the Pro plan; default to Opus 5.5 @ high (extra-high only if stuck) and split finer. |
+| ≥ 16, or blast radius **and** reversibility both 3 | Split finer until each session scores ≤ 15; run each on Opus 5.5 @ high (extra-high only if stuck). |
 
 Surface: **Cowork** for research, specs, owner decisions, data review. **Cloud Code** for
-builds (sees only GitHub). **Local Code** only when a task needs the OneDrive vault or a
-Tauri/Rust build.
+builds (sees only GitHub). **Local Code** only when a task needs a
+Tauri/Rust build or real vault data — always against a **copy** of the vault, never the live
+OneDrive folder.
 
 ### 3.3 Session hygiene
 
@@ -108,14 +111,14 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 | Task | Scores (B/A/P/U/R/C) | Total | Route |
 |---|---|---|---|
 | S0 prep | 1/1/1/1/1/2 | 7 | Sonnet @ medium |
-| S1 foundations | 3/2/1/2/3/3 | 14 + B&R = 3 | Fable |
+| S1 foundations | 3/2/1/2/3/3 | 14 + B&R = 3 | Split into S1a–d (§2) |
 | S2 wiki core (S2a, S2c; S2b is rendering) | 3/2/1/2/3/2 | 13 | Opus @ high (S2b Sonnet @ high) |
 | S3 QoL shell (S3a, S3b) | 2/1/1/3/1/2 | 10 | Sonnet @ high |
 | S4 star types | 1/1/3/1/2/1 | 9 | A/B |
 | S5a-1 orbital configs | 3/2/3/3/2/2 | 15 | Opus @ high |
 | S5a-2 orbital configs 2 | 2/2/2/3/2/2 | 13 | Opus @ high (Sonnet @ high if S4 A/B says so) |
 | S5b starter systems (new bulk write path) | 3/1/2/2/2/2 | 12 | Sonnet @ high |
-| R4 planet editor core | 3/3/3/3/2/3 | 17 | Fable |
+| R4 planet editor core | 3/3/3/3/2/3 | 17 | Split ≤ 15 per session per doc 13 (C5), Opus 5.5 @ high |
 
 ## 4. Check plan (every PR)
 
@@ -131,7 +134,7 @@ reviewer scores both on tests passed first time, review findings, and diff size.
   `git diff -M --stat`.
 - Kernel additions: hand-computed unit tests; each derived quantity gets a verification row
   once `docs/VERIFICATION.md` exists.
-- After any Fable session: log spend in §6.
+- After a session that measures usage (the S4 A/B), record the usage-bar delta in the PR description.
 
 ## 5. Owner rulings — round of 2026-09-29
 
@@ -167,7 +170,7 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 
 11. **Doc 12 §6 items 1–4 accepted** (2026-09-29): (1) S5a splits into S5a-1 / S5a-2, replacing
     the one S5a row; (2) S5b's routing moves from 8 to 12 (Sonnet @ high), and S5a-1 at 15 stays
-    Opus @ high with the Fable reserve as its fallback; (3) the `white-dwarf` and `brown-dwarf`
+    Opus @ high (the Fable fallback is gone — Fable is no longer an option); (3) the `white-dwarf` and `brown-dwarf`
     preset ids take the figures of Sirius B and Luhman 16 A — existing records are untouched,
     since presets are copied at creation; (4) record-set recipes are called "Starters" in the UI.
 
@@ -195,6 +198,12 @@ reviewer scores both on tests passed first time, review findings, and diff size.
       **deferred to S3**. Until then it stays `saveConfig({ distanceUnit })` from the map, and the
       guard exempts it by name.
 
+13. **Fable is no longer an option** (owner, 2026-09-29): removed from the routing rubric (§3.2),
+    the calibration table, the Fable ledger and its billing notes (§6). Work that scored ≥ 16 is
+    split until each session scores ≤ 15 and runs on Opus 5.5 @ high. Local checkpoints (row L)
+    run by hand or as a local Code session on Sonnet 5.5 @ medium, always against a copy of the
+    vault, never the live OneDrive folder.
+
 ### Open — owner decides (batch; never guessed by Code)
 
 - v1 orbital-configuration set and per-system showcase list — C2 proposes.
@@ -208,18 +217,8 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 Verified 2026-09-29 against Anthropic docs (links in the C0 transcript):
 - Cloud Code sessions **share rate limits with all other Claude and Claude Code usage** on the
   account; parallel tasks consume proportionately more. No separate charge for the cloud VM.
-- Fable 5.1: on Max (and premium Team/Enterprise seats) it counts against the plan, up to 50%
-  of the weekly limit, then usage credits; on Pro / standard seats it runs on usage credits
-  from the first token. Usage credits bill at API rates ($10 / $50 per Mtok in/out for Fable
-  5.1). Set a monthly spend cap in Settings → Usage before any Fable session.
-
-Fable ledger (target: 3 sessions, ≤ $100):
-
-| # | Session | Estimate | Actual | Notes |
-|---|---|---|---|---|
-| 1 | S1 foundations | $25–35 | not used — Pro plan | audit readers on Sonnet @ low |
-| 2 | R4 planet editor core | $35–45 | | after doc 13; Opus unless owner buys credits |
-| 3 | Reserve | ~$25 | | stuck bug, or S5a escalation |
+- Usage per session is not tracked here. Where a session measures it (the S4 A/B), the PR
+  description carries the owner's usage-bar delta (Settings → Usage, before/after).
 
 ## 7. Environment
 
@@ -239,7 +238,5 @@ Filled in by S0 (2026-09-29, cloud container, Node 22.22.2, Claude Code 2.1.284)
 - **Smoke browser:** Playwright wants `chromium-1243`, which is not installed. Working value:
   `SMOKE_CHROME=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
   (`/opt/pw-browsers/chromium` is a directory, not the executable).
-- **Fable 5.1 in `/model`:** not verified — `/model` is interactive and could not be run from a
-  cloud session. The owner should check in the app before S1.
 - **Known gaps:** no Tauri/Rust build in the cloud (Local Code only); the other smoke scripts
   (`-map*`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) were not run in S0.
