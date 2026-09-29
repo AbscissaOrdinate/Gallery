@@ -2,6 +2,107 @@
 
 Updated at the end of every S1 session (S1a → S1d). Newest first.
 
+## S1c — history core, PR 3a (Opus 5.5 @ high) — done, PR "S1c — history core" open
+
+Branch: `feat/foundations-history-core`. Doc 11 §1 governs; no UI file changed.
+
+**Done**
+- `src/core/history.ts` (new, pure): `FileSide`, `Entry`, `Step`, `History` (push / coalesce per
+  §1.3 / depth 200 / `peekUndo` `peekRedo` / `commitUndo(step?)` `commitRedo(step?)` / `clear` /
+  `subscribe` / `version`), `entryLabel` (`EDIT` / `CREATE` / `DELETE` / `RENAME A → B`, name
+  upper-cased, `describeChange` parts). `handling.ts` exports its part renderer as `renderChange`.
+- `Repository` (`src/core/repo.ts`):
+  - `lastText` (filled by `load()` from the text it reads, and by every write) is each step's
+    `before.text`; `saved` is its `before.record` — never `byId` (F4: the map mutates that in place).
+  - `save(r, { touch, history, origin, tx })` and `delete(id, { history, tx })` record one step, or
+    one entry of `tx`. A save that writes the same bytes to the same path makes no step.
+  - `transaction(label, fn, { snapshot })`: nesting throws; a finished handle throws; writes outside
+    `tx` meanwhile are their own steps; CSV once at the end; a throw after writes keeps the partial
+    step as `<label> — INCOMPLETE`, logs a violation, rethrows.
+  - **Delete snapshots** (`Before delete`) unless it is inside a transaction whose snapshot holds
+    that file. `delete`'s old `{ snapshot: false }` option is gone (folded in, as S1b asked).
+  - `undo()` / `redo()` → `ApplyResult`; serialised. `apply` preflights every entry against the
+    disk *as the earlier entries of the same step will have left it* (so a record saved twice or
+    renamed twice in one transaction applies), refuses the whole step on any mismatch, writes
+    nothing, stacks unchanged. I/O error part-way: violation naming the files written, rethrow, step
+    stays. CSV once per apply.
+  - `version(id)`: bumps on save, delete, apply, and on `load()` only for records whose file
+    changed, appeared or went. `load()` keeps the history.
+  - `restoreSnapshot` is now a transaction (`RESTORE SNAPSHOT <id>`, `Step.snapshot` = the
+    "Before restore" safety snapshot): undo returns the *record* files to before the restore.
+    Config/CSV a snapshot restores are not undoable (§1.6 exempts them); they are in the safety snapshot.
+  - `onLog?: (line: LogInput) => void` — history's session-log lines (source `history`, prefix
+    `HIS` added to `sessionLog.ts`): `UNDONE — <label>` / `REDONE — <label>` info;
+    `UNDO REFUSED — <path> CHANGED ON DISK` caution per refused path with the remedy (and the
+    snapshot id, when the step has one) in `detail.note`; violations for INCOMPLETE and part-way
+    failures.
+- Tests: `tests/history.test.ts` (21: pointers, redo cleared, depth, coalescing on and off each
+  §1.3 condition, labels), `tests/repo-undo.test.ts` (35: every §1.9 core case, plus restore-undo,
+  same-record-twice-in-tx, I/O failure + retry, version bumps, and the review follow-ups below). `snapshots.test.ts` updated for the
+  folded delete option. Mutation-checked: disabling the refusal fails 5 tests; preflighting
+  against the raw disk (no per-step view) fails 1.
+- Checks: `npm run typecheck`, `npm test` (38 files, 744 tests). `grep -rn "history: false"` →
+  one hit, in a test, commented `// history: exempt —`. No React under `src/core`
+  (`core-purity.test.ts` green). No smoke run: nothing under `src/ui` changed.
+
+**Review (subagent, Sonnet 5.5 @ high)** — no unconditional blockers. Fixed from its findings:
+- **Write gate** (`enterWrite` / `exclusive`): a save, delete or transaction landing while an
+  undo/redo was writing could be clobbered between preflight and write. Now an apply starts only
+  when no write is in flight and holds new writes off until done; writes never wait for each
+  other, a transaction's own writes pass freely. Consequence: `fn` of a transaction must never
+  await `undo`/`redo` (documented; it would wait forever).
+- A step an I/O error stopped part-way is resumed on retry (entries already applied are checked to
+  still hold, not re-applied); before, it was refused for ever and blocked the stack.
+- Coalescing also requires the new burst to start from exactly the file the previous one left
+  (an external edit picked up by a reload no longer gets folded in and wiped by undo); a folded
+  step keeps its identity and is relabelled for the whole span (a typed rename reads `RENAME OLD → NEWEST`).
+- `restoreSnapshot` reloads first (its `before` is the real disk, not a stale `lastText`); a restore
+  that fails part-way still becomes an `— INCOMPLETE` step with a violation, and memory follows disk.
+- `save(r, { label })` added — §1.3 gives the map drag `MOVE <NAME>` / `PARK <NAME> AT <L-POINT>`
+  on a plain `save`; ignored inside a transaction.
+- The step is filed before `emit()`, so a throwing subscriber no longer loses it; a transaction
+  without its own snapshot names its first delete's "Before delete" snapshot on the step.
+- Tests added: F4 in-place edit, refusals (rename onto a taken path, create edited on disk, delete
+  whose record is back), refused redo of a transaction, partial apply + resume, save during an
+  undo, two quick undos, coalescing over an external edit, restore failing part-way. Mutation-checked:
+  removing the gate or the resume each fails its test.
+
+Not taken (recorded): a hard cap on a coalesced step's span (not in the spec); `ApplyResult` does not
+carry the step's snapshot id (spec shape; the log note names it); a no-change `save` that only
+bumps `updated` still makes an `EDIT X` step; a second *concurrent* (not nested) transaction also
+throws "Nested transaction"; `adopt` drops `LoadedRecord.migrated`/`problems`. **Pre-existing, out of
+scope:** `save` renaming onto a path another record holds overwrites it (undo makes it worse) —
+queued as a separate task.
+
+**Owner rulings on the interpretations (PR #13 review — keep both)**
+- Coalescing window: after a burst folds in, the step's `at` becomes the new push time, so the
+  4 s is measured from the *last* burst (steady typing with short pauses stays one step).
+- `undo()`/`redo()` with nothing to apply return `{ ok: false, label: "", refused: [] }`.
+- The step label is the record's name upper-cased with `toLocaleUpperCase("en")`.
+
+**Not done (S1d — PR 3b, UI wiring)**
+- Wire `repo.onLog` in `state.openVault` (next to `onSnapshot`) to the session log.
+- **`ApplyResult` with `ok: false`, `label: ""` and an empty `refused` means "nothing to undo/redo"**
+  (owner ruling): `actions.undo()`/`redo()` must **not** toast `UNDO REFUSED` for it — no refusal
+  toast, no log line. Only a non-empty `refused` is a refusal.
+- Everything in doc 11 §1.8: `useRecordDraft`, `drafts.ts`, `keys.ts`, `actions.undo/redo`
+  (flushAll first; toast `UNDONE — <label>` / `UNDO REFUSED — <file> CHANGED ON DISK`), origins
+  for the record/hull editors and map settings, hull `checkpoint()`.
+- Wrap `SystemBuilder` (F5) and `ImportDialog` in `repo.transaction`. `ImportDialog` snapshots
+  *paths* it could overwrite (ruling 12), not ids; keep that call before the transaction rather than
+  moving it into `opts.snapshot`, which takes ids.
+- Map drag: `repo.save(rec, { origin: "map-drag:<n>", label: "MOVE MARS" })` (or
+  `PARK MARS AT L4`); a per-drag origin never coalesces.
+- The L-point-park guard test (carried over from S1b).
+- F3: after an undo, `RecordEditor`'s effect keyed on `loaded.record.updated` already re-syncs a
+  clean draft (the undone record has the older `updated`); `useRecordDraft` replaces it with
+  `repo.version(id)`.
+
+**Open questions for the owner**
+- None blocking. The three interpretations above stand unless the owner says otherwise.
+
+Context used: about 270k tokens.
+
 ## S1b — snapshots + guard (Sonnet 5.5) — done, PR "S1b — snapshots + guard" open
 
 Branch: the session's assigned `claude/confident-planck-4mlgh2` (branch names are advisory; the

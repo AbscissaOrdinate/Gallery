@@ -1,10 +1,14 @@
 /**
  * Vault repository: scan a folder, load every record, save records, keep the
  * CSV index and per-type exports current, resolve links and backlinks.
+ *
+ * Every record write goes through `save`/`delete` (or a `transaction` of them) and becomes one
+ * undoable step in `history` (doc 11 §1). Exempt from undo, by design (§1.6): `saveConfig`,
+ * `putTextAsset`, `writeCsv` and `init()`'s seeding.
  */
 import YAML from "yaml";
 import type { StorageAdapter } from "./storage/adapter";
-import { basename, joinPath, walk } from "./storage/adapter";
+import { basename, dirname, joinPath, walk } from "./storage/adapter";
 import { Registry, defaultsFor } from "./schema/registry";
 import { formatFromPath, parseRecordText, recordFilename, serializeRecord, typeFromFilename } from "./codec/record";
 import { parseNoteOpml, serializeNoteOpml } from "./codec/opml";
@@ -21,6 +25,47 @@ import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, Vaul
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
 import { newId, nowIso, slugify } from "./ids";
 import { SNAPSHOT_CAUSE, VaultUpgrade, SnapshotWriter, listSnapshots, readManifest, restoreSnapshot, snapshotFilePath, type RestoreResult, type SnapshotManifest } from "./snapshots";
+import { History, entryLabel, type Entry, type FileSide, type Step } from "./history";
+import type { LogInput } from "./sessionLog";
+
+/** A transaction in progress: its `save`/`delete` add entries to one step (doc 11 §1.4). */
+export interface Tx {
+  readonly label: string;
+  save(r: GalleryRecord, opts?: { touch?: boolean }): Promise<LoadedRecord>;
+  delete(id: string): Promise<void>;
+}
+
+export interface SaveOptions {
+  /** false: keep `updated` and `revisions` as they are (import). */
+  touch?: boolean;
+  /** false: not undoable. Startup/seeding only; every use carries `// history: exempt — <reason>`. */
+  history?: false;
+  /** The editor instance making the write; consecutive bursts from one origin coalesce (§1.3). */
+  origin?: string;
+  /** The step's label, when the default `EDIT <NAME> — …` does not say it (map drag: `MOVE <NAME>`, §1.3). Ignored inside a transaction. */
+  label?: string;
+  /** Append to this open transaction instead of making a step of its own. */
+  tx?: Tx;
+}
+
+export interface DeleteOptions {
+  /** As for `save`. */
+  history?: false;
+  tx?: Tx;
+}
+
+export type ApplyResult = { ok: true; label: string } | { ok: false; label: string; refused: { path: string; reason: string }[] };
+
+interface TxState {
+  label: string;
+  handle: Tx;
+  entries: Entry[];
+  /** The snapshot taken before the first entry, if any. */
+  snapshot?: SnapshotManifest;
+  /** Without one, the first "Before delete" snapshot a delete inside it took: named in a refusal. */
+  deleteSnapshot?: string;
+  open: boolean;
+}
 
 export interface VaultStats {
   records: number;
@@ -77,7 +122,35 @@ export class Repository {
   private byId = new Map<string, LoadedRecord>();
   /** Each record as last read or written, so a save can say what changed even when the caller edited the stored object in place. */
   private saved = new Map<string, GalleryRecord>();
+  /** Each record's file as last read or written: the `before.text` of its next step (doc 11 §1.4). */
+  private lastText = new Map<string, { path: string; text: string }>();
+  private versions = new Map<string, number>();
   private listeners = new Set<() => void>();
+  /** The transaction in progress, if any. */
+  private tx?: TxState;
+  /** Undo/redo run one at a time, so two quick presses never apply the same step twice. */
+  private applying: Promise<unknown> = Promise.resolve();
+  /**
+   * The write gate. Saves, deletes and open transactions count themselves in `writers`; an
+   * undo/redo starts only when there are none, and while it runs (`applyRun`) new writes wait for
+   * it. So nothing can write a file between an apply's preflight and its writes (§1.5: never
+   * clobber). Writes do not wait for each other, and a transaction's own writes pass freely.
+   */
+  private writers = 0;
+  private idle: (() => void)[] = [];
+  private applyRun?: Promise<unknown>;
+  /** Entries of a step an I/O error stopped part-way, so a retry in the same direction resumes it. */
+  private partial = new WeakMap<Step, { dir: "undo" | "redo"; state: Map<Entry, "wrote" | "done"> }>();
+
+  /** The session's undo history (doc 11 §1). Kept across `load()`; ends with this Repository. */
+  readonly history = new History();
+
+  /**
+   * Session-log lines the history raises (source `history`): `UNDONE — …` / `REDONE — …`, one
+   * caution per refused path, a violation for an incomplete transaction or a failed apply. The UI
+   * points this at its session log, as it does `onSnapshot`.
+   */
+  onLog?: (line: LogInput) => void;
 
   constructor(public readonly fs: StorageAdapter) {}
 
@@ -88,6 +161,14 @@ export class Repository {
   }
   private emit() {
     for (const l of this.listeners) l();
+  }
+
+  /** Bumps on every write, apply or reload that changes the record's file; drafts reload on a change. */
+  version(id: string): number {
+    return this.versions.get(id) ?? 0;
+  }
+  private bump(id: string) {
+    this.versions.set(id, this.version(id) + 1);
   }
 
   // ---- lifecycle -------------------------------------------------------
@@ -153,6 +234,7 @@ export class Repository {
 
     const files = await walk(this.fs, "", [], (dir) => dir === VAULT.snapshotsDir);
     const next = new Map<string, LoadedRecord>();
+    const nextText = new Map<string, { path: string; text: string }>();
     const problems: VaultStats["problems"] = [];
     let done = 0;
     for (const path of files) {
@@ -163,14 +245,15 @@ export class Repository {
       if (!fmt) continue;
       try {
         let loaded: LoadedRecord | null = null;
+        let text = "";
         if (fmt === "opml") {
-          const text = await this.fs.readText(path);
+          text = await this.fs.readText(path);
           const { record, problems: p } = parseNoteOpml(text, basename(path).replace(/\.opml$/i, ""));
           loaded = { record, location: { path, format: "opml" }, problems: p.length ? p : undefined };
         } else {
           const type = typeFromFilename(basename(path));
           if (!type) continue; // plain yaml/json that isn't a record
-          const text = await this.fs.readText(path);
+          text = await this.fs.readText(path);
           const { record, problems: p } = parseRecordText(text, fmt);
           if (record.type === "unknown") record.type = type;
           if (record.type !== type) p.push(`type "${record.type}" disagrees with filename "${type}"`);
@@ -189,6 +272,7 @@ export class Repository {
             loaded.problems = [...(loaded.problems ?? []), `duplicate id with ${next.get(loaded.record.id)!.location.path}`];
           }
           next.set(loaded.record.id, loaded);
+          nextText.set(loaded.record.id, { path, text });
           if (loaded.problems) problems.push({ path, problems: loaded.problems });
         }
       } catch (err) {
@@ -196,7 +280,14 @@ export class Repository {
       }
     }
     report.records?.(files.length, files.length);
+    // The history survives a reload (doc 11 §1.4): a step whose files changed meanwhile is refused
+    // when applied. A record whose file changed, appeared or went is a new version for its drafts.
+    for (const id of new Set([...this.lastText.keys(), ...nextText.keys()])) {
+      const [a, b] = [this.lastText.get(id), nextText.get(id)];
+      if (a?.path !== b?.path || a?.text !== b?.text) this.bump(id);
+    }
     this.byId = next;
+    this.lastText = nextText;
     this.saved = new Map([...next].map(([id, lr]) => [id, structuredClone(lr.record)]));
     this.migrationReport = [...next.values()].filter((r) => r.migrated).map((r) => ({ id: r.record.id, name: r.record.name, notes: r.migrated! }));
     this.emit();
@@ -323,8 +414,23 @@ export class Repository {
     return joinPath(folder, recordFilename(r.slug, r.type, this.config.recordFormat));
   }
 
-  /** Persist a record (new or existing). Renames the file if slug/type changed. */
-  async save(r: GalleryRecord, opts: { touch?: boolean } = {}): Promise<LoadedRecord> {
+  /**
+   * Persist a record (new or existing). Renames the file if slug/type changed. One undoable step,
+   * or one entry of `opts.tx` (doc 11 §1.3–1.4).
+   */
+  async save(r: GalleryRecord, opts: SaveOptions = {}): Promise<LoadedRecord> {
+    await this.enterWrite();
+    try {
+      return await this.saveNow(r, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async saveNow(r: GalleryRecord, opts: SaveOptions): Promise<LoadedRecord> {
+    const tx = this.openTx(opts.tx);
+    const prior = this.byId.get(r.id);
+    const before = prior ? await this.currentSide(r.id) : null;
     if (opts.touch !== false) {
       r.updated = nowIso();
       // The revision log (STYLE.md §4, RecordPage): one entry per editing session.
@@ -354,27 +460,306 @@ export class Repository {
     const text = isNote(r) ? serializeNoteOpml(r) : serializeRecord(r, fmt === "opml" ? this.config.recordFormat : fmt);
     await this.fs.writeText(path, text);
     const loaded: LoadedRecord = { record: r, location: { path, format: fmt === "opml" ? "opml" : fmt } };
+    const copy = structuredClone(r);
     this.byId.set(r.id, loaded);
-    this.saved.set(r.id, structuredClone(r));
+    this.saved.set(r.id, copy);
+    this.lastText.set(r.id, { path, text });
+    this.bump(r.id);
+    if (opts.history !== false) this.fileEntry({ id: r.id, before, after: { path, text, record: copy } }, tx, opts.origin, undefined, opts.label);
     this.emit();
-    if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+    if (!tx && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return loaded;
   }
 
   /**
-   * Remove a record's file. Snapshots it first ("Before delete", doc 11 §1.7) — undo does not
-   * survive a restart, the snapshot does. `snapshot: false` is for a caller that already took a
-   * covering snapshot of several ids (bulk delete).
+   * Remove a record's file. Every delete snapshots the file first ("Before delete", doc 11 §1.7) —
+   * undo does not survive a restart, the snapshot does — unless it is inside a transaction whose
+   * own snapshot already holds that file (bulk delete: one "Before bulk delete" snapshot).
    */
-  async delete(id: string, opts: { snapshot?: boolean } = {}): Promise<void> {
+  async delete(id: string, opts: DeleteOptions = {}): Promise<void> {
+    await this.enterWrite();
+    try {
+      await this.deleteNow(id, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async deleteNow(id: string, opts: DeleteOptions): Promise<void> {
+    const tx = this.openTx(opts.tx);
     const lr = this.byId.get(id);
     if (!lr) return;
-    if (opts.snapshot !== false) await this.snapshot(SNAPSHOT_CAUSE.delete, [id]);
+    const covered = tx?.snapshot?.files.some((f) => f.id === id);
+    const snap = covered ? undefined : await this.snapshot(SNAPSHOT_CAUSE.delete, [id]);
+    const before = await this.currentSide(id);
     await this.fs.remove(lr.location.path);
     this.byId.delete(id);
     this.saved.delete(id);
+    this.lastText.delete(id);
+    this.bump(id);
+    if (opts.history !== false) this.fileEntry({ id, before, after: null }, tx, undefined, snap?.id);
+    this.emit();
+    if (!tx && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+  }
+
+  // ---- history (src/core/history.ts, doc 11 §1) --------------------------
+
+  /** A record's file as it stands, as one side of an entry; null when the record is not loaded. */
+  private async currentSide(id: string): Promise<FileSide | null> {
+    const lr = this.byId.get(id);
+    if (!lr) return null;
+    const record = this.saved.get(id) ?? structuredClone(lr.record);
+    const last = this.lastText.get(id);
+    if (last) return { path: last.path, text: last.text, record };
+    // Not expected: every record in byId came through load, save or an apply, which fill lastText.
+    try {
+      return { path: lr.location.path, text: await this.fs.readText(lr.location.path), record };
+    } catch {
+      return null;
+    }
+  }
+
+  /** The open transaction `tx` names, or undefined for none. A finished one is a programming error. */
+  private openTx(tx: Tx | undefined): TxState | undefined {
+    if (!tx) return undefined;
+    const s = this.tx;
+    if (!s || s.handle !== tx || !s.open) throw new Error(`Transaction "${tx.label}" has finished; await every write inside it`);
+    return s;
+  }
+
+  /** A save, delete or transaction begins: wait out any undo/redo being applied, then count in. */
+  private async enterWrite(): Promise<void> {
+    while (this.applyRun) await this.applyRun.catch(() => undefined);
+    this.writers++;
+  }
+  private exitWrite() {
+    if (--this.writers === 0) for (const wake of this.idle.splice(0)) wake();
+  }
+  /** Run an undo/redo once no write is in flight, holding writes off until it is done. */
+  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.writers > 0 || this.applyRun) {
+      if (this.applyRun) await this.applyRun.catch(() => undefined);
+      else await new Promise<void>((wake) => this.idle.push(wake));
+    }
+    const run = fn();
+    this.applyRun = run;
+    try {
+      return await run;
+    } finally {
+      if (this.applyRun === run) this.applyRun = undefined;
+    }
+  }
+
+  /** File a single write: into the open transaction, or as a step of its own. */
+  private fileEntry(e: Entry, tx: TxState | undefined, origin?: string, snapshot?: string, label?: string) {
+    if (!e.before && !e.after) return;
+    if (tx) {
+      tx.entries.push(e);
+      if (snapshot && !tx.deleteSnapshot) tx.deleteSnapshot = snapshot;
+      return;
+    }
+    // The same bytes at the same path: there is nothing to undo.
+    if (e.before && e.after && e.before.path === e.after.path && e.before.text === e.after.text) return;
+    this.history.push({ label: label ?? entryLabel(e), origin, entries: [e], ...(snapshot ? { snapshot } : {}) }, Date.now());
+  }
+
+  private log(line: LogInput) {
+    this.onLog?.(line);
+  }
+
+  /**
+   * Run `fn` as one undo step (doc 11 §1.4): the writes it makes through `tx` become one step,
+   * labelled `label`, with the CSV regenerated once at the end. `opts.snapshot` snapshots those
+   * records first (callers declaring ≥ 10 ids must, §1.7); a delete inside the transaction then
+   * takes no snapshot of its own. Writes made outside `tx` meanwhile are steps of their own. If
+   * `fn` throws after writing, the partial step is kept (label `— INCOMPLETE`) so it can be undone,
+   * a violation is logged, and the error is rethrown. Nesting is a programming error and throws. An
+   * undo/redo waits for an open transaction to finish, so `fn` must never await one.
+   */
+  async transaction<T>(label: string, fn: (tx: Tx) => Promise<T>, opts: { snapshot?: { cause: string; ids: string[] } } = {}): Promise<T> {
+    if (this.tx) throw new Error(`Nested transaction: "${label}" started inside "${this.tx.label}"`);
+    await this.enterWrite();
+    const other = this.tx as TxState | undefined; // one may have opened while we waited
+    if (other) {
+      this.exitWrite();
+      throw new Error(`Nested transaction: "${label}" started inside "${other.label}"`);
+    }
+    try {
+      return await this.runTx(label, fn, opts);
+    } finally {
+      this.exitWrite();
+    }
+  }
+
+  private async runTx<T>(label: string, fn: (tx: Tx) => Promise<T>, opts: { snapshot?: { cause: string; ids: string[] } }): Promise<T> {
+    const handle: Tx = {
+      label,
+      save: (r, o = {}) => this.save(r, { touch: o.touch, tx: handle }),
+      delete: (id) => this.delete(id, { tx: handle }),
+    };
+    const state: TxState = { label, handle, entries: [], open: true };
+    this.tx = state;
+    let result: T;
+    try {
+      if (opts.snapshot) state.snapshot = await this.snapshot(opts.snapshot.cause, opts.snapshot.ids);
+      result = await fn(handle);
+    } catch (err) {
+      await this.closeTx(state, true);
+      if (state.entries.length) {
+        this.log({ severity: "violation", source: "history", message: `${label} — INCOMPLETE`, detail: { components: state.entries.map((e) => (e.after ?? e.before)!.path), note: `${(err as Error).message}. What was written is one undo step.` } });
+      }
+      throw err;
+    }
+    await this.closeTx(state, false);
+    return result;
+  }
+
+  private async closeTx(state: TxState, failed: boolean) {
+    state.open = false;
+    if (this.tx === state) this.tx = undefined;
+    if (!state.entries.length) return;
+    const snapshot = state.snapshot?.id ?? state.deleteSnapshot;
+    this.history.push({ label: failed ? `${state.label} — INCOMPLETE` : state.label, entries: [...state.entries], ...(snapshot ? { snapshot } : {}) }, Date.now());
+    if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+  }
+
+  /** Revert the latest step. Refuses, writing nothing, when any of its files changed on disk since (§1.5). */
+  undo(): Promise<ApplyResult> {
+    return this.serial(() => this.exclusive(() => this.applyTop("undo")));
+  }
+
+  /** Re-apply the latest undone step, under the same rule. */
+  redo(): Promise<ApplyResult> {
+    return this.serial(() => this.exclusive(() => this.applyTop("redo")));
+  }
+
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.applying.then(fn, fn);
+    this.applying = run.catch(() => undefined);
+    return run;
+  }
+
+  private async applyTop(dir: "undo" | "redo"): Promise<ApplyResult> {
+    const step = dir === "undo" ? this.history.peekUndo() : this.history.peekRedo();
+    if (!step) return { ok: false, label: "", refused: [] };
+    const res = await this.apply(step, dir);
+    if (res.ok) {
+      if (dir === "undo") this.history.commitUndo(step);
+      else this.history.commitRedo(step);
+    }
+    return res;
+  }
+
+  /**
+   * Apply a step (doc 11 §1.5). Every entry is preflighted first, against the disk as the entries
+   * before it in this step will have left it: the file to be replaced or removed must hold exactly
+   * the text the step left there, and a path to be created must be free (and, for a record coming
+   * back, its id not loaded). Any failure refuses the whole step — nothing written, both stacks as
+   * they were. Never clobbers, never partly applies. An I/O error part-way is logged with the files
+   * written so far and rethrown; the step stays on its stack, and a retry in the same direction
+   * resumes it — the entries already applied are checked to still hold, not applied again.
+   */
+  private async apply(step: Step, dir: "undo" | "redo"): Promise<ApplyResult> {
+    const order = dir === "undo" ? [...step.entries].reverse() : step.entries;
+    const moves = order.map((e) => (dir === "undo" ? { entry: e, id: e.id, from: e.after, to: e.before } : { entry: e, id: e.id, from: e.before, to: e.after }));
+    const verb = dir === "undo" ? "UNDO" : "REDO";
+    const prior = this.partial.get(step);
+    const progress = new Map(prior?.dir === dir ? prior.state : []);
+
+    const view = new Map<string, string | null>(); // path → text this step will have left there; null = absent
+    const loaded = new Map<string, boolean>();
+    const textAt = async (p: string): Promise<string | null> => {
+      if (view.has(p)) return view.get(p)!;
+      try {
+        return await this.fs.readText(p);
+      } catch {
+        return null; // a read error on a path that should exist counts as changed
+      }
+    };
+    const existsAt = async (p: string): Promise<boolean> => (view.has(p) ? view.get(p) !== null : this.fs.exists(p));
+    const refused: { path: string; reason: string }[] = [];
+    const refuse = (path: string, reason: string) => {
+      if (!refused.some((r) => r.path === path)) refused.push({ path, reason });
+    };
+    const expect = async (p: string, text: string) => {
+      const t = await textAt(p);
+      if (t !== text) refuse(p, t === null ? "missing or unreadable" : "changed on disk");
+    };
+    for (const m of moves) {
+      const moved = !!m.from && !!m.to && m.from.path !== m.to.path;
+      const done = progress.get(m.entry);
+      if (done === "done") {
+        // Applied before an I/O error stopped the step: it must still hold.
+        if (m.to) await expect(m.to.path, m.to.text);
+        if (m.from && m.from.path !== m.to?.path && (await existsAt(m.from.path))) refuse(m.from.path, "changed on disk");
+      } else if (done === "wrote" && moved) {
+        // The new file was written, the old one not yet removed.
+        await expect(m.to!.path, m.to!.text);
+        await expect(m.from!.path, m.from!.text);
+      } else {
+        if (m.from) await expect(m.from.path, m.from.text);
+        else if (loaded.get(m.id) ?? this.byId.has(m.id)) refuse(m.to!.path, "the record is loaded again");
+        if (m.to && m.to.path !== m.from?.path && (await existsAt(m.to.path))) refuse(m.to.path, "a file is already there");
+      }
+      if (m.from) view.set(m.from.path, null);
+      if (m.to) view.set(m.to.path, m.to.text);
+      loaded.set(m.id, !!m.to);
+    }
+    if (refused.length) {
+      const where = step.snapshot ? ` The pre-change files are in snapshot ${step.snapshot}.` : "";
+      for (const r of refused) {
+        this.log({ severity: "caution", source: "history", message: `${verb} REFUSED — ${r.path} CHANGED ON DISK`, detail: { path: r.path, note: `${step.label}: ${r.reason}. Reload to see the change; the step stays available.${where}` } });
+      }
+      return { ok: false, label: step.label, refused };
+    }
+
+    const written: string[] = [];
+    try {
+      for (const m of moves) {
+        const done = progress.get(m.entry);
+        if (done === "done") continue;
+        if (m.to && done !== "wrote") {
+          await this.fs.mkdirAll(dirname(m.to.path));
+          await this.fs.writeText(m.to.path, m.to.text);
+          written.push(m.to.path);
+          this.adopt(m.id, m.to);
+          progress.set(m.entry, "wrote");
+        }
+        if (m.from && m.from.path !== m.to?.path) {
+          await this.fs.remove(m.from.path);
+          written.push(m.from.path);
+          if (!m.to) this.adopt(m.id, null);
+        }
+        progress.set(m.entry, "done");
+      }
+    } catch (err) {
+      this.partial.set(step, { dir, state: progress });
+      this.emit();
+      if (written.length && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+      this.log({ severity: "violation", source: "history", message: `${verb} FAILED PART-WAY — ${step.label}`, detail: { components: written, note: `${(err as Error).message}. Written so far: ${written.join(", ") || "nothing"}. The step stays available.` } });
+      throw err;
+    }
+    this.partial.delete(step);
     this.emit();
     if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+    this.log({ severity: "info", source: "history", message: `${dir === "undo" ? "UNDONE" : "REDONE"} — ${step.label}` });
+    return { ok: true, label: step.label };
+  }
+
+  /** Take one side of an applied entry as the record's current state (null: gone). */
+  private adopt(id: string, side: FileSide | null) {
+    if (side) {
+      const fmt = formatFromPath(side.path) ?? this.config.recordFormat;
+      this.byId.set(id, { record: structuredClone(side.record), location: { path: side.path, format: fmt } });
+      this.saved.set(id, structuredClone(side.record));
+      this.lastText.set(id, { path: side.path, text: side.text });
+    } else {
+      this.byId.delete(id);
+      this.saved.delete(id);
+      this.lastText.delete(id);
+    }
+    // S2 updates the wiki link index here (doc 11 §2.4).
+    this.bump(id);
   }
 
   // ---- snapshots (src/core/snapshots.ts) -------------------------------
@@ -415,10 +800,22 @@ export class Repository {
    * duplicated. Files created after the snapshot are left alone. Refuses, changing nothing, when
    * a file to restore now holds a *different* record (deleted, then another record took the name).
    * Which record a file holds is read from the snapshot's own copy, not from its manifest.
+   *
+   * The restore is one undo step (doc 11 §1.6): undo puts back the record files as they were before
+   * it. Other files a snapshot holds (the config, the CSV) are not undoable (§1.6); what they were
+   * is in the "Before restore" snapshot.
    */
-  async restoreSnapshot(id: string): Promise<RestoreResult> {
+  restoreSnapshot(id: string): Promise<RestoreResult> {
+    return this.transaction(`RESTORE SNAPSHOT ${id}`, () => this.restoreInTx(id));
+  }
+
+  private async restoreInTx(id: string): Promise<RestoreResult> {
+    const state = this.tx!;
+    // Start from the disk as it is, so the step's `before` is what the restore really overwrites.
+    await this.load();
     const manifest = await readManifest(this.fs, id);
     const remove: string[] = [];
+    const touched = new Set<string>();
     for (const f of manifest.files) {
       const fmt = formatFromPath(f.path);
       if (!fmt) continue;
@@ -435,11 +832,30 @@ export class Repository {
       }
       const cur = this.byId.get(recordId);
       if (cur && cur.location.path !== f.path) remove.push(cur.location.path);
+      touched.add(recordId);
     }
-    const result = await restoreSnapshot(this.fs, id, { remove });
-    if (result.safety) this.onSnapshot?.(result.safety);
+    const pre = new Map<string, FileSide | null>();
+    for (const rid of touched) pre.set(rid, await this.currentSide(rid));
+    let result: RestoreResult | undefined;
+    let failure: unknown;
+    try {
+      result = await restoreSnapshot(this.fs, id, { remove });
+    } catch (err) {
+      failure = err; // part-way: what was written still becomes the (INCOMPLETE) step
+    }
+    if (result?.safety) {
+      this.onSnapshot?.(result.safety);
+      state.snapshot = result.safety;
+    }
     await this.load();
-    if (this.config.writeCsv) await this.writeCsv().catch(() => undefined);
+    for (const rid of touched) {
+      const [before, after] = [pre.get(rid) ?? null, await this.currentSide(rid)];
+      if (before?.path === after?.path && before?.text === after?.text) continue;
+      state.entries.push({ id: rid, before, after });
+    }
+    if (!result) throw failure;
+    // The transaction regenerates the CSV once it has entries; a restore of other files only still does.
+    if (!state.entries.length && this.config.writeCsv) await this.writeCsv().catch(() => undefined);
     return result;
   }
 

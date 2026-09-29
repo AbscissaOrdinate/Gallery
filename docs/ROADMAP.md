@@ -1,6 +1,6 @@
 # Gallery — Roadmap and session plan
 
-Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1b).
+Owner: vault owner (Sean). Coordinator: Cowork PM session. Last revised 2026-09-29 (S1c).
 
 This file is the **single entry point** for every Code or Cowork session. It holds the queue,
 the routing rules, and the owner's rulings for the current round.
@@ -33,8 +33,8 @@ and the owner agrees.
 | C1 | Spec doc 11 — undo, wiki link layer, QoL shell, motion + ASCII | Cowork | Opus 5.5 @ high | — | — | `sessions/C1-spec-qol.md` | done — `gallery/11-qol-foundations.md` |
 | C2 | Research + spec doc 12 — star types, orbital configurations, five starter systems | Cowork | Opus 5.5 @ high + web | — | — | `sessions/C2-spec-presets.md` | done — `gallery/12-presets-and-starter-systems.md` and `gallery/12-data/` |
 | S1a | Foundations — audit | Cloud Code | Sonnet @ medium | `feat/foundations-audit` | S0, C1 | `sessions/S1-foundations.md` | done (`docs/AUDIT.md`; deviations + units not audited) |
-| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | in review — PR "S1b — snapshots + guard" |
-| S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | — |
+| S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | done (PR #12) |
+| S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | in review — PR "S1c — history core" |
 | S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
 | S4-A | Star types — body v5 `stage`/`spectral_type`/`status`/`provenance`, stage-aware `deriveStar`, presets from `star-types.yaml`, NS/BH glyphs, `eyeball`. **A/B run** (§3.4); PR marked "do not merge" | Cloud Code | Sonnet 5.5 @ medium | `feat/star-types-sonnet` | S1, C2 | `sessions/S4-star-types.md` | — |
 | S4-B | Star types — same brief, second run. **A/B run** (§3.4); PR marked "do not merge". Owner may skip the A/B and run S4-A only | Cloud Code | Opus 5.5 @ medium | `feat/star-types-opus` | S1, C2 | `sessions/S4-star-types.md` | — |

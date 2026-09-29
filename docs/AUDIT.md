@@ -136,6 +136,15 @@ Severity: **high** breaks an invariant a later PR depends on; **med** real gap; 
 | F3, F4, F5 | Still constraints for S1c/S1d. |
 | F10, F17, F18 | Untouched. F17 is in ROADMAP §5's open list. |
 
+### Status after S1c
+
+| ID | Now |
+|---|---|
+| F3 | Core side done: `repo.version(id)` bumps on every write, apply and changed-file reload. The draft hook that uses it is S1d. |
+| F4 | Core side done: a step's `before` comes from `saved` + `lastText`, never from the in-place-mutated `byId` record. |
+| F5 | Core side done: `repo.transaction` (one step, CSV once). Wrapping `SystemBuilder` in it is S1d. |
+| F6 | Unchanged: a rename is an edit entry whose paths differ and undoes as one; S2's rewrite snapshots through `transaction(…, { snapshot })`. |
+
 The guard has one named exemption: the map's **distance-unit
 switch**, which calls `saveConfig({ distanceUnit })`. It is exempted by name in the guard (a vault
 preference, `saveConfig` is "view config" in doc 11 §1.6) and tested to write only

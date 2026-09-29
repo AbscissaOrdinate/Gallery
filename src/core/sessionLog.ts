@@ -55,7 +55,7 @@ export interface LogSession {
   node?: string;
 }
 
-const PREFIX: Record<string, string> = { vault: "VLT", record: "REC", map: "MAP", hull: "HUL", craft: "CRF", export: "EXP", schema: "SCH", tables: "TBL", import: "IMP", snapshot: "SNP" };
+const PREFIX: Record<string, string> = { vault: "VLT", record: "REC", map: "MAP", hull: "HUL", craft: "CRF", export: "EXP", schema: "SCH", tables: "TBL", import: "IMP", snapshot: "SNP", history: "HIS" };
 export const sourcePrefix = (source: string): string => PREFIX[source] ?? source.slice(0, 3).toUpperCase();
 
 export type LogInput = Omit<LogLine, "seq" | "at" | "code"> & { at?: number };
