@@ -1,0 +1,46 @@
+# Showcase recipe — "Nursery" (fictional). Format: doc 12 §4.1.
+# Owner ruling 2026-09-29: a sixth, generic system to carry what the five real ones cannot
+# honestly show. Every figure below is provisional except where a preset or source says so.
+# Physical framing: a young T Tauri star inside an H II region lit by an off-map O star
+# (low-mass stars don't ionise emission nebulae themselves) — a proplyd-style setting.
+
+recipe: 1
+id: showcase-nursery
+kind: record-set
+title: "Nursery (showcase)"
+summary: "Fictional young system inside an emission nebula: a T Tauri star with a gapped protoplanetary disc, a giant still forming in a gap, an elliptical Klemperer rosette of engineered worlds, a rogue planet and an interstellar object on a hyperbolic pass."
+options:
+  speculative: { default: true, label: "Include the engineered rosette" }
+showcases: [nebula-overlay, protoplanetary-disc, chaotian-planet, rosette-elliptical, rogue-planet, hyperbolic-object]
+
+records:
+  - key: sys
+    type: system
+    name: "Nursery"
+    status: speculative
+    fields:
+      primary: $star
+      radius_mapping: log
+      nebula: { kind: emission, label: "Ionised cloud (lit by an off-map O star)", radius_au: 60000, color: "#b0475a", opacity: 0.18, falloff: soft }
+    prov: { nebula: "fictional; ~1 ly scale chosen to sit between the system and the region; colour is H-alpha-like, drawing only" }
+
+  - { key: star, type: body, name: "Nursery", preset: star-pre-ms-ttauri, status: speculative, fields: { kind: star, system: $sys, stage: pre-ms, age_gyr: 0.002 }, prov: { age_gyr: "fictional; within the < 10 Myr T Tauri window (ttauri)" } }
+
+  - { key: disc, type: body, name: "Protoplanetary disc", preset: kuiper-belt, status: speculative, fields: { system: $sys, parent: $star, belt_inner_au: 3, belt_outer_au: 120, misc_history: Chaotian, gaps_au: [[18, 26], [55, 62]] }, prov: { "*": "fictional; gaps_au is a 'later' field — until it lands the disc draws as one band" } }
+  - { key: g1, type: body, name: "Nursery b (forming)", preset: jupiterlike, status: speculative, fields: { system: $sys, parent: $star, sma_au: 22, mass_earth: 60, density_gcc: 0.3, misc_history: Chaotian }, prov: { "*": "fictional; sits in the inner gap; low density = still accreting" } }
+
+  - { key: ros-bary, type: body, name: "Rosette barycentre", preset: barycenter, gate: speculative, status: speculative, fields: { kind: barycenter, system: $sys, parent: $star, mass_sol: 7.8e-6, luminosity_sol: 0, sma_au: 9, eccentricity: 0.02 }, prov: { "*": "fictional; mass = 2×1.0 + 2×0.3 M⊕" } }
+  - { key: r1, type: body, name: "Rhomb I (heavy)",  preset: earthlike,   gate: speculative, status: speculative, fields: { system: $sys, parent: $ros-bary, mass_earth: 1.0, misc_history: Genesian }, prov: { "*": "fictional" } }
+  - { key: r2, type: body, name: "Rhomb II (light)", preset: desert-world, gate: speculative, status: speculative, fields: { system: $sys, parent: $ros-bary, mass_earth: 0.3, misc_history: Genesian }, prov: { "*": "fictional" } }
+  - { key: r3, type: body, name: "Rhomb III (heavy)", preset: earthlike,  gate: speculative, status: speculative, fields: { system: $sys, parent: $ros-bary, mass_earth: 1.0, misc_history: Genesian }, prov: { "*": "fictional" } }
+  - { key: r4, type: body, name: "Rhomb IV (light)", preset: desert-world, gate: speculative, status: speculative, fields: { system: $sys, parent: $ros-bary, mass_earth: 0.3, misc_history: Genesian }, prov: { "*": "fictional" } }
+  - key: cfg-rhomb
+    type: configuration
+    name: "The Rhomb (elliptical rosette)"
+    gate: speculative
+    status: speculative
+    fields: { kind: rosette, system: $sys, center: $ros-bary, members: [$r1, $r2, $r3, $r4], params: { n: 4, shape: elliptical, sma_km: 1500000, e: 0.3, mass_pattern: [H, L] }, maintained: true }
+    prov: { "*": "fictional; Klemperer's heavy-light rhombus (klemperer1962); advisory 'unstable' is suppressed to 'maintained'" }
+
+  - { key: rogue, type: body, name: "Wanderer", preset: brown-dwarf-y, status: speculative, fields: { kind: planet, system: $sys, parent: null, misc_orbit: Stevensonian, map_x_au: -900, map_y_au: 400 }, prov: { "*": "fictional rogue; map_x/y_au is a proposed field for an unbound body's drawn position (S5a)" } }
+  - { key: iso, type: body, name: "Interloper", preset: comet, status: speculative, fields: { system: $sys, parent: $star, eccentricity: 1.8, periapsis_au: 2.0, inclination_deg: 120, misc_history: Odyssean }, prov: { "*": "fictional hyperbolic pass; e ≥ 1 and periapsis_au are the S5a schema extension" } }

@@ -1,0 +1,76 @@
+# Doc 12 — bibliography. Every `src:` id in 12-data/*.yaml resolves here.
+# Retrieved 2026-09-29 by session C2. `via` names the page the figure was actually read from
+# when that was a secondary source; `verify: true` means the page did not attribute the
+# figure to a primary source and S4/S5b should confirm against the primary before trusting it.
+
+definition:        { cite: "Solar units by definition (1 M☉, 1 R☉, 1 L☉). Constants already in worldsmith.ts." }
+derived:           { cite: "Derived in doc 12 from sourced inputs; the formula is given beside the value." }
+
+# ---- stars: main sequence ---------------------------------------------------------------
+mamajek2022:       { cite: "Mamajek, E. 'A Modern Mean Dwarf Stellar Color and Effective Temperature Sequence', version 2022.04.16 (Pecaut & Mamajek 2013, ApJS 208, 9)", url: "https://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt" }
+
+# ---- stars: evolved, pre-MS, compact, substellar exemplars ------------------------------
+ramirez2011:       { cite: "Ramírez & Allende Prieto 2011, ApJ 743, 135 — Arcturus", url: "https://ui.adsabs.harvard.edu/abs/2011ApJ...743..135R/abstract" }
+metcalfe2024:      { cite: "Metcalfe et al. 2024 — β Hydri mass, radius, luminosity", via: "https://en.wikipedia.org/wiki/Beta_Hydri" }
+soubiran2024:      { cite: "Soubiran et al. 2024 — Teff (β Hyi, α Cen A/B, ε Eri radius)", via: "https://en.wikipedia.org/wiki/Beta_Hydri" }
+torres2015:        { cite: "Torres et al. 2015, ApJ 807, 26 — Capella Aa/Ab", via: "https://en.wikipedia.org/wiki/Capella" }
+woodruff2004:      { cite: "Woodruff et al. 2004 — Mira A radius, luminosity, Teff ranges", via: "https://en.wikipedia.org/wiki/Mira" }
+joyce2020:         { cite: "Joyce et al. 2020, ApJ 902, 63 — Betelgeuse mass 16.5–19 M☉, radius 764 R☉, L 87,100 L☉", via: "https://en.wikipedia.org/wiki/Betelgeuse", url: "https://iopscience.iop.org/article/10.3847/1538-4357/abb8db" }
+przybilla2006:     { cite: "Przybilla et al. 2006 — Rigel mass 21±3 M☉, age 8±1 Myr", via: "https://en.wikipedia.org/wiki/Rigel" }
+baines2018:        { cite: "Baines et al. — Rigel radius 74.1 R☉", via: "https://en.wikipedia.org/wiki/Rigel" }
+moravveji2012:     { cite: "Moravveji et al. 2012, ApJ 747, 108 — Rigel luminosity 120,000 L☉", url: "https://iopscience.iop.org/article/10.1088/0004-637X/747/2/108" }
+gamma2vel:         { cite: "γ² Velorum WC8 component — details table (North et al. 2007; De Marco & Schmutz)", via: "https://en.wikipedia.org/wiki/Gamma_Velorum", verify: true }
+twhya:             { cite: "TW Hydrae — infobox (primary unattributed on page)", via: "https://en.wikipedia.org/wiki/TW_Hydrae", verify: true }
+heber2009:         { cite: "Heber 2009, ARA&A 47, 211 — hot subdwarf (sdB) mass ≈0.5 M☉, R 0.15–0.25 R☉, Teff 20,000–40,000 K, ~100 Myr", via: "https://en.wikipedia.org/wiki/Subdwarf_B_star" }
+bond2017:          { cite: "Bond et al. 2017, ApJ 840, 70 — Sirius A/B masses, orbit", via: "https://en.wikipedia.org/wiki/Sirius" }
+liebert2005:       { cite: "Liebert et al. 2005 — Sirius system age 230–242 Myr; Sirius B formed ~120 Myr ago", via: "https://en.wikipedia.org/wiki/Sirius" }
+vigan2015:         { cite: "Vigan et al. 2015 — no >11 M_J planets at 0.5 AU from Sirius A", via: "https://en.wikipedia.org/wiki/Sirius" }
+riley2019:         { cite: "Riley et al. 2019, ApJL 887, L21 — PSR J0030+0451 M = 1.34 M☉, R = 12.71 km (NICER)", url: "https://arxiv.org/abs/1912.05702" }
+konacki2003:       { cite: "Konacki & Wolszczan 2003 — PSR B1257+12 planets", via: "https://en.wikipedia.org/wiki/PSR_B1257%2B12" }
+elbadry2023:       { cite: "El-Badry et al. 2023 (MNRAS) — Gaia BH1: 9.27 M☉ dormant black hole, G-dwarf companion at 1.40 AU", via: "https://en.wikipedia.org/wiki/Gaia_BH1" }
+bedin2024:         { cite: "Bedin et al. 2024 — Luhman 16 A/B masses 35.4 / 29.4 M_J, R 0.102 R☉, age 510 Myr, orbit 26.55 yr / 3.52 AU", via: "https://en.wikipedia.org/wiki/Luhman_16" }
+luhman2024:        { cite: "Luhman et al. 2024 — WISE 0855−0714 Y dwarf: R 1.045 R_J, Teff 285 K", via: "https://en.wikipedia.org/wiki/WISE_0855%E2%88%920714" }
+rowland2024:       { cite: "Rowland et al. 2024 — WISE 0855 mass 3.44–4.33 M_J", via: "https://en.wikipedia.org/wiki/WISE_0855%E2%88%920714" }
+schroeder2008:     { cite: "Schröder & Smith 2008 — solar evolution: ~1 Gyr subgiant, ~1 Gyr RGB (tip radius 1.19 AU), ~100 Myr He-burning at ~10 R☉ / 50 L☉, ~20 Myr early AGB, WD 0.54 M☉", via: "https://en.wikipedia.org/wiki/Sun" }
+ttauri:            { cite: "T Tauri stars: < ~10 Myr old, < 2 M☉; discs dissipate within ~10 Myr", via: "https://en.wikipedia.org/wiki/T_Tauri_star" }
+wrstars:           { cite: "Wolf–Rayet stars: Teff 20,000–210,000 K; 10^5–10^6 L☉; WNE/WC need > 25 M☉ initial at solar metallicity", via: "https://en.wikipedia.org/wiki/Wolf%E2%80%93Rayet_star" }
+pnebula:           { cite: "Planetary nebulae: ~10,000 yr lifetime, ~1 ly across, progenitors 0.8–8 M☉", via: "https://en.wikipedia.org/wiki/Planetary_nebula" }
+lic:               { cite: "Local Interstellar Cloud: ~30 ly, ~7,000 K, 0.3 atoms/cm³; Sun entered within the last 10 kyr", via: "https://en.wikipedia.org/wiki/Local_Interstellar_Cloud" }
+
+# ---- dynamics -------------------------------------------------------------------------------
+holman1999:        { cite: "Holman & Wiegert 1999, AJ 117, 621 — critical semi-major axis fits, S-type and P-type; valid 0 ≤ e ≤ 0.7–0.8, 0.1 ≤ μ ≤ 0.9", url: "https://arxiv.org/abs/astro-ph/9809315", formula_via: ["https://www.aanda.org/articles/aa/full_html/2016/10/aa28342-16/aa28342-16.html", "https://ar5iv.arxiv.org/html/1303.2655"] }
+klemperer1962:     { cite: "Klemperer 1962 — all rosettes vulnerable to destabilisation; hexagon most nearly stable", via: "https://en.wikipedia.org/wiki/Klemperer_rosette" }
+coorbital:         { cite: "Co-orbital configuration — trojan/tadpole, horseshoe, quasi-satellite, exchange orbits; Telesto/Calypso, Helene/Polydeuces, Cruithne 770 yr cycle", via: "https://en.wikipedia.org/wiki/Co-orbital_configuration" }
+funk2013:          { cite: "Funk, Dvorak & Schwarz 2013, CeMDA 117, 41 — exchange orbits", url: "https://ui.adsabs.harvard.edu/abs/2013CeMDA.117...41F/abstract" }
+lagrange:          { cite: "L4/L5 stable if M1/M2 > 24.96; L1/L2 saddle points, e-folding ~23 d, Lissajous/halo need station-keeping", via: "https://en.wikipedia.org/wiki/Lagrange_point" }
+ringworld:         { cite: "Ringworld: a rigid ring is not in orbit and drifts into its star (pointed out at the 1971 Worldcon); addressed in The Ringworld Engineers (1980)", via: "https://en.wikipedia.org/wiki/Ringworld" }
+resonance:         { cite: "Orbital resonance — Laplace 1:2:4; TRAPPIST-1 near-resonant chain; Kepler-223, TOI-178, HD 110067, Kepler-80; Neptune–Pluto 2:3", via: "https://en.wikipedia.org/wiki/Orbital_resonance" }
+
+# ---- Solar System ------------------------------------------------------------------------------
+nasa-fact:         { cite: "NASA NSSDCA Planetary Fact Sheet (metric)", url: "https://nssdc.gsfc.nasa.gov/planetary/factsheet/" }
+jpl-elem:          { cite: "JPL SSD Planetary Satellite Mean Elements, epoch 2000-01-01.5 TDB", url: "https://ssd.jpl.nasa.gov/sats/elem/" }
+jpl-phys:          { cite: "JPL SSD Planetary Satellite Physical Parameters (GM, radius, density)", url: "https://ssd.jpl.nasa.gov/sats/phys_par/" }
+bouvier2010:       { cite: "Bouvier & Wadhwa 2010, Nat. Geosci. 3, 637 — Solar System age 4.5682 Gyr", url: "https://www.semanticscholar.org/paper/The-age-of-the-Solar-System-redefined-by-the-oldest-Bouvier-Wadhwa/141c1d36907c6d26ad7dc1edbb5a01bb7c482746" }
+janus:             { cite: "Janus: mean orbits ~50 km apart, swap ~every 4 yr (2006, 2010, 2014, 2018, 2022); Janus ≈ 4× Epimetheus mass", via: "https://en.wikipedia.org/wiki/Janus_(moon)" }
+charon:            { cite: "Charon: Pluto–Charon separation 19,595.764 km, Charon barycentric a 17,181.0 km, P 6.387 d, mass ratio 0.1218; barycentre outside Pluto", via: "https://en.wikipedia.org/wiki/Charon_(moon)" }
+kamooalewa:        { cite: "469219 Kamoʻoalewa: a 1.00094 AU, e 0.10269, i 7.796°, Earth quasi-satellite (stable 0.3–0.5 Myr); Tianwen-2 arrived 2026-07-04", via: "https://en.wikipedia.org/wiki/469219_Kamo%CA%BBoalewa" }
+tk7:               { cite: "2010 TK7: Earth L4 trojan, e 0.191, i ~21°, ~300 m, 395 yr libration loop", via: "https://en.wikipedia.org/wiki/2010_TK7" }
+aldrin:            { cite: "Aldrin cycler: period 2.02 yr, aphelion 2.23 AU, Earth→Mars 146 d, V∞ 6.54 km/s", via: "https://en.wikipedia.org/wiki/Mars_cycler" }
+
+# ---- α Centauri ------------------------------------------------------------------------------
+akeson2021:        { cite: "Akeson et al. 2021, AJ 162, 14 — α Cen A/B masses, radii, luminosities; Proxima orbit (peri 4,100 AU, apo 12,300 AU, e 0.5, P ~511 kyr)", via: "https://en.wikipedia.org/wiki/Alpha_Centauri" }
+acen-orbit:        { cite: "α Cen AB orbit: P 79.762 yr, a 17.493″ = 23.299 AU, e 0.51947, i 79.243°", via: "https://en.wikipedia.org/wiki/Alpha_Centauri", verify: true }
+kaltenegger2013:   { cite: "Kaltenegger & Haghighipour 2013 — HZ: α Cen A 1.2–2.1 AU, B 0.7–1.2 AU", via: "https://en.wikipedia.org/wiki/Alpha_Centauri" }
+beichman2025:      { cite: "Beichman et al. / Sanghi et al. 2025 (JWST MIRI) — α Cen A candidate planet, 90–150 M⊕, ~1.1 AU, unconfirmed", via: "https://en.wikipedia.org/wiki/Alpha_Centauri" }
+proxima:           { cite: "Proxima: M 0.1221 M☉ (Suárez Mascareño 2025), R 0.1542 R☉, L 0.001567 L☉, Teff 2,992 K, 4.85 Gyr; b confirmed 2016 (Anglada-Escudé), d confirmed 2025 (NIRPS), c reported 2019 (Damasso) disputed 2022 (Artigau)", via: "https://en.wikipedia.org/wiki/Proxima_Centauri" }
+
+# ---- Barnard's Star ------------------------------------------------------------------------
+pineda2021:        { cite: "Pineda et al. 2021 — Barnard's Star M 0.162, R 0.187, L 0.00340", via: "https://en.wikipedia.org/wiki/Barnard%27s_Star" }
+basant2025:        { cite: "Basant et al. 2025, ApJL — four sub-Earths, P 2.340 / 3.154 / 4.124 / 6.739 d, m sin i 0.19–0.34 M⊕", url: "https://arxiv.org/abs/2503.08095" }
+barnard-planets:   { cite: "González Hernández et al. 2024 (ESPRESSO, b); Basant et al. 2025 (MAROON-X, b–e confirmed). 2018 super-Earth refuted (Lubin 2021; Artigau 2022). Optimistic HZ periods 10–40 d (Ribas 2018)", via: "https://en.wikipedia.org/wiki/Barnard%27s_Star" }
+
+# ---- ε Eridani --------------------------------------------------------------------------
+epseri:            { cite: "ε Eridani: M 0.82 (Gonzalez 2010), R 0.742 (Soubiran 2024), L 0.326, Teff 5,085 K, K2V, age 1.1 Gyr (older sources 200–800 Myr); b a 3.53 AU, P 7.33 yr, e 0.06, i 40°, mass ~1.0 M_J (0.63–0.78 M_J astrometric, Feng 2023)", via: "https://en.wikipedia.org/wiki/Epsilon_Eridani" }
+su2017:            { cite: "Su et al. 2017 — ε Eri warm dust at 1.5–2 or 3–4 AU; intermediate belt 8–20 AU (also Backman 2009)", via: "https://en.wikipedia.org/wiki/Epsilon_Eridani" }
+booth2023:         { cite: "Booth et al. 2023 — ε Eri outer ring ~70 AU (65–75 AU)", via: "https://en.wikipedia.org/wiki/Epsilon_Eridani" }
+chavez2016:        { cite: "Hypothesised outer planet at 40–50 AU from disc clumps; debated (Chavez 2016)", via: "https://en.wikipedia.org/wiki/Epsilon_Eridani" }

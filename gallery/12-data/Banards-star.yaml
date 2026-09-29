@@ -1,0 +1,58 @@
+# Starter system recipe — Barnard's Star. Format: doc 12 §4.1.
+
+recipe: 1
+id: starter-barnards-star
+kind: record-set
+title: "Barnard's Star (starter)"
+summary: "An old, metal-poor M4V flare star with four confirmed sub-Earths packed inside 0.04 AU — and, speculatively, a maintained hexagonal rosette of habitats in its habitable zone. Generic starter, not canon."
+options:
+  candidates:  { default: true, label: "Include candidate and disputed bodies" }
+  speculative: { default: true, label: "Include speculative showcase records" }
+showcases: [compact-chain, near-resonance-labels, rosette-circular, maintained-megastructure, refuted-claim-note]
+
+records:
+  - { key: sys, type: system, name: "Barnard's Star", status: confirmed, fields: { primary: $star, radius_mapping: log } }
+  - key: star
+    type: body
+    name: "Barnard's Star"
+    preset: star-m-dwarf
+    status: confirmed
+    src: pineda2021
+    fields: { kind: star, system: $sys, stage: ms, spectral_type: "M4.0V", mass_sol: 0.162, radius_sol: 0.187, luminosity_sol: 0.00340, age_gyr: 10 }
+    fsrc: { age_gyr: barnard-planets }
+    prov: { age_gyr: "'≈10 Gyr' table value; text gives 7–12 Gyr" }
+    notes: "[Fe/H] −0.56 (page table) — metal-poor; flares of ~3×10²² J in FUV observed 2019."
+
+  # ---- four confirmed planets (minimum masses) ------------------------------------------------
+  - { key: d, type: body, name: "Barnard d", preset: mercurylike, status: confirmed, src: barnard-planets, fields: { system: $sys, parent: $star, sma_au: 0.0188, eccentricity: 0.04, mass_earth: 0.263 }, prov: { mass_earth: "minimum mass", classification: "preset placeholders" } }
+  - { key: b, type: body, name: "Barnard b", preset: mercurylike, status: confirmed, src: barnard-planets, fields: { system: $sys, parent: $star, sma_au: 0.0229, eccentricity: 0.03, mass_earth: 0.299 }, prov: { mass_earth: "minimum mass", classification: "preset placeholders" } }
+  - { key: c, type: body, name: "Barnard c", preset: mercurylike, status: confirmed, src: barnard-planets, fields: { system: $sys, parent: $star, sma_au: 0.0274, eccentricity: 0.08, mass_earth: 0.335 }, prov: { mass_earth: "minimum mass", classification: "preset placeholders" } }
+  - { key: e, type: body, name: "Barnard e", preset: mercurylike, status: confirmed, src: barnard-planets, fields: { system: $sys, parent: $star, sma_au: 0.0381, eccentricity: 0.04, mass_earth: 0.193 }, prov: { mass_earth: "minimum mass", classification: "preset placeholders" } }
+  - key: cfg-chain
+    type: configuration
+    name: "Barnard inner chain"
+    status: confirmed
+    src: barnard-planets
+    fields: { kind: resonance-chain, system: $sys, members: [$d, $b, $c, $e], params: { ratios: "near 4:3, 4:3, 5:3", tolerance_pct: 2 } }
+    derive_note: "periods 2.3402, 3.1542, 4.1244, 6.7392 d → ratios 1.348, 1.308, 1.634. The advisory MUST read 'near-resonant, not in resonance' — no source claims a resonance."
+
+  # ---- speculative: maintained habitat rosette in the HZ ---------------------------------------
+  # Worldsmith HZ from L = 0.00340: 0.056–0.080 AU; optimistic HZ by period 10–40 d (barnard-planets):
+  # 0.050–0.125 AU (derived via Kepler, M 0.162). The ring sits at 0.07 AU, outside planet e.
+  - { key: h1, type: body, name: "Hexad Habitat 1", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 0,   misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - { key: h2, type: body, name: "Hexad Habitat 2", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 60,  misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - { key: h3, type: body, name: "Hexad Habitat 3", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 120, misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - { key: h4, type: body, name: "Hexad Habitat 4", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 180, misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - { key: h5, type: body, name: "Hexad Habitat 5", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 240, misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - { key: h6, type: body, name: "Hexad Habitat 6", preset: orbital-ring, gate: speculative, status: speculative, fields: { kind: artificial, system: $sys, parent: $star, sma_au: 0.07, sma_km: null, map_angle_deg: 300, misc_history: Genesian, glyph: ring }, prov: { "*": "invented" } }
+  - key: cfg-hexad
+    type: configuration
+    name: "The Hexad (maintained rosette)"
+    gate: speculative
+    status: speculative
+    fields: { kind: rosette, system: $sys, center: $star, members: [$h1, $h2, $h3, $h4, $h5, $h6], params: { n: 6, shape: circular, sma_au: 0.07, mass_pattern: [equal] }, maintained: true }
+    prov: { "*": "invented. Star-centred ring: advisory 'stability unverified' (no source taken); maintained → 'held by station-keeping'" }
+    notes: "The config owns phase: members' map_angle_deg are written by the config, not dragged independently (drag one → all rotate)."
+
+  # ---- note record: the refuted 2018 planet ----------------------------------------------------
+  - { key: refuted, type: note, name: "Barnard's Star b (2018) — refuted", status: confirmed, src: barnard-planets, fields: { body_text: "A 3.2 M⊕ super-Earth at 0.4 AU / 233 d was claimed in 2018 and refuted in 2021 (stellar activity; Lubin 2021, Artigau 2022). The designation 'b' now belongs to the 2024 planet." } }

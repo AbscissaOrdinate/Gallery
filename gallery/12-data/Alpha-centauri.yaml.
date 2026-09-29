@@ -1,0 +1,84 @@
+# Starter system recipe — α Centauri (hierarchical triple). Format: doc 12 §4.1.
+# Also the doc 10 §4 strip fixture: A/B on one barycentre (shared spine), Proxima distant.
+
+recipe: 1
+id: starter-alpha-centauri
+kind: record-set
+title: "Alpha Centauri (starter)"
+summary: "Nearest stellar system: a G2V + K1V binary on a 79.8-yr eccentric orbit, with Proxima (M5.5V) ~8,200 AU out. Real planets around Proxima; a JWST candidate giant around A; a speculative double planet in B's habitable zone. Generic starter, not canon."
+options:
+  candidates:  { default: true, label: "Include candidate and disputed planets (α Cen A candidate, Proxima c)" }
+  speculative: { default: true, label: "Include speculative showcase bodies" }
+showcases: [hierarchical-triple, barycentric-pair, s-type-stability, p-type-stability, eyeball-world, double-planet]
+
+records:
+  - { key: sys, type: system, name: "Alpha Centauri", status: confirmed, src: akeson2021, fields: { primary: $ab, radius_mapping: log, distance_ly: 4.344 }, fsrc: { distance_ly: acen-orbit } }
+
+  # ---- stars --------------------------------------------------------------------------------
+  - key: ab
+    type: body
+    name: "α Centauri AB barycentre"
+    preset: barycenter
+    status: confirmed
+    src: akeson2021
+    fields: { kind: barycenter, system: $sys, mass_sol: 1.988, luminosity_sol: 2.004 }
+    fsrc: { mass_sol: derived, luminosity_sol: derived }
+    derive_note: "sums: 1.0788 + 0.9092 M☉; 1.5059 + 0.4981 L☉ (the circumbinary-zone convention in gallery/03)"
+  - key: a
+    type: body
+    name: "α Centauri A"
+    preset: star-g-dwarf
+    status: confirmed
+    src: akeson2021
+    fields: { kind: star, system: $sys, parent: $ab, stage: ms, spectral_type: "G2V", mass_sol: 1.0788, radius_sol: 1.2175, luminosity_sol: 1.5059, age_gyr: 7.5, sma_au: 10.656, eccentricity: 0.51947, periapsis_deg: 0 }
+    fsrc: { sma_au: derived, eccentricity: acen-orbit }
+    prov: { age_gyr: "midpoint of 7.2–7.8 Gyr (page table, unattributed)" }
+    derive_note: "barycentric a_A = 23.299 · 0.9092 / 1.988"
+  - key: b
+    type: body
+    name: "α Centauri B"
+    preset: star-ms-k0v
+    status: confirmed
+    src: akeson2021
+    fields: { kind: star, system: $sys, parent: $ab, stage: ms, spectral_type: "K1V", mass_sol: 0.9092, radius_sol: 0.8591, luminosity_sol: 0.4981, age_gyr: 7.5, sma_au: 12.643, eccentricity: 0.51947, periapsis_deg: 180 }
+    fsrc: { sma_au: derived, eccentricity: acen-orbit }
+    prov: { age_gyr: "midpoint of 7.2–7.8 Gyr" }
+    derive_note: "barycentric a_B = 23.299 · 1.0788 / 1.988; periapsis opposite A (the pair config locks the phase)"
+  - key: proxima
+    type: body
+    name: "Proxima Centauri"
+    preset: star-m-dwarf
+    status: confirmed
+    src: proxima
+    fields: { kind: star, system: $sys, parent: $ab, stage: ms, spectral_type: "M5.5Ve", mass_sol: 0.1221, radius_sol: 0.1542, luminosity_sol: 0.001567, age_gyr: 4.85, sma_au: 8200, eccentricity: 0.5 }
+    fsrc: { sma_au: derived, eccentricity: akeson2021 }
+    derive_note: "a = (4,100 + 12,300) / 2 AU from Akeson 2021 periastron/apastron; orbit is relative to AB"
+    notes: "Most active flare star known when catalogued (proxima) — habitability advisory material."
+
+  # ---- configurations -----------------------------------------------------------------------
+  - { key: cfg-ab, type: configuration, name: "α Cen AB binary", status: confirmed, src: acen-orbit, fields: { kind: barycentric-pair, system: $sys, center: $ab, members: [$a, $b], params: { separation_au: 23.299, eccentricity: 0.51947 } } }
+  # Derived advisories the config must produce (holman1999, μ = m2/(m1+m2)):
+  #   S-type about A (μ 0.4573): a_c = 0.1177·a = 2.74 AU
+  #   S-type about B (μ 0.5427): a_c = 0.1067·a = 2.49 AU
+  #   P-type about AB (μ 0.4573): a_c = 3.716·a = 86.6 AU
+  # Oracle for the S5a unit test. HZs (kaltenegger2013): A 1.2–2.1 AU, B 0.7–1.2 AU — both inside the limits.
+
+  # ---- planets: Proxima (real) --------------------------------------------------------------
+  - { key: prox-d, type: body, name: "Proxima d", preset: mercurylike, status: confirmed, src: proxima, fields: { system: $sys, parent: $proxima, sma_au: 0.02881, eccentricity: 0, mass_earth: 0.26 }, prov: { mass_earth: "minimum mass (m sin i)", classification: "preset surface/EWoCS fields are placeholders" } }
+  - { key: prox-b, type: body, name: "Proxima b", preset: eyeball, status: confirmed, src: proxima, fields: { system: $sys, parent: $proxima, sma_au: 0.04848, eccentricity: 0, mass_earth: 1.055, tidally_locked: true }, prov: { mass_earth: "minimum mass", classification: "eyeball surface is speculative — atmosphere unknown" } }
+  - { key: prox-c, type: body, name: "Proxima c", preset: neptunelike, gate: candidates, status: disputed, src: proxima, fields: { system: $sys, parent: $proxima, sma_au: 1.489, eccentricity: 0.04, mass_earth: 7 }, prov: { mass_earth: "minimum mass; signal disputed 2022", classification: "mini-Neptune/ice-giant guess" } }
+
+  # ---- planets: A (candidate) and B (speculative double planet) --------------------------------
+  - { key: a-cand, type: body, name: "α Centauri Ab (candidate)", preset: saturnlike, gate: candidates, status: candidate, src: beichman2025, fields: { system: $sys, parent: $a, sma_au: 1.1, mass_earth: 120, has_rings: false }, prov: { mass_earth: "midpoint of 90–150 M⊕", sma_au: "'~1.1 AU' as reported; orbit poorly constrained" } }
+  - key: b-pair
+    type: body
+    name: "Toliman Pair barycentre"
+    preset: barycenter
+    gate: speculative
+    status: speculative
+    fields: { kind: barycenter, system: $sys, parent: $b, mass_sol: 4.2e-6, luminosity_sol: 0, sma_au: 0.85, eccentricity: 0.02 }
+    prov: { "*": "invented: inside B's HZ 0.7–1.2 AU (kaltenegger2013) and well inside its 2.49 AU S-type limit" }
+    derive_note: "mass_sol = (0.8 + 0.6) M⊕ × 3.0025e-6"
+  - { key: b-pair-1, type: body, name: "Toliman I",  preset: earthlike,   gate: speculative, status: speculative, fields: { system: $sys, parent: $b-pair, mass_earth: 0.8, sma_km: 64300, tidally_locked: true, misc_multiworld: Dioscuran }, prov: { "*": "invented" } }
+  - { key: b-pair-2, type: body, name: "Toliman II", preset: desert-world, gate: speculative, status: speculative, fields: { system: $sys, parent: $b-pair, mass_earth: 0.6, sma_km: 85700, tidally_locked: true, misc_multiworld: Dioscuran }, prov: { "*": "invented" } }
+  - { key: cfg-toliman, type: configuration, name: "Toliman double planet", gate: speculative, status: speculative, fields: { kind: barycentric-pair, system: $sys, center: $b-pair, members: [$b-pair-1, $b-pair-2], params: { separation_km: 150000, eccentricity: 0 } }, prov: { "*": "invented; barycentric a_i = 150,000 km · m_j / (m_i + m_j)" } }
