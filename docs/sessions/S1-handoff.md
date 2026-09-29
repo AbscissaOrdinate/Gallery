@@ -39,10 +39,23 @@ PR title carries the session ID).
 - `vitest.config.ts` includes `.test.tsx`; a file opts into jsdom with the docblock.
 - Docs: STYLE §1, `docs/CLAUDE.md`, ROADMAP §2 (S4 after S1d, H1, branch note) and §5 (rulings
   11, 12; F17 in the open list), AUDIT "Status after S1b".
-- Checks run: typecheck, `npm test` (682 tests), `npm run build`, and every `ui-smoke*.mjs`
+- Checks run: typecheck, `npm test` (686 tests), `npm run build`, and every `ui-smoke*.mjs`
   (`ui-smoke`, `-map` 1–5, `-hull`, `-ship`, `-screens`, `-map-lod`, `-log-boot`) — all clean
   (the single known 404 in `ui-smoke`). Settings → SNAPSHOTS checked in the browser
   (delete → snapshot → restore). `cargo test` not run (no GTK in the cloud, ROADMAP §7).
+
+**Review (subagent, Opus)** — no data-loss bug in the snapshot/upgrade/delete/import/skeleton
+ordering; the guard is not vacuous (fails with the F1 fix removed). Fixed from its findings:
+restore refused when the old path now holds a *different* record (which record a file holds is
+read from the snapshot copy, not the manifest); the distance-unit switch no longer writes when
+the already-active unit is clicked (guard now presses the active option); a failed first copy no
+longer leaves a snapshot id (`VaultUpgrade`); `_snapshots` path check is case-insensitive; the
+guard now also selects map objects and sweeps the map inspector, cycles the list sort, and
+asserts the unmount flush of the last view. One pre-existing bug fixed on the way: the title
+blur never moved the file once the 900 ms autosave had fired (it compared against the
+already-saved record); it now uses whether the slug followed the name when the page opened.
+Not fixed: hull component selection and a lightbox are not reached by the guard (no lightbox
+exists until doc 10b).
 
 **Not done / deliberately deferred**
 - **ROADMAP §2 S2–S5b row replacement.** `docs/sessions/S2-wiki.md`, `S3-qol-shell.md`,
@@ -59,7 +72,11 @@ PR title carries the session ID).
   call it before the first entry. Cause constants: `SNAPSHOT_CAUSE` in `snapshots.ts`
   (`bulkDelete` is there for S3).
 - `delete(id, { snapshot?: false })` is for a caller that already took a covering snapshot; fold
-  it into the `{ history, tx }` options doc 11 §1.4 plans.
+  it into the `{ history, tx }` options doc 11 §1.4 plans. A `tx.delete` inside a transaction
+  that already snapshotted must pass `snapshot: false`, and a bulk delete of fewer than 10 ids
+  has no transaction snapshot — as it stands it would take N "Before delete" snapshots rather
+  than one "Before bulk delete" (doc 11 §1.7). Give the transaction the snapshot for any
+  delete.
 - `restoreSnapshot` currently does its own `load()` + CSV; make it a transaction.
 - `onSnapshot` is set in `state.openVault` and logs source `snapshot` (prefix `SNP`).
 

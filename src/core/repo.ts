@@ -20,7 +20,7 @@ import { composeConstraints, loadConstraints, seedConstraints, type ConstraintSe
 import type { GalleryRecord, LoadedRecord, NoteRecord, Preset, TypedRecord, VaultConfig } from "./types";
 import { DEFAULT_VAULT_CONFIG, VAULT, isNote } from "./types";
 import { newId, nowIso, slugify } from "./ids";
-import { SNAPSHOT_CAUSE, VaultUpgrade, SnapshotWriter, listSnapshots, readManifest, restoreSnapshot, type RestoreResult, type SnapshotManifest } from "./snapshots";
+import { SNAPSHOT_CAUSE, VaultUpgrade, SnapshotWriter, listSnapshots, readManifest, restoreSnapshot, snapshotFilePath, type RestoreResult, type SnapshotManifest } from "./snapshots";
 
 export interface VaultStats {
   records: number;
@@ -412,13 +412,28 @@ export class Repository {
   /**
    * Put a snapshot's files back, then reload. What is on disk now is snapshotted first ("Before
    * restore of <id>"), and a record that has been renamed since is moved back rather than
-   * duplicated. Files created after the snapshot are left alone.
+   * duplicated. Files created after the snapshot are left alone. Refuses, changing nothing, when
+   * a file to restore now holds a *different* record (deleted, then another record took the name).
+   * Which record a file holds is read from the snapshot's own copy, not from its manifest.
    */
   async restoreSnapshot(id: string): Promise<RestoreResult> {
     const manifest = await readManifest(this.fs, id);
     const remove: string[] = [];
     for (const f of manifest.files) {
-      const cur = f.id ? this.byId.get(f.id) : undefined;
+      const fmt = formatFromPath(f.path);
+      if (!fmt) continue;
+      let recordId: string | undefined;
+      try {
+        const text = await this.fs.readText(snapshotFilePath(id, f.path));
+        recordId = fmt === "opml" ? parseNoteOpml(text, basename(f.path).replace(/\.opml$/i, "")).record.id : parseRecordText(text, fmt).record.id;
+      } catch {
+        continue; // not a record Gallery can read: restore it as a plain file
+      }
+      const holder = [...this.byId.values()].find((lr) => lr.location.path === f.path);
+      if (holder && holder.record.id !== recordId) {
+        throw new Error(`Cannot restore ${f.path}: it now holds "${holder.record.name}", a different record. Rename or move that record first.`);
+      }
+      const cur = this.byId.get(recordId);
       if (cur && cur.location.path !== f.path) remove.push(cur.location.path);
     }
     const result = await restoreSnapshot(this.fs, id, { remove });

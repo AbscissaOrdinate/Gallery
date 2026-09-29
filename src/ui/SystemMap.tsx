@@ -852,7 +852,7 @@ export function SystemMap({ id }: { id: string }) {
         </Button>
         <span className="name">{caps(system.name)}</span>
         <span className="meta">{far ? "far zoom · symbols only" : `${Math.max(0, layout.bodies.length - 1)} bodies · ${formatKm(layout.aMin * AU_KM, unit, 2)} – ${formatKm(layout.aMax * AU_KM, unit, 3)}`}</span>
-        <Segmented label="Distance units" value={unit} onChange={(u) => repo.saveConfig({ distanceUnit: u })} options={UNIT_OPTIONS} />
+        <Segmented label="Distance units" value={unit} onChange={(u) => u !== unit && repo.saveConfig({ distanceUnit: u })} options={UNIT_OPTIONS} />
         <Segmented
           label="Orbit spacing"
           value={scaleValue as "schematic" | "true"}

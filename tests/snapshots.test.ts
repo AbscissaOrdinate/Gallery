@@ -36,6 +36,21 @@ describe("snapshot service", () => {
     expect(await readManifest(fs, m.id)).toEqual(m);
   });
 
+  it("a failed first copy leaves no snapshot id behind", async () => {
+    const inner = new MemoryAdapter({ "x.txt": "x" });
+    const failing = new Proxy(inner, {
+      get(t, k, r) {
+        if (k === "writeText") return async () => Promise.reject(new Error("disk full"));
+        return Reflect.get(t, k, r);
+      },
+    });
+    const w = new SnapshotWriter(failing, "Doomed");
+    await expect(w.capture("x.txt")).rejects.toThrow("disk full");
+    expect(w.id).toBeUndefined();
+    expect(w.result).toBeUndefined();
+    expect(await listSnapshots(inner)).toEqual([]);
+  });
+
   it("creates nothing when there is nothing to copy", async () => {
     const fs = new MemoryAdapter({ "x.txt": "x" });
     expect(await takeSnapshot(fs, "Nothing", [{ path: "nope.txt" }])).toBeUndefined();
@@ -53,7 +68,7 @@ describe("snapshot service", () => {
 
   it("never snapshots inside _snapshots/ or outside the vault", async () => {
     expect(["a/b.yaml", "gallery.config.yaml", "_schemas/x.json"].every(isSafeVaultPath)).toBe(true);
-    for (const bad of ["", "/etc/passwd", "../x", "a/../../x", "a\\b", "C:/x", "_snapshots/x/manifest.json", "a//b", "./a"]) expect(isSafeVaultPath(bad), bad).toBe(false);
+    for (const bad of ["", "/etc/passwd", "../x", "a/../../x", "a\\b", "C:/x", "_snapshots/x/manifest.json", "_Snapshots/x/manifest.json", "a//b", "./a"]) expect(isSafeVaultPath(bad), bad).toBe(false);
     const fs = new MemoryAdapter({ "_snapshots/old/manifest.json": "{}" });
     const w = new SnapshotWriter(fs, "x");
     expect(await w.capture("_snapshots/old/manifest.json")).toBe(false);
@@ -115,6 +130,36 @@ describe("repository snapshots", () => {
     expect(repo.get(target.id)!.location.path).toBe(oldPath);
     expect((await repo.load()).problems).toEqual([]);
     expect(repo.all().filter((x) => x.record.id === target.id)).toHaveLength(1);
+  });
+
+  it("restore refuses, changing nothing, when the old path now holds a different record", async () => {
+    const { fs, repo } = await demo();
+    const x = repo.ofType("polity")[0].record;
+    const path = repo.get(x.id)!.location.path;
+    await repo.delete(x.id); // takes the "Before delete" snapshot
+    const [snap] = await repo.snapshots();
+    const y = repo.create("polity", x.name); // same name, so the same slug and path
+    await repo.save(y);
+    expect(repo.get(y.id)!.location.path).toBe(path);
+    const before = vaultFiles(fs);
+    await expect(repo.restoreSnapshot(snap.id)).rejects.toThrow(/now holds .* a different record/);
+    expect(vaultFiles(fs)).toEqual(before);
+    expect(repo.get(y.id)).toBeDefined();
+  });
+
+  it("restore works out which record a file holds from its copy, not from the manifest", async () => {
+    const { fs, repo } = await demo();
+    const [a, b] = repo.ofType("polity");
+    const snap = (await repo.snapshot("Real", [a.record.id]))!;
+    // A doctored manifest claims the copy holds record b.
+    const m = JSON.parse(await fs.readText(`_snapshots/${snap.id}/manifest.json`));
+    m.files[0].id = b.record.id;
+    await fs.writeText(`_snapshots/${snap.id}/manifest.json`, JSON.stringify(m));
+    a.record.name = "Edited";
+    await repo.save(a.record);
+    const r = await repo.restoreSnapshot(snap.id);
+    expect(r.removed).toEqual([]);
+    expect(await fs.exists(b.location.path)).toBe(true);
   });
 
   it("restore refuses a snapshot with a missing copy and changes nothing", async () => {

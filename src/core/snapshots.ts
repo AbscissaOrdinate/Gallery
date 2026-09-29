@@ -61,8 +61,11 @@ export function isSafeVaultPath(path: string): boolean {
   if (!path || path.startsWith("/") || path.includes("\\") || /^[A-Za-z]:/.test(path)) return false;
   const parts = path.split("/");
   if (parts.some((p) => p === "" || p === "." || p === "..")) return false;
-  return parts[0] !== VAULT.snapshotsDir;
+  return parts[0].toLowerCase() !== VAULT.snapshotsDir; // case-insensitive: OneDrive vaults live on Windows and macOS
 }
+
+/** Where a snapshot keeps its copy of `path`. */
+export const snapshotFilePath = (id: string, path: string): string => joinPath(dirOf(id), FILES, path);
 
 const isSafeId = (id: string) => /^[0-9A-Za-z][0-9A-Za-z-]*$/.test(id);
 
@@ -99,25 +102,31 @@ export class SnapshotWriter {
     if (this.manifest?.files.some((f) => f.path === p)) return true;
     if (!(await this.fs.exists(p))) return false;
     const text = await this.fs.readText(p);
-    const m = await this.open();
-    const copy = joinPath(dirOf(m.id), FILES, p);
-    await this.fs.mkdirAll(dirname(copy));
-    await this.fs.writeText(copy, text);
-    m.files.push({ path: p, bytes: utf8Bytes(text), ...(recordId ? { id: recordId } : {}) });
-    // Rewritten after every file, so a crash mid-way still leaves a manifest that matches the copies.
-    await this.fs.writeText(joinPath(dirOf(m.id), MANIFEST), JSON.stringify(m, null, 2) + "\n");
+    // The manifest becomes ours only once the first copy and the manifest are both on disk, so a
+    // failed write never leaves a snapshot id that points at nothing.
+    const base = this.manifest ?? (await this.fresh());
+    const next: SnapshotManifest = { ...base, files: [...base.files, { path: p, bytes: utf8Bytes(text), ...(recordId ? { id: recordId } : {}) }] };
+    const copy = snapshotFilePath(base.id, p);
+    try {
+      await this.fs.mkdirAll(dirname(copy));
+      await this.fs.writeText(copy, text);
+      // Rewritten after every file, so a crash mid-way still leaves a manifest that matches the copies.
+      await this.fs.writeText(joinPath(dirOf(base.id), MANIFEST), JSON.stringify(next, null, 2) + "\n");
+    } catch (err) {
+      await this.fs.remove(copy).catch(() => undefined);
+      throw err;
+    }
+    this.manifest = next;
     return true;
   }
 
-  private async open(): Promise<SnapshotManifest> {
-    if (this.manifest) return this.manifest;
+  /** A manifest with a free id, not yet on disk. */
+  private async fresh(): Promise<SnapshotManifest> {
     const at = this.now().toISOString();
     const base = at.replace(/[:.]/g, "-");
     let id = base;
     for (let n = 2; await this.fs.exists(dirOf(id)); n++) id = `${base}-${n}`;
-    await this.fs.mkdirAll(dirOf(id));
-    this.manifest = { version: 1, id, at, cause: this.cause, ids: [...this.ids], files: [] };
-    return this.manifest;
+    return { version: 1, id, at, cause: this.cause, ids: [...this.ids], files: [] };
   }
 }
 
@@ -195,7 +204,7 @@ export async function restoreSnapshot(
 ): Promise<RestoreResult> {
   const manifest = await readManifest(fs, id);
   const copies: { path: string; text: string }[] = [];
-  for (const f of manifest.files) copies.push({ path: f.path, text: await fs.readText(joinPath(dirOf(id), FILES, f.path)) });
+  for (const f of manifest.files) copies.push({ path: f.path, text: await fs.readText(snapshotFilePath(id, f.path)) });
   const remove = [...new Set(opts.remove ?? [])].filter((p) => isSafeVaultPath(p) && !copies.some((c) => c.path === p));
 
   const safety = new SnapshotWriter(fs, SNAPSHOT_CAUSE.restore(id), manifest.ids, opts.now);

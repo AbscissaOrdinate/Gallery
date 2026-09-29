@@ -30,6 +30,7 @@ let container: HTMLElement;
 let repo: Repository;
 
 /** Controls that persist a vault preference by design; each is named here, with its reason, and tested below. */
+/** Pressing the option already selected must not write; pressing another one does (tested below). */
 const PERSISTENT_PREFERENCES = ['[aria-label="Distance units"]']; // SystemMap: saveConfig({ distanceUnit }); doc 11 §1.6 lists saveConfig as view config
 
 const flush = () => act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
@@ -41,11 +42,18 @@ const click = async (el: Element) => {
   await act(async () => void fireEvent.click(el));
   await flush();
 };
+/** Leave the view on screen, so the editor's flush-on-unmount runs inside the guard too. */
+const leave = async (label: string) => {
+  await go({ kind: "settings" });
+  unwritten(`leaving ${label}`);
+};
 const unwritten = (label: string) => expect(spy.writes, `${label} wrote to the vault`).toEqual([]);
 
 /** Press every tab, segmented switch, pressed-button, overlay checkbox and display-mode select on screen, then focus and leave every field. */
 async function sweepToggles(label: string) {
-  const skip = (el: Element) => PERSISTENT_PREFERENCES.some((sel) => el.closest(sel));
+  // A persistent-preference group may be pressed only on its already-selected option: choosing
+  // another one is a decision, choosing the current one is looking.
+  const skip = (el: Element) => PERSISTENT_PREFERENCES.some((sel) => el.closest(sel)) && el.getAttribute("aria-checked") !== "true";
   const pressAll = async (selector: string) => {
     // Re-query after each click: pressing a tab re-renders the panel it is in.
     const n = container.querySelectorAll(selector).length;
@@ -131,12 +139,24 @@ describe("view never writes", () => {
       await sweepToggles(view.kind);
     }
     await sweepRail("rail");
+    // The list's sort (and any other pane select): choosing an option is a view state.
+    await go({ kind: "list" });
+    const sorts = container.querySelectorAll<HTMLSelectElement>(".listpane select");
+    expect(sorts.length).toBeGreaterThan(0);
+    for (const select of sorts) {
+      for (const o of Array.from(select.options)) {
+        await act(async () => void fireEvent.change(select, { target: { value: o.value } }));
+        await flush();
+      }
+    }
+    unwritten("list sort");
     for (const t of repo.registry.types()) {
       await go({ kind: "list", type: t.id });
       unwritten(`list ${t.id}`);
     }
     await go({ kind: "list", query: "sword" } as View);
     unwritten("search");
+    await leave("the list views");
   });
 
   it("every record's page, and its tabs and toggles", async () => {
@@ -154,6 +174,7 @@ describe("view never writes", () => {
     }
     expect(n).toBe(repo.all().length);
     expect(repo.all().length).toBeGreaterThan(50);
+    await leave("the last record"); // its editor flushes on unmount
   });
 
   it("craft open in the hull editor too", async () => {
@@ -161,6 +182,31 @@ describe("view never writes", () => {
       await go({ kind: "hull", id: c.record.id });
       await sweepToggles(`craft "${c.record.name}" (hull)`);
     }
+    await leave("the hull editor");
+  });
+
+  it("selecting things on the map, and the inspector that opens", async () => {
+    await go({ kind: "map", id: repo.ofType("system")[0].record.id });
+    const svg = container.querySelector(".mapview svg")!;
+    const targets = Array.from(container.querySelectorAll<SVGGElement>("g[data-el]"))
+      .filter((g) => g.style.cursor === "grab" || g.style.cursor === "pointer")
+      .slice(0, 12);
+    expect(targets.length).toBeGreaterThan(5);
+    let inspected = 0;
+    for (const el of targets) {
+      // A click without movement: pointer down on the object, up on the canvas.
+      await act(async () => void fireEvent.pointerDown(el, { clientX: 400, clientY: 300, pointerId: 1 }));
+      await act(async () => void fireEvent.pointerUp(svg, { clientX: 400, clientY: 300, pointerId: 1 }));
+      await act(async () => void fireEvent.click(el));
+      await flush();
+      unwritten("selecting a map object");
+      if (container.querySelector('.mapinspector input[aria-label="Name"]')) {
+        inspected++;
+        await sweepToggles("map inspector"); // its tabs, toggles and fields
+      }
+    }
+    expect(inspected, "the compact record inspector opened").toBeGreaterThan(0);
+    await leave("the map");
   });
 
   it("the skeleton builder panel opens without writing", async () => {
@@ -170,6 +216,7 @@ describe("view never writes", () => {
     expect(open).toBeDefined();
     await click(open);
     unwritten("skeleton builder");
+    await leave("the skeleton builder");
   });
 
   // F1: focus and blur on the title, no typing, must not dirty the record.
@@ -194,7 +241,8 @@ describe("view never writes", () => {
     await go({ kind: "record", id: polity.id });
     const title = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
     await act(async () => void fireEvent.change(title, { target: { value: "Brand New Name" } }));
-    await act(async () => void fireEvent.blur(title)); // a separate render, as with a user: the blur sees the typed name
+    await flush(); // the 900 ms autosave fires before the user leaves the field, as it normally does
+    await act(async () => void fireEvent.blur(title));
     await flush();
     // (`repo` here is the test's own instance; what the app did is on the adapter.)
     const files = Object.keys(spy.inner.dump());

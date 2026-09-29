@@ -50,6 +50,10 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [builder, setBuilder] = useState(false);
   const timer = useRef<number | null>(null);
+  // Whether the filename still follows the name (the slug was never customised). Judged once, from
+  // the record as it was when the page opened: our own autosaves replace `loaded.record` with the
+  // draft, so comparing against it later would always say "customised". (The page is keyed by id.)
+  const followsName = useRef(!!loaded && (!loaded.record.slug || loaded.record.slug === slugify(loaded.record.name)));
 
   // Autosave 900 ms after the last edit; also on unmount.
   const draftRef = useRef(draft);
@@ -161,7 +165,7 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
       onBlur={() => {
         // Keep the filename in step with the name unless the slug was customised, and only when it actually moves.
         const next = slugify(draft.name);
-        if ((draft.slug === slugify(loaded.record.name) || !draft.slug) && next !== draft.slug) edit({ slug: next });
+        if (followsName.current && next !== draft.slug) edit({ slug: next });
       }}
     />
   );
