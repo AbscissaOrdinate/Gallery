@@ -12,6 +12,7 @@ import { SystemBuilder } from "./SystemBuilder";
 import { slugify } from "../core/ids";
 import { bannerString, compactHandling, completeness, LEVEL_WORD, levelOf, recordCode } from "../core/handling";
 import type { Repository } from "../core/repo";
+import { logEvent } from "./log";
 import {
   Button,
   Checkbox,
@@ -81,6 +82,16 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
   }, [loaded?.record.updated]);
 
   const schema = useMemo(() => (draft && repo ? repo.registry.get(draft.type) : undefined), [draft?.type, repo]);
+  // The session log notes each record page opened, and what it is still missing.
+  useEffect(() => {
+    if (compact || !repo || !loaded) return;
+    const r = loaded.record;
+    const sch = repo.registry.get(r.type);
+    const subject = { subject: r.name, subjectId: r.id, path: loaded.location.path };
+    logEvent({ severity: "info", source: "record", message: `Opened ${recordCode(r, sch)} — ${r.name}`, detail: subject });
+    const d = completeness(r, sch?.fields);
+    if (d.pending.length) logEvent({ severity: "caution", source: "record", message: `${d.pending.length} fields withheld — survey ${Math.round((d.fraction ?? 0) * 100)}% complete`, detail: { ...subject, components: d.pending } });
+  }, [id]);
   if (!repo || !draft || !loaded) return <div className="help">Record not found.</div>;
 
   const edit = (patch: Partial<GalleryRecord>) => {
@@ -122,6 +133,7 @@ export function RecordEditor({ id, compact }: { id: string; compact?: boolean })
             variant="danger"
             onClick={async () => {
               await repo.delete(id);
+              logEvent({ severity: "info", source: "record", message: `Deleted ${code} — ${draft.name}`, detail: { path: loaded.location.path } });
               actions.toast("Deleted");
               actions.navigate({ kind: "list", type: draft.type });
             }}

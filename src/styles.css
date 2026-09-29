@@ -437,3 +437,59 @@ input.doc-subtitle:focus { border-bottom-color: var(--line-300); }
 .revision .at { font: var(--text-data-xs); color: var(--ink-300); }
 .revision .what { font: var(--text-data-sm); color: var(--ink-100); overflow-wrap: anywhere; }
 .caveats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+
+/* ── AdvisoryLog (docs/design-book/components/AdvisoryLog) ──────────── */
+.accent-text { color: var(--accent-300); }
+.logview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.log-bar .log-query { width: var(--inspector-wide-w); flex: none; font: var(--text-data-sm); }
+.log-filters { display: inline-flex; border: var(--border-1) solid var(--line-200); flex: none; }
+.log-filter { display: inline-flex; align-items: center; gap: var(--space-3); height: var(--control-sm); padding: 0 var(--space-5); background: var(--surface-300); border: none; border-right: var(--border-1) solid var(--line-200); color: var(--ink-100); font: var(--text-label-md); cursor: pointer; }
+.log-filter:last-child { border-right: none; }
+.log-filter .count { font: var(--text-data-xs); color: var(--ink-300); }
+/* Toggled off: dimmed, its count still visible — a filter never hides lines silently. */
+.log-filter.is-off { opacity: var(--opacity-disabled); }
+.logbody { display: grid; grid-template-columns: minmax(0, 1fr) var(--detail-w); flex: 1; min-height: 0; }
+.logmain { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.logside { overflow: auto; border-left: var(--border-1) solid var(--line-200); background: var(--surface-100); padding: var(--space-5); }
+.log-cols { display: grid; grid-template-columns: calc(var(--space-10) * 2 + var(--space-4)) calc(var(--space-10) + var(--space-8)) calc(var(--space-10) + var(--space-8)) calc(var(--space-10) * 2) minmax(0, 1fr) calc(var(--space-10) + var(--space-5)); column-gap: var(--space-5); align-items: center; padding: 0 var(--space-5); }
+.log-head { height: var(--control-sm); font: var(--text-label-xs); letter-spacing: var(--track-label-xs); color: var(--ink-300); background: var(--surface-200); border-bottom: var(--border-1) solid var(--line-200); border-left: var(--border-3) solid transparent; }
+.log-cols .num { text-align: right; }
+/* The stream is a trough, one step below the panel ramp. */
+.log-stream { flex: 1; min-height: 0; overflow: auto; background: var(--surface-sunk); }
+.log-session { padding: var(--space-2) var(--space-5); background: var(--surface-200); font: var(--text-label-xs); letter-spacing: var(--track-label-xs); color: var(--ink-200); border-bottom: var(--border-1) solid var(--line-100); }
+.log-row { min-height: var(--control-sm); border-left: var(--border-3) solid var(--line-200); border-bottom: var(--border-1) solid var(--line-100); cursor: pointer; }
+.log-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-row.is-wrapped > .log-msg { white-space: normal; overflow-wrap: anywhere; }
+/* Selection is an outline inside the row, never a wash: the severity wash survives it. */
+.log-row.is-current { outline: var(--border-2) solid var(--accent-500); outline-offset: calc(var(--border-2) * -1); }
+.log-ts, .log-code, .log-el { font: var(--text-data-sm); color: var(--ink-300); }
+.log-src { font: var(--text-data-sm); color: var(--glyph-navy); }
+.log-msg { font: var(--text-data-md); color: var(--ink-100); }
+.log-detail-msg { font: var(--text-body); color: var(--ink-100); margin: 0; }
+.log-foot { display: flex; align-items: center; gap: var(--space-6); height: var(--control-md); padding: 0 var(--space-5); background: var(--surface-200); border-top: var(--border-1) solid var(--line-200); font: var(--text-data-sm); color: var(--ink-300); flex: none; }
+.log-resume { background: none; border: none; padding: 0; font: var(--text-data-sm); color: var(--status-amber); cursor: pointer; }
+
+/* ── BootSequence (docs/design-book/components/BootSequence) ───────── */
+/* Edge to edge, never scrolls; cosmetic, over whatever is loading beneath. */
+.boot { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; background: var(--surface-100); overflow: hidden; }
+.boot-body { flex: 1; min-height: 0; display: flex; align-items: center; gap: var(--space-10); padding: var(--space-10) calc(var(--space-10) * 2 + var(--space-8)); }
+.boot-main { display: flex; flex-direction: column; gap: var(--space-6); width: calc(var(--dialog-w) + var(--inspector-w)); flex: none; }
+.boot-mark { display: flex; align-items: baseline; gap: var(--space-6); }
+.boot-wordmark { font: var(--text-display); font-size: var(--display-boot); line-height: 1; letter-spacing: var(--track-display); color: var(--ink-100); }
+.boot-lede { margin: 0; font: var(--text-body); color: var(--ink-200); max-width: var(--dialog-w); }
+.boot-rule { height: var(--border-1); background: var(--line-200); }
+.boot-log { display: flex; flex-direction: column; gap: var(--space-4); }
+.boot-line { display: grid; grid-template-columns: calc(var(--space-10) * 2 + var(--space-5)) minmax(0, 1fr) auto; column-gap: var(--space-6); align-items: baseline; }
+.boot-ts { font: var(--text-data-sm); color: var(--ink-300); }
+.boot-msg { font: var(--text-data-md); color: var(--ink-100); display: inline-flex; gap: var(--space-4); }
+.boot-line.is-inflight .boot-msg { color: var(--accent-300); }
+.boot-verdict { font: var(--text-data-sm); color: var(--ink-300); }
+.boot-progress { display: grid; grid-template-columns: calc(var(--space-10) * 2 + var(--space-5)) minmax(0, 1fr); column-gap: var(--space-6); align-items: baseline; }
+.boot-pct { color: var(--accent-300); }
+.boot-auth { width: var(--dialog-w); }
+.boot-auth .btn-group.end { justify-content: flex-end; padding-top: var(--space-4); }
+.boot-hint { font: var(--text-data-xs); color: var(--ink-300); }
+.boot-idle { display: flex; flex-direction: column; gap: var(--space-5); }
+.boot-art { margin: 0; font: var(--text-ascii); letter-spacing: var(--track-ascii); color: var(--glyph-navy); white-space: pre; }
+.boot-primary { color: var(--accent-300); }
+.boot-foot { padding: 0 calc(var(--space-10) * 2 + var(--space-8)) var(--space-6); font: var(--text-data-xs); color: var(--ink-400); }

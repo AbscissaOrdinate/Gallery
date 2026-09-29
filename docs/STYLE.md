@@ -180,7 +180,8 @@ visual language.
   `--label-col-narrow-w`, `--menu-max-h`, `--pip-size`, `--check-size`, `--tile-size`, `--ruler-h`,
   `--station-mark`, `--text-control-sm` (Button label at control-sm), `--dur-spinner`; for the map
   (step 5) `--tac-frame-w` / `--tac-frame-h` (TacticalSymbols' 30×20 frame), `--opacity-halo` (the
-  12% selection halo) and `--scale-bar-w` (the plate's 120px bar).
+  12% selection halo) and `--scale-bar-w` (the plate's 120px bar); for boot (step 6) `--dur-idle-frame`
+  (900 ms).
 - **Schema-driven labels** (field titles, x-group names, table columns) are uppercased when rendered
   (`caps()`), so the DOM text itself is uppercase; schema titles carry no units, so nothing
   case-sensitive is touched. Authored UI copy is written uppercase directly.
@@ -230,6 +231,37 @@ visual language.
   `surface-200` plate, above the scale bar when both show. Symbols select on click and raise the
   inspector; they do not drag.
 - **Reference pickers** wrap: in a narrow inspector the CHANGE / CLEAR commands drop below the value.
+- **Session log** (AdvisoryLog) is in memory, one per opened vault; the session number counts opens on
+  this install. Codes are the source's prefix and its own line count (`HUL-0002`): the kernel has no
+  stable check ids, so a code names a line, not a kind of check. Sources: vault, schema, tables,
+  record, map, hull, craft, export; an advisory's kernel domain shows beside its source in the detail
+  pane, and `source:` matches either. The query also takes `severity:>=caution`, `since:HH:MM` and
+  free text; a term it cannot read is shown back in the bar, never dropped silently.
+- **What is logged**: the boot's load steps (vault mounted with its elapsed time, each load problem,
+  schema and table problems, in-memory upgrades); record pages opened (with a CAUTION for withheld
+  fields), created and deleted; the map opened (a CAUTION per layout warning, else NOMINAL), parking
+  and SVG export; the hull editor opened. Advisories in the hull editor and craft budget are logged
+  when raised, once edits settle; one that stops being raised is marked CLEARED (its line stays);
+  a domain that comes clean logs one NOMINAL line. Nothing is ever merged into a count.
+- **Log chrome**: the plate's EXPORT and CLEAR VIEW sit in the log's own toolbar (the app bar keeps
+  one command). EXPORT saves the lines in view as tab-separated text. CLEAR VIEW starts the view from
+  now; the earlier lines stay in the log and the bar counts them. The detail pane's STATE is OPEN,
+  CLEARED or —, never "blocks commit" (§2). The evaluation trace is not drawn: the kernel produces
+  none yet (render nothing rather than a placeholder). The overview's LOAD PROBLEMS panel is now one
+  row pointing at the log. The rail's TOOLS section gains SESSION LOG with the open violation and
+  caution count.
+- **Boot modes** (`gallery.config.yaml` `boot`): `full` — log, orbital idle and the authorisation
+  panel; once loaded, any key or click goes on (typing in the PIN field does not; Enter does); ABORT
+  returns to the welcome screen; AUTHORIZE is enabled once loaded. `brief` (the default when unset) —
+  banners, log and progress only, gone the moment loading finishes. `off` — nothing; the mode is read
+  before loading so it never flashes. Settings → BOOT edits the mode and the operator
+  (`operator: {name, clearance, level, caveats, programme}`, display only); Settings → SESSION →
+  REOPEN VAULT loads the vault again through the boot.
+- **Boot banners** read `LEVEL//CAVEATS — GALLERY WORKBENCH — PROGRAMME` at the operator's level.
+  The footnote is node, system and time; there is no lock notice because there is no lock (§2).
+- **Boot progress** is the one ASCII bar, 32 cells, in the pending ink with the percentage in
+  `accent-300`. The orbital idle is one frame at a time (900 ms, static under reduced motion) in
+  `--text-ascii`, which is 12px in theme.css against the book's 13px; the token governs.
 
 ---
 

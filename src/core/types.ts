@@ -220,7 +220,31 @@ export interface VaultConfig {
   handling?: HandlingVocab;
   /** System map settings. `far_zoom_ratio`: below this fraction of the fit-to-system zoom the map switches to tactical symbols (default 0.75: two wheel steps out from fit). */
   map?: { far_zoom_ratio?: number };
+  /**
+   * The boot screen (docs/STYLE.md §2), cosmetic and never gating: `full` shows the log, the orbital
+   * idle and the authorisation panel, and any key or click dismisses it once the vault has loaded;
+   * `brief` shows the log and progress and is gone the moment loading finishes; `off` shows nothing.
+   */
+  boot?: BootMode;
+  /** Who the boot screen names. Display only: nothing is checked, nothing is locked. */
+  operator?: OperatorConfig;
   version: 1;
+}
+
+export type BootMode = "full" | "brief" | "off";
+export const BOOT_MODES: BootMode[] = ["full", "brief", "off"];
+export const DEFAULT_BOOT_MODE: BootMode = "brief";
+
+export interface OperatorConfig {
+  /** e.g. "T.WADDELL / ONI-R4". */
+  name?: string;
+  /** Shown as read; e.g. "LEVEL 4". */
+  clearance?: string;
+  /** The highest level the operator is cleared for: the boot banners' level. */
+  level?: HandlingLevel;
+  caveats?: string[];
+  /** Programme on the boot banners, as text: e.g. "UJCN". */
+  programme?: string;
 }
 
 export const DEFAULT_FAR_ZOOM_RATIO = 0.75;

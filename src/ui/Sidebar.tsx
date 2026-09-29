@@ -2,6 +2,8 @@ import { useState } from "react";
 import { actions, useApp } from "./state";
 import { NewRecordMenu } from "./NewRecordMenu";
 import { Button, cx } from "./kit";
+import { useSessionLog } from "./log";
+import { countLines } from "../core/sessionLog";
 
 /**
  * The navigation rail (RecordPage plate): record kinds with a glyph-navy kind
@@ -11,7 +13,9 @@ import { Button, cx } from "./kit";
 export function Sidebar() {
   const { repo, view } = useApp();
   const [creating, setCreating] = useState(false);
+  const log = useSessionLog();
   if (!repo) return null;
+  const open = countLines(log.lines, true);
   const counts: Record<string, number> = {};
   for (const r of repo.all()) counts[r.record.type] = (counts[r.record.type] ?? 0) + 1;
   const activeType = view.kind === "list" ? view.type : view.kind === "record" ? repo.record(view.id)?.type : view.kind === "hull" ? "hull" : undefined;
@@ -47,6 +51,7 @@ export function Sidebar() {
         </>
       )}
       <div className="rail-head">TOOLS</div>
+      {item("log", "≡", "Session log", view.kind === "log", () => actions.navigate({ kind: "log" }), open.violation + open.caution)}
       {item("import", "⇲", "Import", view.kind === "import", () => actions.navigate({ kind: "import" }))}
       {item("settings", "⚙", "Settings", view.kind === "settings", () => actions.navigate({ kind: "settings" }))}
       {topTags.length > 0 && (

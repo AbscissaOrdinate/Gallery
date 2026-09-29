@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { actions, useApp } from "./state";
+import { logEvent } from "./log";
 import { CLASS_CODES } from "../core/designer/hull/classes";
 import { Button, Select, TextField } from "./kit";
 
@@ -20,6 +21,7 @@ export function NewRecordMenu({ onDone }: { onDone: () => void }) {
     const n = name.trim() || (type === "note" ? "Untitled note" : `New ${repo.registry.get(type)?.title ?? type}`);
     const rec = type === "note" ? repo.createNote(n) : repo.create(type, n, presets.find((p) => p.id === preset));
     await repo.save(rec);
+    logEvent({ severity: "info", source: "record", message: `Created ${rec.name}${preset ? ` from ${preset}` : ""}`, detail: { subject: rec.name, subjectId: rec.id } });
     actions.navigate({ kind: "record", id: rec.id });
     onDone();
   };

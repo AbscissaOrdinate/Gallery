@@ -27,6 +27,31 @@ export interface VaultStats {
   problems: { path: string; problems: string[] }[];
 }
 
+/**
+ * What load() is doing, for the boot screen (docs/STYLE.md §2: its log lines are the real load
+ * steps). Every hook is optional; load() behaves the same without a reporter.
+ */
+export interface LoadReporter {
+  /** The config has been read. */
+  config?(config: VaultConfig): void;
+  /** Schemas and presets are loaded. */
+  schemas?(kinds: number, problems: number): void;
+  /** Reference tables and constraint sets are loaded. */
+  tables?(problems: number): void;
+  /** Record files read so far, of the total found. */
+  records?(done: number, total: number): void;
+}
+
+/** Read the config without loading anything else, for decisions made before load() (the boot mode). */
+export async function peekConfig(fs: StorageAdapter): Promise<Partial<VaultConfig> | undefined> {
+  try {
+    const raw = YAML.parse(await fs.readText(VAULT.configFile)) as Partial<VaultConfig> | null;
+    return raw && typeof raw === "object" ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class Repository {
   readonly registry = new Registry();
   config: VaultConfig = { ...DEFAULT_VAULT_CONFIG };
@@ -90,23 +115,28 @@ export class Repository {
   }
 
   /** Load config, registry and every record. Safe to call again to refresh. */
-  async load(): Promise<VaultStats> {
+  async load(report: LoadReporter = {}): Promise<VaultStats> {
     try {
       const raw = YAML.parse(await this.fs.readText(VAULT.configFile)) as Partial<VaultConfig>;
       this.config = { ...DEFAULT_VAULT_CONFIG, ...raw, version: 1 };
     } catch {
       this.config = { ...DEFAULT_VAULT_CONFIG };
     }
+    report.config?.(this.config);
     await this.registry.load(this.fs);
+    report.schemas?.(this.registry.types().length, this.registry.problems.length);
     this.tables = await loadTables(this.fs);
     const constraints = await loadConstraints(this.fs);
     this.constraintSets = constraints.sets;
     this.designProblems = [...this.tables.problems, ...constraints.problems];
+    report.tables?.(this.designProblems.length);
 
     const files = await walk(this.fs, "");
     const next = new Map<string, LoadedRecord>();
     const problems: VaultStats["problems"] = [];
+    let done = 0;
     for (const path of files) {
+      report.records?.(done++, files.length);
       const top = path.split("/")[0];
       if (top.startsWith("_") || top === VAULT.assetsDir || path === VAULT.configFile) continue;
       const fmt = formatFromPath(path);
@@ -145,6 +175,7 @@ export class Repository {
         problems.push({ path, problems: [(err as Error).message] });
       }
     }
+    report.records?.(files.length, files.length);
     this.byId = next;
     this.saved = new Map([...next].map(([id, lr]) => [id, structuredClone(lr.record)]));
     this.migrationReport = [...next.values()].filter((r) => r.migrated).map((r) => ({ id: r.record.id, name: r.record.name, notes: r.migrated! }));

@@ -31,6 +31,7 @@ import { structureOf } from "../../core/designer/hull/structure";
 import { provisionalParams } from "../../core/designer/constraints";
 import type { Preset } from "../../core/types";
 import { resolveThemeColors } from "../themeColors";
+import { logEvent, useAdvisoryLog } from "../log";
 import {
   AdvisoryList,
   AsciiBar,
@@ -110,6 +111,12 @@ export function HullEditor({ id }: { id: string }) {
   }, [repo, draft?.fields, hull]);
 
   const advisories = useMemo(() => sortViolations(hullAdvisories(hull, ctx)), [hull, ctx]);
+  // The session log: the editor opened, then each advisory as it is raised or cleared.
+  const subject = useMemo(() => (draft ? { id: draft.id, name: draft.name } : undefined), [draft?.id, draft?.name]);
+  useEffect(() => {
+    if (subject) logEvent({ severity: "info", source: "hull", message: `Editor opened — ${subject.name}`, detail: { subject: subject.name, subjectId: subject.id } });
+  }, [subject?.id]);
+  useAdvisoryLog("hull", subject, advisories);
   const metrics = useMemo(() => hullMetrics(hull), [hull]);
   // The structural-mass law (docs/UNITS.md §9), so a hull's mass and rating
   // are on screen while it is being shaped, not only once a ship is built.
