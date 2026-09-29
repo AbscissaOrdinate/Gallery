@@ -42,7 +42,7 @@ export const NOTE_SCHEMA: TypeSchema = {
 
 export const POLITY_SCHEMA: TypeSchema = {
   id: "polity",
-  version: 3, // 3: handling code prefix and core required fields (UI redesign step 4, 2026-09-25).
+  version: 4, // 4: affiliation, the far-zoom map's tactical frame (UI redesign step 5, 2026-09-25). 3: handling code prefix and core required fields (step 4).
   handling: { code_prefix: "POL" },
   title: "Polity",
   description: "Nations, corporations, alliances, colonies, religious factions — anything with agency and territory.",
@@ -60,6 +60,10 @@ export const POLITY_SCHEMA: TypeSchema = {
         default: "nation",
       }),
       government: str("Government", { description: "e.g. federal republic, chartered company, theocracy" }),
+      affiliation: str("Affiliation", {
+        enum: ["friend", "hostile", "neutral", "unknown"],
+        description: "The side this polity is on, from the point of view of the vault's operator. Frames its bodies and stations on the far-zoom map. Blank draws them unframed.",
+      }),
       color: str("Map colour", { description: "Hex colour used by the political map mode, e.g. #c9663a. Auto-assigned if empty." }),
       ideology: str("Ideology / outlook"),
       capital: ref("Capital", ["location"], "capital"),

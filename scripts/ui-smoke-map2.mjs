@@ -30,8 +30,9 @@ const box = await p.locator(".mapsvg").boundingBox();
 await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 for (let i = 0; i < 6; i++) await p.mouse.wheel(0, -120);
 await p.waitForTimeout(200);
-const mars = await p.locator("g[data-el]", { has: p.locator("text", { hasText: /^Mars$/ }) }).first().boundingBox();
-await p.mouse.move(mars.x + 7, mars.y + 7);
+// Labels are not hit targets: grab the glyph's disc (its label may sit either side).
+const marsDisc = await p.locator("g[data-el]", { has: p.locator("text", { hasText: /^Mars$/ }) }).first().locator(":scope > g:not([data-ui]) circle").first().boundingBox();
+await p.mouse.move(marsDisc.x + marsDisc.width / 2, marsDisc.y + marsDisc.height / 2);
 await p.mouse.down();
 await p.mouse.move(box.x + box.width / 2 + 40, box.y + 80, { steps: 12 });
 await p.mouse.up();

@@ -160,6 +160,10 @@
   --tile-size: 14px;   /* catalog row class tile (HullEditor) */
   --ruler-h: 36px;   /* hull station ruler strip */
   --station-mark: 9px;   /* map station square (SystemMap) */
+  --tac-frame-w: 30px;   /* tactical friend frame, far-zoom map (TacticalSymbols) */
+  --tac-frame-h: 20px;   /* tactical frame height; hostile, neutral and unknown frames take it as their size */
+  --opacity-halo: 0.12;   /* SystemMap selection halo */
+  --scale-bar-w: 120px;   /* SystemMap scale bar target length */
   --text-control-sm: 500 11px/14px var(--font-sans);   /* Button label at control-sm */
   --dur-spinner: 120ms;   /* one ASCII spinner frame */
 }

@@ -30,7 +30,7 @@ const nerio = await p.locator("g[data-el]", { has: p.locator("text", { hasText: 
 if (nerio) { await p.mouse.move(nerio.x + 5, nerio.y + 5); await p.waitForTimeout(300); }
 await p.screenshot({ path: "screenshots/v5-station-hover.png", clip: { x: 350, y: 250, width: 700, height: 450 } });
 // true scale overview and zoomed
-await p.selectOption(".toolbar select >> nth=1", "true");
+await p.click(".toolbar [role=radio]:has-text(\"TRUE SCALE\")");
 await p.waitForTimeout(400);
 await p.screenshot({ path: "screenshots/v5-truescale.png" });
 const sun = await p.locator("g[data-el]", { has: p.locator("text", { hasText: /^Heliaris$/ }) }).first().boundingBox();
@@ -39,7 +39,7 @@ for (let i = 0; i < 10; i++) { await p.mouse.wheel(0, -120); await p.waitForTime
 await p.waitForTimeout(400);
 await p.screenshot({ path: "screenshots/v5-truescale-zoom.png" });
 // back to schematic, fit, export the SVG
-await p.selectOption(".toolbar select >> nth=1", "schematic");
+await p.click(".toolbar [role=radio]:has-text(\"SCHEMATIC\")");
 await p.getByRole("button", { name: "Fit", exact: true }).click();
 await p.waitForTimeout(300);
 const [dl] = await Promise.all([p.waitForEvent("download"), p.getByText("Export SVG").click()]);

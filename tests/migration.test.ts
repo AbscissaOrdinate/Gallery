@@ -301,6 +301,20 @@ describe("schema versions", () => {
     expect(await repo.registry.seed(fs)).toBe(0);
   });
 
+  it("backs up the step-4 polity when step 5 adds its affiliation", async () => {
+    const fs = new MemoryAdapter();
+    const repo = new Repository(fs);
+    await repo.init();
+    const cur = JSON.parse(await fs.readText("_schemas/polity.schema.json")) as { version: number; fields: { properties: Record<string, unknown> } };
+    delete cur.fields.properties.affiliation;
+    await fs.writeText("_schemas/polity.schema.json", JSON.stringify({ ...cur, version: 3 }));
+    await repo.registry.seed(fs);
+    expect(await fs.exists("_schemas/polity.schema.v3.json")).toBe(true);
+    const now = JSON.parse(await fs.readText("_schemas/polity.schema.json")) as { version: number; fields: { properties: Record<string, { enum?: string[] }> } };
+    expect(now.version).toBe(4);
+    expect(now.fields.properties.affiliation?.enum).toEqual(["friend", "hostile", "neutral", "unknown"]);
+  });
+
   it("upgrades an on-disk schema and keeps the old copy, per the existing mechanism", async () => {
     const fs = new MemoryAdapter();
     const repo = new Repository(fs);

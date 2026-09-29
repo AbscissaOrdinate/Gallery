@@ -178,7 +178,9 @@ visual language.
 
 - **Tokens added** (theme.css, "Added in implementation"): `--list-w`, `--doc-max-w`, `--dialog-w`,
   `--label-col-narrow-w`, `--menu-max-h`, `--pip-size`, `--check-size`, `--tile-size`, `--ruler-h`,
-  `--station-mark`, `--text-control-sm` (Button label at control-sm), `--dur-spinner`.
+  `--station-mark`, `--text-control-sm` (Button label at control-sm), `--dur-spinner`; for the map
+  (step 5) `--tac-frame-w` / `--tac-frame-h` (TacticalSymbols' 30×20 frame), `--opacity-halo` (the
+  12% selection halo) and `--scale-bar-w` (the plate's 120px bar).
 - **Schema-driven labels** (field titles, x-group names, table columns) are uppercased when rendered
   (`caps()`), so the DOM text itself is uppercase; schema titles carry no units, so nothing
   case-sensitive is touched. Authored UI copy is written uppercase directly.
@@ -205,6 +207,29 @@ visual language.
   from the closed vocabularies in `gallery.config.yaml`; a value off the list is kept and shown.
 - **Record code**: `handling.code`, else the type schema's `handling.code_prefix` and the slug
   (`HULL-SWORD-HULL`). **Programme**: the polity's new `acronym` field, else its name, uppercase.
+- **Map geometry from tokens**: SVG text is set with `style="font: var(--text-…)"`, never a numeric size;
+  strokes in screen space are `var(--border-1/2)`. Geometry that needs arithmetic (label boxes, marks,
+  hit areas, dash lengths) reads the token px once (`src/ui/tokenPx.ts`) and is a fraction of
+  `--station-mark`, as the hull ruler is of `--ruler-h`.
+- **Map labels** follow the SystemMap README's two tiers: a major body in `title-sm` `ink-100` over its
+  classification in `data-xs` `ink-300`; minor bodies, moons, stations and Trojans one `data-xs` line
+  in `ink-200`; belts and the HABITABLE ZONE / FROST LINE labels `data-xs` `ink-300`. A hovered label
+  that the placer had dropped is shown on a `map-void` scrim at `opacity-scrim` (radius 0).
+- **Map selection** is drawn the same for every object, sized from its half-size and the station mark:
+  halo, frame (a circle round a body, a square round a station), dashed bracket, leader and the
+  uppercased name in `data-sm` `accent-300`, the second line in `data-xs` `ink-300`. The selected
+  object's ordinary label gives way to it. A selected object's orbit is drawn in `accent-500` too.
+- **Scale bar** shows only in TRUE SCALE: a schematic's log spacing is not a distance, so a bar there
+  would be false. It is a 1-2-5 step near `--scale-bar-w`, in AU plus the toolbar's unit.
+- **Map inspector** puts the selected record's name on the `sel-head` (accent-700), with
+  `SELECTED · <record code>` beneath, above the compact editor.
+- **Far zoom draws** the primary and major bodies (framed by their `controller`'s affiliation, else
+  bare) and heliocentric locations, including star–planet Lagrange stations (framed by `owner`).
+  Moons, minor bodies, Trojans and stations orbiting a planet are dropped, as the book drops moons and
+  berthed hulls. Labels are the uppercased name only. The affiliation key sits bottom-right on a
+  `surface-200` plate, above the scale bar when both show. Symbols select on click and raise the
+  inspector; they do not drag.
+- **Reference pickers** wrap: in a narrow inspector the CHANGE / CLEAR commands drop below the value.
 
 ---
 
@@ -226,6 +251,9 @@ Owner decisions on conflicts §2 did not cover. They carry the same weight as §
 | RecordPage REVISIONS panel; the vault kept no history | **Logged on save**: the repository appends `{at, change}` to an optional envelope `revisions` list (e.g. `fields: length_m, beam_m`), widening the last entry within a 30-minute editing session, capped at 20. Records from before start with their creation date. |
 | RecordPage has no list pane | **The list pane hides on a record page**; the record takes the width between the rail and the edge. The list is one rail click away. |
 | Closed vocabularies for handling | **Seeded from the plates** into `gallery.config.yaml` (`handling`): clearance LEVEL 1–6; caveats SI, TK, NOFORN, ORCON, REL TO CMW; ACS disruption (DARK, VLAM, KENEQ, EKHI, AMIDA) and risk (NOTICE, CAUTION, WARNING, DANGER, CRITICAL) classes, each with a severity. |
+| SystemMap: "Stations are 9px `glyph-navy` squares" vs the existing per-kind station symbols | **Keep the kind symbols** (depot, shipyard, skyhook, elevator, ring, telescope, base, city, beacon, station) as a motif, like the body glyphs: `glyph-navy` (or the overlay colour), drawn on a 9-unit square scaled to `--station-mark`. The plain station is the plate's square. |
+| TacticalSymbols needs an affiliation; nothing in the vault said which side a polity is on | **A polity field**: `affiliation` (friend / hostile / neutral / unknown) on the polity schema (v4, backed up per convention), from the vault operator's point of view. A body takes its `controller`'s, a location its `owner`'s. Blank or no owner draws the object bare; an unrecognised value is unknown. The demo sets UESC friend, UJCN hostile, LDF neutral. |
+| Far-zoom threshold "roughly 0.2×" (§2: a config value) | **`map.far_zoom_ratio` in `gallery.config.yaml`**, a fraction of the fit-to-system zoom; default 0.75 (two wheel steps out from Fit). Not seeded: absent means the default. |
 | Redaction and completeness need `required` fields | **Core fields marked required** in the built-in schemas (bumped, backed up per convention): polity kind, government; location kind, owner; character role, affiliation; hull hull_class; bus core_diameter_m, station_pitch_m; style construction; craft kind, hull_class, role, hull, operator, status; body kind, system; system primary; module unchanged. A type with none shows completeness as `—`. |
 
 ## 9. Verification

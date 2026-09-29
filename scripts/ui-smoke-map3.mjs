@@ -48,7 +48,7 @@ await p.waitForTimeout(300);
 await p.screenshot({ path: "screenshots/v3-habitability.png" });
 // true scale
 await p.selectOption(".toolbar select >> nth=0", "plain");
-await p.selectOption(".toolbar select >> nth=1", "true");
+await p.click(".toolbar [role=radio]:has-text(\"TRUE SCALE\")");
 await p.waitForTimeout(400);
 await p.screenshot({ path: "screenshots/v3-truescale.png" });
 console.log("errors:", errors);

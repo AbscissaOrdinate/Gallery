@@ -579,6 +579,10 @@ export interface LabelReq {
   text: string;
   sub?: string;
   fontPx: number;
+  /** The sublabel's own size when it is set in a different type token; unset, it is ¾ of fontPx. */
+  subPx?: number;
+  /** Monospaced text measures a little wider per character. */
+  mono?: boolean;
   priority: number;
 }
 export interface LabelPlacement {
@@ -606,15 +610,18 @@ export function placeLabels(reqs: LabelReq[], occupied: Rect[] = []): Map<string
   for (const q of reqs) taken.push({ x: q.x - q.r, y: q.y - q.r, w: q.r * 2, h: q.r * 2 });
   const sorted = [...reqs].sort((a, b) => b.priority - a.priority);
   for (const q of sorted) {
-    const w = Math.max(q.text.length, q.sub ? q.sub.length * 0.78 : 0) * q.fontPx * 0.58 + 4;
-    const h = q.fontPx * 1.25 + (q.sub ? q.fontPx * 0.95 : 0);
+    const cw = q.mono ? 0.62 : 0.58;
+    const subW = !q.sub ? 0 : q.subPx ? q.sub.length * q.subPx * 0.62 : q.sub.length * 0.78 * q.fontPx * 0.58;
+    const subH = !q.sub ? 0 : q.subPx ? q.subPx * 1.4 : q.fontPx * 0.95;
+    const w = Math.max(q.text.length * q.fontPx * cw, subW) + 4;
+    const h = q.fontPx * 1.25 + subH;
     const candidates: [number, number, LabelPlacement["anchor"], Rect][] = [];
     // right, left, above, below — first snug, then pushed out a little further
     for (const gap of [3, 14]) {
       candidates.push(
         [q.r + gap, -q.fontPx * 0.15, "start", { x: q.x + q.r + gap, y: q.y - q.fontPx * 0.95, w, h }],
         [-(q.r + gap), -q.fontPx * 0.15, "end", { x: q.x - q.r - gap - w, y: q.y - q.fontPx * 0.95, w, h }],
-        [0, -(q.r + gap + (q.sub ? q.fontPx * 0.95 : 0) + 2), "middle", { x: q.x - w / 2, y: q.y - q.r - gap - h, w, h }],
+        [0, -(q.r + gap + subH + 2), "middle", { x: q.x - w / 2, y: q.y - q.r - gap - h, w, h }],
         [0, q.r + gap + q.fontPx, "middle", { x: q.x - w / 2, y: q.y + q.r + gap, w, h }],
       );
     }

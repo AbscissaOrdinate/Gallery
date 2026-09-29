@@ -33,8 +33,8 @@ await p.waitForTimeout(300);
 await p.screenshot({ path: "screenshots/map-inner.png" });
 // click Earth
 // Labels are not click targets (they never block a pan); click the body glyph, as map2 does for Mars.
-const earth = await p.locator("g[data-el]", { has: p.locator("text", { hasText: /^Earth$/ }) }).first().boundingBox();
-await p.mouse.click(earth.x + 7, earth.y + 7);
+const earth = await p.locator("g[data-el]", { has: p.locator("text", { hasText: /^Earth$/ }) }).first().locator(":scope > g:not([data-ui]) circle").first().boundingBox();
+await p.mouse.click(earth.x + earth.width / 2, earth.y + earth.height / 2);
 await p.waitForTimeout(400);
 await p.screenshot({ path: "screenshots/map-earth-selected.png" });
 // open body record for Earth
