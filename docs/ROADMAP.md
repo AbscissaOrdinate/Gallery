@@ -36,12 +36,19 @@ and the owner agrees.
 | S1b | Foundations — snapshots + view-never-writes guard | Cloud Code | Sonnet @ high | `feat/foundations-snapshots` | S1a | `sessions/S1-foundations.md` | in review — PR "S1b — snapshots + guard" |
 | S1c | Foundations — history core (PR 3a) | Cloud Code | Opus 5.5 @ high | `feat/foundations-history-core` | S1b | `sessions/S1-foundations.md` | — |
 | S1d | Foundations — UI wiring (PR 3b) | Cloud Code | Sonnet @ high | `feat/foundations-history-ui` | S1c | `sessions/S1-foundations.md` | — |
-| S4 | Star types — evolutionary-stage/luminosity-class override + presets. **Routing A/B** (§3.4) | Cloud Code | Sonnet @ medium vs Opus @ medium | `feat/star-types` | S1, C2 | to write after C2 | — |
+| S4-A | Star types — body v5 `stage`/`spectral_type`/`status`/`provenance`, stage-aware `deriveStar`, presets from `star-types.yaml`, NS/BH glyphs, `eyeball`. **A/B run** (§3.4); PR marked "do not merge" | Cloud Code | Sonnet 5.5 @ medium | `feat/star-types-sonnet` | S1, C2 | `sessions/S4-star-types.md` | — |
+| S4-B | Star types — same brief, second run. **A/B run** (§3.4); PR marked "do not merge". Owner may skip the A/B and run S4-A only | Cloud Code | Opus 5.5 @ medium | `feat/star-types-opus` | S1, C2 | `sessions/S4-star-types.md` | — |
+| S4-J | Judge both S4 diffs against doc 12 §5, recommend one to merge, append the result to §3.4, close the other PR | Cloud Code | Sonnet 5.5 @ high | — | S4-A, S4-B | `sessions/S4-star-types.md` | — |
 | H1 | Audit fixes F8, F9, F11, F12, F15 — provisional markers on the budget panel and hull STRUCTURE figures; hull-render font sizes and literal stroke/opacity values from tokens; delete unused `--radius-1` | Cloud Code | Sonnet @ medium | `fix/audit-h1` | S1d | to write from `docs/AUDIT.md` | — |
-| S2 | Wiki core — `[[links]]`, index, autocomplete, redlinks, rename rewrite, hover preview (pulls RecordCard + redaction + classification header from 10a) | Cloud Code | Opus 5.5 @ high | `feat/wiki` | S1 | to write from doc 11 §2, §5 | — |
-| S3 | QoL shell — palette, switcher, shortcuts, duplicate, recent/pinned, bulk tag, save indicator, tag pages, transclusion; motion tiers + Settings toggle; ASCII set | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2 | to write from doc 11 §2.12–2.13, §3–5 | — |
-| S5a | Orbital configurations — co-orbital, barycentric pairs, rosettes, resonance chains, … (v1 set from doc 12) | Cloud Code | Opus 5.5 @ high (Fable reserve if stuck) | `feat/orbital-configs` | S4 | to write after C2 | — |
-| S5b | Starter systems as recipes — Sol, α Cen, Barnard's, Sirius, ε Eri | Cloud Code | Sonnet 5.5 @ medium; Cowork reviews data | `feat/starter-systems` | S5a | to write after C2 | — |
+| S2a | Wiki core — prose parser, wiki grammar, link index, `mentions`, `fuzzy.ts`, repo index hooks (doc 11 S2.1) | Cloud Code | Opus 5.5 @ high | `feat/wiki-core` | S1 | `sessions/S2-wiki.md` | — |
+| S2b | Wiki render — `ProseField`, link/redlink/ambiguous rendering, BACKLINKS LINKED/MENTIONED; `cardModel`, `ClassificationHeader`, `RecordCard`, hover (S2.2 + S2.3) | Cloud Code | Sonnet 5.5 @ high | `feat/wiki-render` | S2a | `sessions/S2-wiki.md` | — |
+| S2c | Wiki authoring — autocomplete, redlink create, REDLINKS tool, ambiguity chooser; rename impact + dialog + rewrite transaction (S2.4 + S2.5) | Cloud Code | Opus 5.5 @ high | `feat/wiki-rename` | S2b | `sessions/S2-wiki.md` | — |
+| S3a | QoL shell — keymap + command registry, switcher, palette, shortcut sheet, save indicator, duplicate, recent/pinned, multi-select + bulk tag/delete, tag pages (S3.1–S3.3) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell` | S2c | `sessions/S3-qol-shell.md` | — |
+| S3b | Transclusion, find in page, motion tokens + tiers + Settings DISPLAY (`STYLE.md` §10), ASCII set + `WorkPanel` + progress reporters (S3.4–S3.7) | Cloud Code | Sonnet 5.5 @ high | `feat/qol-shell-2` | S3a | `sessions/S3-qol-shell.md` | — |
+| S5a-1 | Orbital configurations — `configuration` v1; barycentric pair + fixes B1–B6; S/P-type advisory; tadpole; horseshoe/exchange; quasi-satellite | Cloud Code | Opus 5.5 @ high (extra-high only if stuck; Fable reserve #3) | `feat/orbital-configs` | S4 | `sessions/S5-orbits-and-starters.md` | — |
+| S5a-2 | Orbital configurations 2 — rosettes (circular + elliptical), resonance labels, system v5 `nebula`, body v6 hyperbolic + unbound placement | Cloud Code | Opus 5.5 @ high (Sonnet 5.5 @ high if the S4 A/B favours Sonnet) | `feat/orbital-configs-2` | S5a-1 | `sessions/S5-orbits-and-starters.md` | — |
+| S5b | Starter systems ("Starters") — record-set loader, install dialog, installer (one undoable step after a snapshot); six recipes; `_tables/sources-astro.yaml`; provenance tooltip. Pluto/Charon data fix first (brief) | Cloud Code | Sonnet 5.5 @ high | `feat/starter-systems` | S5a-2, S1 | `sessions/S5-orbits-and-starters.md` | — |
+| C3 | Data review of the six recipes against `sources.yaml` (esp. `verify: true` rows); runs after the S5b PR is open, before merge | Cowork | Opus 5.5 @ high | — | S5b PR | `sessions/S5-orbits-and-starters.md` | — |
 | R2 | Doc 10: rest of 10a → 10b (strip; starter systems are fixtures) → 10c → trimmed 10d/10e | Cloud Code | Sonnet @ high; Opus @ high for 10b | `feat/record-views-*` | S5b | later | — |
 | R3 | Design suite: shell extraction → ship editor 2b → doc 09 §3.5 gaps → Editor 3 | Cloud Code | Opus 5.5 @ medium/high | `feat/design-suite-*` | R2 | later | — |
 | R4 | Doc 13 planet editor spec (Cowork) → core build | Cowork → Cloud Code | Opus @ high → **Fable 5.1** (#2) | `feat/planet-editor` | R3 | later | — |
@@ -50,11 +57,10 @@ Branch rule: every session branches from current `main`; one PR per checkpoint; 
 before the next session starts. **Branch names are advisory** (a cloud session is assigned its
 own); **the PR title carries the session ID** (e.g. "S1b — snapshots + guard").
 
-> **Pending (2026-09-29):** the S2, S3, S5a and S5b rows above still read as written before C2.
-> They are to be replaced by the sessions in `docs/sessions/S2-wiki.md`, `S3-qol-shell.md`,
-> `S4-star-types.md` and `S5-orbits-and-starters.md`; S4 has already moved directly after S1.
-> Those four briefs were not in the repository when S1b ran, so the rows were not rewritten
-> from them.
+> The S2–S5 rows follow their briefs in `docs/sessions/` (S2 three sessions, S3 two, S4 an A/B
+> pair plus a judge, S5 three plus the C3 data review). S4 runs directly after S1 and does not
+> depend on S2/S3 (its brief lets the owner run it earlier still). The local Windows/Tauri
+> checkpoint `sessions/L-local-checkpoint.md` runs after S1d, S3b and S5b.
 
 ## 3. Routing rubric (Gallery-specific)
 
@@ -103,11 +109,12 @@ reviewer scores both on tests passed first time, review findings, and diff size.
 |---|---|---|---|
 | S0 prep | 1/1/1/1/1/2 | 7 | Sonnet @ medium |
 | S1 foundations | 3/2/1/2/3/3 | 14 + B&R = 3 | Fable |
-| S2 wiki core | 3/2/1/2/3/2 | 13 | Opus @ high |
-| S3 QoL shell | 2/1/1/3/1/2 | 10 | Sonnet @ high |
+| S2 wiki core (S2a, S2c; S2b is rendering) | 3/2/1/2/3/2 | 13 | Opus @ high (S2b Sonnet @ high) |
+| S3 QoL shell (S3a, S3b) | 2/1/1/3/1/2 | 10 | Sonnet @ high |
 | S4 star types | 1/1/3/1/2/1 | 9 | A/B |
-| S5a orbital configs | 2/3/3/3/1/3 | 15 | Opus @ high |
-| S5b starter systems | 1/1/2/1/1/2 | 8 | Sonnet @ medium |
+| S5a-1 orbital configs | 3/2/3/3/2/2 | 15 | Opus @ high |
+| S5a-2 orbital configs 2 | 2/2/2/3/2/2 | 13 | Opus @ high (Sonnet @ high if S4 A/B says so) |
+| S5b starter systems (new bulk write path) | 3/1/2/2/2/2 | 12 | Sonnet @ high |
 | R4 planet editor core | 3/3/3/3/2/3 | 17 | Fable |
 
 ## 4. Check plan (every PR)

@@ -58,10 +58,9 @@ Not fixed: the L-point park path (see S1d above), hull component selection and a
 exists until doc 10b).
 
 **Not done / deliberately deferred**
-- **ROADMAP §2 S2–S5b row replacement.** `docs/sessions/S2-wiki.md`, `S3-qol-shell.md`,
-  `S4-star-types.md` and `S5-orbits-and-starters.md` are not in the repository (checked every
-  branch), so those rows were not rewritten; a "Pending" note in §2 says so. S4 was moved
-  directly after S1d and H1 added after S4 (read as: S4 "directly after S1", H1 "after S1d").
+- ~~ROADMAP §2 S2–S5b row replacement~~ — done once the four briefs landed on `main`
+  (`S2-wiki`, `S3-qol-shell`, `S4-star-types`, `S5-orbits-and-starters`): rows are now S4-A / S4-B /
+  S4-J, H1, S2a–c, S3a–b, S5a-1, S5a-2, S5b, C3; calibration table updated to match (ruling 11).
 - No retention policy for snapshots: they accumulate (and sync). The storage-health card is 10e.
 - Restore is not undoable yet — S1c makes it a transaction (doc 11 §1.6).
 
