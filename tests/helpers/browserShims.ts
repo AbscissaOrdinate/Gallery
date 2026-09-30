@@ -31,6 +31,17 @@ export function installBrowserShims() {
       r.readAsText(this);
     });
   };
+  // jsdom has no PointerEvent, so `fireEvent.pointerDown(el, { clientX })` would build a bare Event and drop the
+  // coordinates. A MouseEvent carries them; `pointerId` is added by hand.
+  if (!(g.PointerEvent as unknown)) {
+    g.PointerEvent = class PointerEvent extends MouseEvent {
+      readonly pointerId: number;
+      constructor(type: string, init: MouseEventInit & { pointerId?: number } = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 1;
+      }
+    };
+  }
   Element.prototype.setPointerCapture ??= () => undefined;
   Element.prototype.releasePointerCapture ??= () => undefined;
   Element.prototype.scrollTo ??= () => undefined;

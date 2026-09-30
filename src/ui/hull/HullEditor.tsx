@@ -13,7 +13,8 @@
  * every advisory from `hullAdvisories`, every shape from `renderHull`. Nothing
  * here computes geometry, and nothing here can refuse a save.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRecordDraft } from "../useRecordDraft";
 import { actions, useApp } from "../state";
 import type { TypedRecord } from "../../core/types";
 import { HullCanvas, type CanvasEdit, type Selection } from "./HullCanvas";
@@ -57,44 +58,14 @@ const fmt = (n: number, d = 0) => (Number.isFinite(n) ? n.toLocaleString(undefin
 
 export function HullEditor({ id }: { id: string }) {
   const { repo } = useApp();
-  const loaded = repo?.get(id);
-  const [draft, setDraft] = useState<TypedRecord | null>(() => (loaded && loaded.record.type !== "note" ? (structuredClone(loaded.record) as TypedRecord) : null));
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // The working copy, autosave (900 ms, and on unmount) and reload after an undo live in the hook (doc 11 §1.8).
+  const { loaded, draft: working, edit, dirty, saving, checkpoint } = useRecordDraft(id, { origin: "hull" });
+  const draft = working && working.type !== "note" ? (working as TypedRecord) : null;
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<RenderMode>("schematic");
   const [view, setView] = useState<View>("profile");
   const [overlays, setOverlays] = useState({ beam: true, slots: true, sections: true, figures: true, cone: false, ghost: true, parts: true });
-  const timer = useRef<number | null>(null);
-
-  // Autosave, mirroring RecordEditor: 900 ms after the last edit, and on unmount.
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
-  const flush = async () => {
-    if (!repo || !draftRef.current || !dirtyRef.current) return;
-    setSaving(true);
-    try {
-      await repo.save(draftRef.current);
-      setDirty(false);
-      dirtyRef.current = false;
-    } catch (err) {
-      actions.error(`Save failed: ${(err as Error).message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-  useEffect(() => {
-    if (!dirty) return;
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(flush, 900);
-    return () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    };
-  }, [draft, dirty]);
-  useEffect(() => () => void flush(), []);
 
   const hull: HullGeometry = useMemo(() => readHull(draft?.fields ?? {}), [draft?.fields]);
 
@@ -147,10 +118,7 @@ export function HullEditor({ id }: { id: string }) {
   if (!repo || !draft || !loaded) return <div className="help">Hull not found.</div>;
 
   /** Write geometry back through the adapter so unrelated fields survive. */
-  const commit = (next: HullGeometry) => {
-    setDraft({ ...draft, fields: writeHull(draft.fields, next) });
-    setDirty(true);
-  };
+  const commit = (next: HullGeometry) => edit({ fields: writeHull(draft.fields, next) });
 
   const onEdit = (edit: CanvasEdit) => {
     if (edit.kind === "station") {
@@ -262,6 +230,7 @@ export function HullEditor({ id }: { id: string }) {
               setFocus(undefined);
             }}
             onEdit={onEdit}
+            onCheckpoint={() => void checkpoint()}
             focus={focus}
             pitch={pitch}
           />
@@ -272,8 +241,7 @@ export function HullEditor({ id }: { id: string }) {
             <ClassPicker
               presets={repo.registry.presetsFor("hull")}
               onPick={(preset) => {
-                setDraft({ ...draft, fields: fromClass(draft.fields, preset) });
-                setDirty(true);
+                edit({ fields: fromClass(draft.fields, preset) });
                 setSelection(null);
               }}
             />

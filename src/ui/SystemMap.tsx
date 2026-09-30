@@ -25,6 +25,7 @@ import { AFFILIATIONS, affiliationOf, frameMarkup, tacticalMarkup, type Affiliat
 import { recordCode } from "../core/handling";
 import { resolveThemeColors } from "./themeColors";
 import { mapSizes } from "./tokenPx";
+import { register, track } from "./drafts";
 import { Button, Group, NumberField, Panel, Row, Segmented, Select, StatusRow, TextField, caps } from "./kit";
 import { formatKm, type DistanceUnit } from "../core/astro/units";
 import { AU_KM } from "../core/astro/worldsmith";
@@ -89,6 +90,9 @@ interface Tip {
   title: string;
   lines: string[];
 }
+/** Numbers the drags: each save's origin is unique, so no two drags fold into one step. */
+let dragSeq = 0;
+
 interface LDot {
   name: string;
   secondaryId: string;
@@ -126,7 +130,8 @@ export function SystemMap({ id }: { id: string }) {
   const [scaleMode, setScaleMode] = useState<"schematic" | "true" | null>(null);
   const dragged = useRef(false);
   const lpointDots = useRef<LDot[]>([]);
-  const version = repo?.all().map((r) => r.record.updated).join("|");
+  // What the layout is memoised on: `updated` alone misses an undo that restores a timestamp this second already had.
+  const version = repo?.all().map((r) => `${r.record.updated}#${repo.version(r.record.id)}`).join("|");
   const unit: DistanceUnit = repo?.config.distanceUnit ?? "light";
   const sizes = useMemo(() => mapSizes(), []);
 
@@ -351,14 +356,20 @@ export function SystemMap({ id }: { id: string }) {
         const rec = repo.typed(drag.id);
         if (rec) {
           const snap = nearestLPoint(e.clientX, e.clientY);
+          let label: string;
           if (snap && snap.secondaryId !== rec.id && (rec.type === "location" || /asteroid|comet|artificial/.test(String(rec.fields.kind)))) {
+            label = `PARK ${rec.name.toLocaleUpperCase("en")} AT ${snap.point}`;
             rec.fields.lagrange_of = snap.secondaryId;
             rec.fields.lagrange = snap.point;
             if (rec.type === "location") delete rec.fields.orbit_km;
             actions.toast(`Parked at ${snap.name}`);
             logEvent({ severity: "info", source: "map", message: `${rec.name} parked at ${snap.name}`, detail: { subject: rec.name, subjectId: rec.id } });
-          } else rec.fields.map_angle_deg = Math.round(drag.angle * 10) / 10;
-          await repo.save(rec);
+          } else {
+            label = `MOVE ${rec.name.toLocaleUpperCase("en")}`;
+            rec.fields.map_angle_deg = Math.round(drag.angle * 10) / 10;
+          }
+          // One drag is one undo step (doc 11 §1.3): its own origin, so two drags never coalesce.
+          await repo.save(rec, { origin: `map-drag:${++dragSeq}`, label });
         }
       }
       setLiveAngle({});
@@ -1097,7 +1108,38 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
   const { repo } = useApp();
   const [fields, setFields] = useState(system.fields);
   const timer = useRef<number | null>(null);
-  useEffect(() => setFields(system.fields), [system.id]);
+  /** The settings waiting for the debounce, so an undo, a reload or leaving the panel can save them first. */
+  const pending = useRef<Record<string, unknown> | null>(null);
+  const latest = useRef({ repo, system });
+  latest.current = { repo, system };
+  const saveNow = async () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+    const { repo: r, system: sys } = latest.current;
+    if (!r?.get(sys.id)) return;
+    sys.fields = next as TypedRecord["fields"];
+    // One debounce burst is one step; the bursts of a sitting coalesce (doc 11 §1.3).
+    await r.save(sys, { origin: `map-settings:${sys.id}` }).catch((err: Error) => actions.error(`Save failed: ${err.message}`));
+  };
+  // Registered for `flushAll` (an undo must not be overwritten by a burst still waiting), and saved on leaving.
+  const saveRef = useRef(saveNow);
+  saveRef.current = saveNow;
+  useEffect(() => {
+    const off = register({ flush: () => { const p = saveRef.current(); track(p); return p; }, dirty: () => pending.current !== null });
+    return () => {
+      const p = saveRef.current();
+      track(p);
+      off();
+    };
+  }, []);
+  // Follow the record when something else changes it — an undo, redo or reload — unless a burst is pending.
+  const version = repo?.version(system.id) ?? 0;
+  useEffect(() => {
+    if (!pending.current) setFields(system.fields);
+  }, [system.id, version]);
   if (!repo) return null;
   const schema = repo.registry.get("system")!;
   const keys = ["radius_mapping", "inner_px", "outer_px", "moon_scale_px", "show_lagrange", "show_zones", "show_labels"];
@@ -1112,11 +1154,9 @@ function SystemSettings({ system, layout }: { system: TypedRecord; layout: Layou
             const next = { ...system.fields, ...v };
             for (const k of keys) if (!(k in v)) delete next[k];
             setFields(next);
+            pending.current = next;
             if (timer.current) window.clearTimeout(timer.current);
-            timer.current = window.setTimeout(() => {
-              system.fields = next;
-              repo.save(system);
-            }, 400);
+            timer.current = window.setTimeout(() => void saveRef.current(), 400);
           }}
         />
       </Panel>

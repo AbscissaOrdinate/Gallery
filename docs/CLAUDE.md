@@ -94,6 +94,12 @@ docs/sessions/      session briefs and handoffs (<ID>-handoff.md)
   or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange` or `orbit_km` (doc 11 §1.6). Opening a vault is maintenance, not viewing: it creates missing seed
   files, but overwrites an existing file only when the content differs, and only after a
   "Before vault upgrade" snapshot.
+- **Every write is undoable, or exempt with a reason.** Record editors edit through
+  `useRecordDraft` (`src/ui/useRecordDraft.ts`: autosave, flush on unmount, reload when the
+  repository changes it) and never hold their own timers; a multi-record operation is one
+  `repo.transaction`; a canvas drag calls `checkpoint()` at pointer-down and pointer-up. Ctrl/Cmd+Z
+  is routed by `src/ui/keys.ts`, and anything that must not run over a pending edit awaits
+  `flushAll()` (`src/ui/drafts.ts`) first (doc 11 §1).
 - **Snapshot before anything destructive.** `repo.snapshot(cause, ids)` copies the affected files
   to `_snapshots/<id>/` (`src/core/snapshots.ts`); delete, import, skeleton generate, vault
   upgrade and restore all do. New destructive operations must too.

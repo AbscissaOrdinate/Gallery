@@ -6,8 +6,7 @@
  * exercised against a spy on the storage adapter (F19: the adapter's writes under the vault
  * root, and only those — `settings.json` and `localStorage` are out of scope). Any write fails
  * the test, except a map drag or L-point park writing `map_angle_deg`, `lagrange_of`, `lagrange`
- * or `orbit_km` (doc 11 §1.6). The park case is not exercised here yet (S1d); the drag test below
- * covers `map_angle_deg`.
+ * or `orbit_km` (doc 11 §1.6). The drag test below covers `map_angle_deg`, the park test the rest.
  *
  * Timers are faked and run past the 900 ms autosave and every other debounce, and each view is
  * unmounted afterwards (the editors flush on unmount), so a write scheduled by merely looking
@@ -17,11 +16,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import YAML from "yaml";
 import { App } from "../src/App";
-import { actions, type View } from "../src/ui/state";
+import { actions, getApp, type View } from "../src/ui/state";
 import { demoVault } from "../src/ui/demo";
 import { Repository } from "../src/core/repo";
+import type { TypedRecord } from "../src/core/types";
 import { SpyAdapter } from "./helpers/spyAdapter";
-import { installBrowserShims } from "./helpers/browserShims";
+import { CANVAS, installBrowserShims } from "./helpers/browserShims";
 
 beforeAll(installBrowserShims);
 // Every record's page is mounted and swept; that takes longer than vitest's default.
@@ -113,6 +113,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  document.documentElement.style.removeProperty("--station-mark");
   await act(async () => actions.closeVault());
   cleanup();
   vi.useRealTimers();
@@ -320,5 +321,48 @@ describe("view never writes", () => {
     // Nothing else moved on disk, other than the derived CSVs and the revision bookkeeping of that record.
     const otherWrites = spy.writes.filter((w) => w.path !== path && !w.path.startsWith("_index") && !w.path.startsWith("_exports/"));
     expect(otherWrites).toEqual([]);
+  });
+
+  it("parking a station on an L-point writes lagrange_of and lagrange (and drops orbit_km), and nothing else", async () => {
+    const system = repo.ofType("system")[0].record;
+    // A cycler on a heliocentric orbit: a location that can be dragged and dropped on an L-point dot.
+    const station = repo.ofType("location").find((l) => l.record.name === "Antares")!;
+    expect((station.record as TypedRecord).fields.lagrange_of).toBeUndefined();
+    // The map's snap radius is a station mark (a theme token); jsdom loads no stylesheet, so give it one.
+    document.documentElement.style.setProperty("--station-mark", "9px");
+    await go({ kind: "map", id: system.id });
+    const before = spy.inner.dump();
+    const svg = container.querySelector<SVGSVGElement>(".mapview svg")!;
+    const grab = container.querySelector<SVGGElement>(`g[data-el="${station.record.id}"]`)!;
+    expect(grab, "the station on the map").not.toBeNull();
+    // An L-point dot, in the pixel space the drop is measured in: its user-space position through the viewBox.
+    const [vx, vy, vw, vh] = svg.getAttribute("viewBox")!.split(/[\s,]+/).map(Number);
+    const dot = Array.from(container.querySelectorAll<SVGGElement>("g[data-el]")).find((g) => g.style.cursor === "crosshair" && g.getAttribute("data-el") !== station.record.id)!;
+    expect(dot, "an L-point dot").toBeDefined();
+    const [, tx, ty] = /translate\(([-\d.e]+)[ ,]([-\d.e]+)\)/.exec(dot.getAttribute("transform")!)!.map(Number) as unknown as [string, number, number];
+    const at = { clientX: ((tx - vx) * CANVAS.width) / vw, clientY: ((ty - vy) * CANVAS.height) / vh, pointerId: 1 };
+
+    await act(async () => void fireEvent.pointerDown(grab, { clientX: 500, clientY: 200, pointerId: 1 }));
+    await act(async () => void fireEvent.pointerMove(svg, { clientX: 600, clientY: 300, pointerId: 1 }));
+    await act(async () => void fireEvent.pointerMove(svg, at));
+    await act(async () => void fireEvent.pointerUp(svg, at));
+    await flush();
+
+    const recordWrites = spy.writes.filter((w) => w.op === "writeText" && !w.path.startsWith("_"));
+    expect(recordWrites.map((w) => w.path)).toEqual([station.location.path]);
+    const was = YAML.parse(before[station.location.path]);
+    const now = YAML.parse(await spy.readText(station.location.path));
+    const changed = Object.keys({ ...was.fields, ...now.fields }).filter((k) => JSON.stringify(was.fields[k]) !== JSON.stringify(now.fields[k]));
+    // Never anything beyond the four fields the exception names; a park sets the first two.
+    expect(changed.filter((k) => !["map_angle_deg", "lagrange_of", "lagrange", "orbit_km"].includes(k))).toEqual([]);
+    expect(changed).toEqual(expect.arrayContaining(["lagrange_of", "lagrange"]));
+    expect(now.fields.lagrange).toMatch(/^L[1-5]$/);
+    const otherWrites = spy.writes.filter((w) => w.path !== station.location.path && !w.path.startsWith("_index") && !w.path.startsWith("_exports/"));
+    expect(otherWrites).toEqual([]);
+    // It is one undo step with the park's own label, and undo puts the file back.
+    const step = getApp().repo!.history.peekUndo()!;
+    expect(step.label).toBe(`PARK ANTARES AT ${now.fields.lagrange}`);
+    await act(async () => void (await actions.undo()));
+    expect(await spy.readText(station.location.path)).toBe(before[station.location.path]);
   });
 });

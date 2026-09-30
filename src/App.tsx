@@ -10,6 +10,7 @@ import { SystemMap } from "./ui/SystemMap";
 import { HullEditor } from "./ui/hull/HullEditor";
 import { AdvisoryLog } from "./ui/AdvisoryLog";
 import { Boot } from "./ui/Boot";
+import { installKeys } from "./ui/keys";
 import { isTauri } from "./core/storage/tauri";
 import type { Repository } from "./core/repo";
 import { Button, Panel, Spinner, StatusRow, treePrefix } from "./ui/kit";
@@ -18,21 +19,8 @@ import { SECTIONS, sectionsOf } from "./ui/sections";
 export function App() {
   const app = useApp();
 
-  // Global shortcuts: Ctrl/Cmd+K focuses search; Alt+Left goes back.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        (document.getElementById("global-search") as HTMLInputElement | null)?.focus();
-      }
-      if (e.altKey && e.key === "ArrowLeft") {
-        e.preventDefault();
-        actions.back();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // Keyboard: one dispatcher (src/ui/keys.ts) — undo/redo, search, back.
+  useEffect(() => installKeys(), []);
 
   if (!app.repo)
     return (

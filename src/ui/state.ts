@@ -3,7 +3,7 @@
  * subscribes with useSyncExternalStore.
  */
 import { useSyncExternalStore } from "react";
-import { Repository, peekConfig, type VaultStats } from "../core/repo";
+import { Repository, peekConfig, type ApplyResult, type VaultStats } from "../core/repo";
 import { BOOT_MODES, DEFAULT_BOOT_MODE, type BootMode, type OperatorConfig } from "../core/types";
 import { LEVEL_WORD } from "../core/handling";
 import type { UiSeverity } from "./kit/severity";
@@ -13,6 +13,7 @@ import type { StorageAdapter } from "../core/storage/adapter";
 import { isTauri, readAppSettings, writeAppSettings, TauriFsAdapter } from "../core/storage/tauri";
 import { MemoryAdapter } from "../core/storage/memory";
 import { demoVault } from "./demo";
+import { flushAll } from "./drafts";
 
 export type View =
   | { kind: "welcome" }
@@ -69,6 +70,11 @@ function set(patch: Partial<AppState>) {
   for (const l of listeners) l();
 }
 
+/** The current state, for code outside React (the key router). */
+export function getApp(): AppState {
+  return state;
+}
+
 export function useApp(): AppState {
   return useSyncExternalStore(
     (l) => {
@@ -77,6 +83,15 @@ export function useApp(): AppState {
     },
     () => state,
   );
+}
+
+/** What an undo or redo did, as the toast says it (doc 11 §1.8). Null when there was nothing to undo or redo. */
+export function historyToast(dir: "undo" | "redo", res: ApplyResult): string | null {
+  if (res.ok) return `${dir === "undo" ? "UNDONE" : "REDONE"} — ${res.label}`;
+  // `ok: false` with no label and nothing refused is an empty stack, not a refusal (owner ruling, PR #13).
+  if (!res.refused.length) return null;
+  const files = res.refused.map((r) => r.path);
+  return `${dir === "undo" ? "UNDO" : "REDO"} REFUSED — ${files[0]}${files.length > 1 ? ` +${files.length - 1} MORE` : ""} CHANGED ON DISK`;
 }
 
 /** Force re-render when the repo emits (records changed). */
@@ -103,6 +118,18 @@ export const actions = {
   },
   error(msg: string | null) {
     set({ error: msg });
+  },
+
+  /**
+   * Undo the latest step in the session's history (doc 11 §1.8). Pending edits are saved first, so
+   * they are the step that comes off: undo always reverts the user's most recent action, whichever
+   * editor holds it. A step whose files changed on disk is refused, and the toast says which.
+   */
+  async undo() {
+    await applyHistory("undo");
+  },
+  async redo() {
+    await applyHistory("redo");
   },
 
   async openVault(adapter: StorageAdapter, opts: { create?: boolean } = {}) {
@@ -135,6 +162,8 @@ export const actions = {
       // Every snapshot the repository takes on a caller's behalf is a line in the session log.
       repo.onSnapshot = (m) =>
         logEvent({ severity: "info", source: "snapshot", message: `Snapshot ${m.id} — ${m.cause.toLocaleLowerCase("en")}, ${m.files.length} file${m.files.length === 1 ? "" : "s"}`, detail: { note: "Restore it from Settings → Snapshots." } });
+      // The history's own lines — UNDONE / REDONE, a refused undo, an incomplete transaction — go to the same log.
+      repo.onLog = logEvent;
       // What Gallery itself is running on comes first: the shell, the build, the interface.
       for (const l of await runtimeLines()) step(l, "OK");
       begin(`HANDSHAKE — ${adapter.label.toLocaleUpperCase("en")}`);
@@ -198,7 +227,9 @@ export const actions = {
 
   /** Open the current vault again, boot and all (Settings → Session). */
   async reopenVault() {
-    if (state.repo) await actions.openVault(state.repo.fs);
+    if (!state.repo) return;
+    await flushAll();
+    await actions.openVault(state.repo.fs);
   },
 
   /** A full boot, once loaded, goes on any key or click. */
@@ -208,7 +239,7 @@ export const actions = {
 
   /** ABORT on the boot panel: back to the welcome screen. Nothing is written. */
   abortBoot() {
-    actions.closeVault();
+    void actions.closeVault();
   },
 
   async openDemo() {
@@ -219,17 +250,40 @@ export const actions = {
 
   async reload() {
     if (!state.repo) return;
+    await flushAll();
     set({ busy: "Reloading…" });
     const stats = await state.repo.load();
     set({ stats, busy: null });
   },
 
-  closeVault() {
+  async closeVault() {
+    await flushAll();
     unsubscribeRepo?.();
     unsubscribeRepo = null;
     set({ repo: null, stats: null, view: { kind: "welcome" }, history: [], boot: null });
   },
 };
+
+async function applyHistory(dir: "undo" | "redo") {
+  const repo = state.repo;
+  if (!repo) return;
+  await flushAll();
+  try {
+    const res = await (dir === "undo" ? repo.undo() : repo.redo());
+    const msg = historyToast(dir, res);
+    if (msg) actions.toast(msg);
+    if (res.ok) leaveIfGone(repo);
+  } catch (err) {
+    // An I/O error part-way: the repository has logged what was written; the step stays on its stack.
+    actions.error(`${dir === "undo" ? "Undo" : "Redo"} failed: ${(err as Error).message}`);
+  }
+}
+
+/** An undo of a create (or redo of a delete) can remove the record the current page is showing. */
+function leaveIfGone(repo: Repository) {
+  const v = state.view;
+  if ((v.kind === "record" || v.kind === "map" || v.kind === "hull") && !repo.get(v.id)) actions.navigate({ kind: "list" });
+}
 
 export async function lastVaultPath(): Promise<string | null> {
   if (!isTauri()) return null;

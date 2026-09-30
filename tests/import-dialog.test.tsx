@@ -4,12 +4,13 @@
  * OPML file, read the preview, import, and find the notes, the "Before import" snapshot and the
  * index on disk. Runs the real screen inside the real App against an in-memory vault.
  */
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { App } from "../src/App";
-import { actions } from "../src/ui/state";
+import { actions, getApp } from "../src/ui/state";
 import { demoVault } from "../src/ui/demo";
 import { listSnapshots, SNAPSHOT_CAUSE } from "../src/core/snapshots";
+import { Repository } from "../src/core/repo";
 import { SpyAdapter } from "./helpers/spyAdapter";
 import { installBrowserShims } from "./helpers/browserShims";
 
@@ -103,5 +104,47 @@ describe("ImportDialog", () => {
     // The save never writes over it (S1c-fix): the note takes the next free slug.
     expect(await spy.readText(target)).toBe("<opml><body><outline text=");
     expect(await spy.readText(target.replace(".opml", "-2.opml"))).toContain("Late USSF");
+  });
+
+  // S1d (F5): the whole import is one undo step.
+  async function importFile(opml: string, count: number) {
+    const file = new File([opml], "fleets.opml");
+    await act(async () => void fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, { target: { files: [file] } }));
+    const button = await screen.findByRole("button", { name: new RegExp(`IMPORT ${count} NOTES`) });
+    await act(async () => void fireEvent.click(button));
+  }
+  const ctrlZ = (shift = false) => act(async () => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: shift, bubbles: true, cancelable: true })));
+
+  it("is one undo step: one Ctrl+Z takes every imported note back out, Ctrl+Shift+Z brings them in again", async () => {
+    const before = notePaths();
+    await importFile(OPML, 2);
+    const added = notePaths().filter((p) => !before.includes(p));
+    expect(added).toHaveLength(2);
+    expect(spy.inner.dump()["_index.csv"]).toContain("Early USSF");
+
+    await ctrlZ();
+    expect(notePaths()).toEqual(before);
+    expect(container.querySelector(".toast")?.textContent).toBe("UNDONE — IMPORT 2 NOTES");
+
+    await ctrlZ(true);
+    expect(notePaths().filter((p) => !before.includes(p))).toEqual(added);
+    expect(container.querySelector(".toast")?.textContent).toBe("REDONE — IMPORT 2 NOTES");
+  });
+
+  it("declares its ids to the transaction from 10 records up (so it snapshots first), and not below", async () => {
+    const spyTx = vi.spyOn(Repository.prototype, "transaction");
+    try {
+      await importFile(OPML, 2);
+      expect(spyTx.mock.calls.at(-1)![2]).toEqual({});
+      await act(async () => actions.navigate({ kind: "import" }));
+      const big = `<?xml version="1.0"?><opml version="2.0"><head><title>Big</title></head><body><outline text="Big">${Array.from({ length: 12 }, (_, i) => `<outline text="Item ${i}"/>`).join("")}</outline></body></opml>`;
+      await importFile(big, 12);
+      const opts = spyTx.mock.calls.at(-1)![2]!;
+      expect(opts.snapshot?.ids).toHaveLength(12);
+      expect(opts.snapshot?.cause).toBe(SNAPSHOT_CAUSE.import);
+      expect(getApp().repo!.history.peekUndo()!.entries).toHaveLength(12); // still one step
+    } finally {
+      spyTx.mockRestore();
+    }
   });
 });
