@@ -77,11 +77,13 @@ re-save after undo, the owner rulings, key routing, no deadlocks.
 
 **Not done / for later**
 - Distance-unit switch stays `saveConfig` from the map (deferred to S3 by ruling); the guard still exempts it by name.
-- S3 owns: the `DELETED — CTRL+Z TO UNDO` toast hint, SAVE ALL / the save indicator (`dirtyCount()` is there),
-  the rest of the keymap.
+- **S3 notes (deferred by the owner, PR #15 review):** the `DELETED — CTRL+Z TO UNDO` toast hint, SAVE ALL / the save
+  indicator (`dirtyCount()` in `drafts.ts` is there for it), and the rest of the keymap (`keys.ts` `KEYMAP`).
 - The L-point park guard exercises a location without `orbit_km` (Antares, a cycler); the `orbit_km` removal
   for a station parked from a moon orbit is not reached by it (that station only shows when zoomed in).
-- A dirty compact record inspector on the map beats a map drag of the same body (older behaviour; see the review).
+- **Known issue (owner: stays for now; S3 or doc 10 can pick it up):** a dirty compact record inspector on the map
+  beats a map drag of the same body — the drag is lost when the inspector's draft autosaves. Older behaviour, not
+  introduced by S1.
 
 **Open questions for the owner**
 - None blocking.
